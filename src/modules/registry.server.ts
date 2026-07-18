@@ -7,8 +7,10 @@ import { contentServerManifest } from "./content/manifest.server";
 import { settingsServerManifest } from "./settings/manifest.server";
 import { knowledgeServerManifest } from "./knowledge/manifest.server";
 import { agentsServerManifest } from "./agents/manifest.server";
+import { calendarServerManifest } from "./calendar/manifest.server";
 
 export const serverModules: ModuleServerManifest[] = [
+  calendarServerManifest,
   tasksServerManifest,
   projectsServerManifest,
   notesServerManifest,

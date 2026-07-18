@@ -59,6 +59,8 @@ export interface ModuleRouteProps {
 export interface ModuleJob {
   channel: string;
   handle(payload: string, ctx: AiToolContext): Promise<void>;
+  /** Optional cron pattern — the worker also runs this job on a schedule (payload = ""). */
+  schedule?: string;
 }
 
 export interface ModuleServerManifest {

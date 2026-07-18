@@ -8,8 +8,10 @@ import { contentManifest } from "./content/manifest";
 import { settingsManifest } from "./settings/manifest";
 import { knowledgeManifest } from "./knowledge/manifest";
 import { agentsManifest } from "./agents/manifest";
+import { calendarManifest } from "./calendar/manifest";
 
 export const modules: ModuleManifest[] = [
+  calendarManifest,
   tasksManifest,
   projectsManifest,
   notesManifest,

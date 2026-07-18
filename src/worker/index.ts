@@ -13,8 +13,30 @@ import { and, eq, inArray, lt } from "drizzle-orm";
 import postgres from "postgres";
 import { db } from "@/core/db/client";
 import { agentRuns, agents, type Agent } from "@/core/db/schema/agents";
+import { notifications } from "@/core/db/schema/notifications";
+import { getSetting, SETTING_KEYS } from "@/core/app-settings";
 import { serverModules } from "@/modules/registry.server";
 import { enqueueRun, executeRun } from "./executor";
+
+async function deliverToSlack(notificationId: string) {
+  const webhook = await getSetting(SETTING_KEYS.slackWebhookUrl);
+  if (!webhook) return;
+  const [n] = await db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.id, notificationId));
+  if (!n) return;
+  const res = await fetch(webhook, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: `*AIOS · ${n.title}*${n.body ? `\n${n.body}` : ""}`,
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`slack webhook → ${res.status}`);
+  log(`notification ${notificationId} delivered to Slack`);
+}
 
 const ADVISORY_LOCK_KEY = 0x41494f53; // "AIOS"
 const ORPHAN_AFTER_MS = 60 * 1000;
@@ -97,12 +119,20 @@ async function main() {
   await sweepOrphans();
   await syncSchedules();
 
-  // Module background jobs (e.g. knowledge ingestion).
+  // Module background jobs (e.g. knowledge ingestion, calendar sync).
+  const moduleJobs = serverModules.flatMap((m) => m.jobs ?? []);
   const jobHandlers = new Map(
-    serverModules
-      .flatMap((m) => m.jobs ?? [])
-      .map((j) => [j.channel, j.handle] as const),
+    moduleJobs.map((j) => [j.channel, j.handle] as const),
   );
+  for (const job of moduleJobs) {
+    if (!job.schedule) continue;
+    new Cron(job.schedule, { protect: true }, () => {
+      job.handle("", { db }).catch((e) =>
+        log(`scheduled job ${job.channel} failed: ${e}`),
+      );
+    });
+    log(`job "${job.channel}" scheduled [${job.schedule}]`);
+  }
 
   // Dedicated LISTEN connection.
   const listener = postgres(url, { max: 1 });
@@ -116,6 +146,11 @@ async function main() {
   });
   await listener.listen("config_changed", (key) => {
     log(`config_changed → ${key} (routes re-read per run; noted)`);
+  });
+  // Slack delivery of notifications (skipped gracefully when unconfigured).
+  await listener.listen("notifications", (id) => {
+    if (!id || id === "read") return;
+    deliverToSlack(id).catch((e) => log(`slack delivery failed: ${e}`));
   });
   for (const [channel, handle] of jobHandlers) {
     await listener.listen(channel, (payload) => {

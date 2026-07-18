@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getModule } from "@/modules/registry";
+import { NotificationsBell } from "./NotificationsBell";
 
 function Clock() {
   const [now, setNow] = useState<Date | null>(null);
@@ -49,7 +50,8 @@ export function TopBar() {
           {title}
         </h1>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        <NotificationsBell />
         <button
           type="button"
           onClick={() => window.dispatchEvent(new Event("aios:commandbar"))}
