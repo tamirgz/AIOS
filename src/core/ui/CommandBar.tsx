@@ -6,13 +6,30 @@ import { Command } from "cmdk";
 import { AnimatePresence, motion } from "motion/react";
 import {
   CornerDownLeft,
+  Inbox,
   LayoutGrid,
   Sparkles,
   Wrench,
   X,
+  Zap,
 } from "lucide-react";
 import { modules } from "@/modules/registry";
+import { captureToInbox } from "@/modules/inbox/actions";
+import { createTask } from "@/modules/tasks/actions";
+import { createNote } from "@/modules/notes/actions";
 import { cn } from "./cn";
+
+/**
+ * Deterministic fast path: recognized prefixes skip the LLM entirely and hit
+ * CRUD server actions directly — sub-second, zero tokens.
+ */
+function parseFastPath(search: string) {
+  const task = search.match(/^(?:task|todo|t):\s*(.+)$/i);
+  if (task) return { kind: "task" as const, text: task[1].trim() };
+  const note = search.match(/^(?:note|n):\s*(.+)$/i);
+  if (note) return { kind: "note" as const, text: note[1].trim() };
+  return null;
+}
 
 type ChatEvent =
   | { type: "meta"; provider: string; model: string }
@@ -260,6 +277,21 @@ export function CommandBar() {
     router.push(href);
   };
 
+  const fast = parseFastPath(search);
+  const runFast = async () => {
+    if (!fast) return;
+    if (fast.kind === "task") await createTask({ title: fast.text });
+    else await createNote({ title: fast.text });
+    setOpen(false);
+    router.refresh();
+  };
+  const runCapture = async () => {
+    if (!search.trim()) return;
+    await captureToInbox(search.trim());
+    setOpen(false);
+    router.refresh();
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -300,6 +332,45 @@ export function CommandBar() {
                   <Command.Empty className="px-3 py-6 text-center font-mono text-[11px] uppercase tracking-widest text-ink-faint">
                     no matching commands — try asking the AI
                   </Command.Empty>
+
+                  {fast && (
+                    <Command.Item
+                      value={`fast ${search}`}
+                      forceMount
+                      onSelect={runFast}
+                      className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink transition data-[selected=true]:bg-solar/10"
+                    >
+                      <Zap className="size-4 text-solar" />
+                      <span>
+                        {fast.kind === "task" ? "New task" : "New note"}{" "}
+                        <span className="text-ink-dim">“{fast.text}”</span>
+                      </span>
+                      <span className="ml-auto font-mono text-[9px] uppercase tracking-widest text-solar">
+                        instant
+                      </span>
+                    </Command.Item>
+                  )}
+
+                  {search.trim() && !fast && (
+                    <Command.Item
+                      value={`capture ${search}`}
+                      forceMount
+                      onSelect={runCapture}
+                      className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-ink transition data-[selected=true]:bg-solar/10"
+                    >
+                      <Inbox className="size-4 text-solar" />
+                      <span>
+                        Capture to Inbox{" "}
+                        <span className="text-ink-dim">
+                          “{search.trim().slice(0, 40)}
+                          {search.trim().length > 40 ? "…" : ""}”
+                        </span>
+                      </span>
+                      <span className="ml-auto font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+                        ai files it
+                      </span>
+                    </Command.Item>
+                  )}
 
                   <Command.Item
                     value={`ask-ai ${search}`}

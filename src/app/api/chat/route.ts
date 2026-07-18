@@ -6,7 +6,8 @@ import { modules } from "@/modules/registry";
 
 export const maxDuration = 300;
 
-function systemPrompt() {
+async function systemPrompt() {
+  const { renderMemoryContext } = await import("@/core/memory");
   const moduleList = modules.map((m) => m.id).join(", ");
   return [
     "You are the AI core of AIOS — the user's personal AI operating system.",
@@ -14,6 +15,8 @@ function systemPrompt() {
     "Use the available tools to read and change the user's data when asked.",
     "Be concise: answer in a few sentences. After acting, state plainly what you did.",
     `Current date-time: ${new Date().toISOString()}`,
+    "",
+    await renderMemoryContext(),
   ].join("\n");
 }
 
@@ -39,7 +42,7 @@ export async function POST(req: Request) {
       });
       try {
         for await (const event of route.provider.run({
-          system: systemPrompt(),
+          system: await systemPrompt(),
           messages,
           tools,
           toolCtx: { db },

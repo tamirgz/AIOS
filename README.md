@@ -13,8 +13,10 @@ docker compose up -d      # Postgres 17 + pgvector on :5544
 pnpm install
 pnpm db:migrate           # apply migrations
 pnpm dev                  # web app → http://localhost:3777
-pnpm worker               # agent runner (separate terminal, REQUIRED for agents + knowledge enrichment)
+pnpm worker               # agent runner (separate terminal, REQUIRED for agents + pipelines)
 ```
+
+**Daemon mode (survives reboots):** the worker runs as a LaunchAgent (`launchd/com.aios.worker.plist`, installed in `~/Library/LaunchAgents`). For the web app: `pnpm build`, then `cp launchd/com.aios.web.plist ~/Library/LaunchAgents/ && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.aios.web.plist` (stop `pnpm dev` first — same port). After code changes: `launchctl kickstart -k gui/$(id -u)/com.aios.worker` (and `.web`). Logs: `~/Library/Logs/aios-*.log`.
 
 Anthropic auth: works out of the box if the `claude` CLI is logged in on this machine. For a headless/daemon setup, run `claude setup-token` once and put the token in `.env.local` as `CLAUDE_CODE_OAUTH_TOKEN`. Ollama: any local model, configured per-job in **Settings → AI routing**.
 
@@ -27,6 +29,10 @@ Anthropic auth: works out of the box if the `claude` CLI is logged in on this ma
 - `src/modules/registry.ts` + `registry.server.ts` — **one import line per module, per file**. That's the whole integration surface.
 - `src/worker/` — host-run agent runner: cron scheduling (croner), one-live-run-per-agent DB guard, heartbeats + orphan sweep, `agent_ledger` processed-items manifest for idempotent scheduled runs, module job channels (knowledge enrichment runs here).
 - AI: `AIProvider` abstraction with Anthropic (Agent SDK, subscription auth) and Ollama (OpenAI-compatible) adapters; per-job routing table (`ai_routes`) editable in Settings; every module's `aiTools` are auto-exposed to chat **and** agents (agents get a per-agent allowlist).
+- **Memory blocks**: labeled, size-budgeted `memory_blocks` (who_i_am, current_focus, preferences, active_projects) injected into every AI call; chat/agents maintain them via `memory.update`; editable in Settings.
+- **Inbox**: universal capture (⌘K "Capture to Inbox" or /m/inbox) → AI triage (Haiku by default) routes into tasks/notes/knowledge/calendar. Deterministic fast path: `task:`/`note:` prefixes in ⌘K hit CRUD directly, zero tokens.
+- **Semantic search**: pgvector + local `nomic-embed-text`; worker embeds new rows every 2 min; `search.everything` tool + "related — by meaning" panels on notes/knowledge.
+- **Approvals**: tools can declare `risk: "approval"` — unattended agent runs park the call in a pending-approval queue (Agents page + bell) instead of executing; approving hands it to the worker. Chat executes directly (user present).
 
 ## Adding a module
 

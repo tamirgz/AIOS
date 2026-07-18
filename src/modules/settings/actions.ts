@@ -11,6 +11,12 @@ const ALLOWED_INTEGRATION_KEYS = new Set([
   "calendar_ics_url",
 ]);
 
+export async function saveMemoryBlock(label: string, value: string) {
+  const { updateMemoryBlock } = await import("@/core/memory");
+  await updateMemoryBlock(label, value, "replace");
+  revalidatePath("/m/settings");
+}
+
 export async function saveIntegration(key: string, value: string) {
   if (!ALLOWED_INTEGRATION_KEYS.has(key)) throw new Error("unknown setting");
   await setSetting(key, value.trim());

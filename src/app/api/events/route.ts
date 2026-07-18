@@ -34,6 +34,8 @@ export async function GET(req: Request) {
         "knowledge_changed",
         "notifications",
         "calendar_changed",
+        "inbox_changed",
+        "approvals_changed",
       ]) {
         await listener.listen(channel, (payload) =>
           send(channel, payload ?? ""),

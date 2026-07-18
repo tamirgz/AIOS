@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/core/db/client";
 import type { ModuleRouteProps } from "@/core/modules/types.server";
+import { RelatedItems } from "@/core/ui/RelatedItems";
 import { notes } from "../schema";
 import { NoteEditor } from "../components/NoteEditor";
 
@@ -33,5 +34,10 @@ export async function NoteDetailPage({ params }: ModuleRouteProps) {
     );
   }
 
-  return <NoteEditor note={note} />;
+  return (
+    <>
+      <NoteEditor note={note} />
+      <RelatedItems kind="note" id={note.id} />
+    </>
+  );
 }

@@ -138,19 +138,30 @@ export async function executeRun(runId: string): Promise<void> {
   try {
     const { provider, model } = await routeFor(agent);
     const ledger = ledgerFor(agent.id, runId);
-    const tools = [...getToolsByNames(agent.tools), ...ledgerTools(ledger)];
+    // ledger.* and memory.update are always available, like in chat.
+    // Approval-tier tools are wrapped: unattended runs queue the call for the
+    // user instead of executing it.
+    const tools = [
+      ...getToolsByNames([...agent.tools, "memory.update"]).map((t) =>
+        t.risk === "approval" ? wrapWithApproval(t, agent, runId) : t,
+      ),
+      ...ledgerTools(ledger),
+    ];
 
     let finalText = "";
     let tokensIn = 0;
     let tokensOut = 0;
     let errored: string | null = null;
 
+    const { renderMemoryContext } = await import("@/core/memory");
     for await (const event of provider.run({
       system: [
         `You are "${agent.name}", an autonomous background agent inside AIOS, the user's personal AI operating system.`,
         "You run unattended — do the work with your tools, then produce a concise final report of what you did and found.",
         "Idempotency: use ledger.has to check items before acting and ledger.mark after processing. Never redo work a previous run already did.",
         `Current date-time: ${new Date().toISOString()}`,
+        "",
+        await renderMemoryContext(),
       ].join("\n"),
       messages: [{ role: "user", content: agent.prompt }],
       tools,
@@ -193,6 +204,81 @@ export async function executeRun(runId: string): Promise<void> {
   } finally {
     clearTimeout(timeout);
     clearInterval(heartbeat);
+  }
+}
+
+function wrapWithApproval(
+  tool: AiToolDef,
+  agent: Agent,
+  runId: string,
+): AiToolDef {
+  return {
+    ...tool,
+    description: `${tool.description} NOTE: this action requires the user's approval — calling it queues the request; it executes only after the user approves.`,
+    async execute(input) {
+      const { approvals } = await import("@/core/db/schema/approvals");
+      const { notify } = await import("@/core/notify");
+      const [row] = await db
+        .insert(approvals)
+        .values({
+          agentId: agent.id,
+          runId,
+          agentName: agent.name,
+          toolName: tool.name,
+          input,
+        })
+        .returning();
+      await sql.notify("approvals_changed", row.id);
+      await notify({
+        title: `Approval needed: ${tool.name}`,
+        body: `Agent "${agent.name}" wants to run ${tool.name} with:\n${JSON.stringify(input, null, 2).slice(0, 400)}`,
+        level: "warn",
+        source: `agent:${agent.name}`,
+        href: "/m/agents",
+      });
+      return {
+        pending_approval: row.id,
+        note: "Queued for the user's approval; it will execute once approved. Mention this in your report.",
+      };
+    },
+  };
+}
+
+/** Called by the worker when the user approves — executes the parked call. */
+export async function executeApproval(approvalId: string): Promise<void> {
+  const { approvals } = await import("@/core/db/schema/approvals");
+  const { notify } = await import("@/core/notify");
+  const [row] = await db
+    .select()
+    .from(approvals)
+    .where(eq(approvals.id, approvalId));
+  if (!row || row.status !== "approved") return;
+
+  const tool = getToolsByNames([row.toolName])[0];
+  const patch = async (p: Record<string, unknown>) => {
+    await db.update(approvals).set(p).where(eq(approvals.id, approvalId));
+    await sql.notify("approvals_changed", approvalId);
+  };
+
+  try {
+    if (!tool) throw new Error(`tool ${row.toolName} no longer exists`);
+    const input = tool.input.parse(row.input);
+    const result = await tool.execute(input, { db });
+    await patch({ status: "executed", result: result ?? null });
+    await notify({
+      title: `Approved & done: ${row.toolName}`,
+      body: JSON.stringify(result ?? {}).slice(0, 300),
+      level: "success",
+      source: `agent:${row.agentName}`,
+    });
+  } catch (e) {
+    await patch({ status: "failed", result: { error: String(e) } });
+    await notify({
+      title: `Approved action failed: ${row.toolName}`,
+      body: String(e).slice(0, 300),
+      level: "warn",
+      source: `agent:${row.agentName}`,
+    });
   }
 }
 

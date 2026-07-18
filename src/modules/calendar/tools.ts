@@ -35,6 +35,7 @@ export const calendarTools: AiToolDef[] = [
   },
   {
     name: "calendar.createEvent",
+    risk: "approval",
     description:
       "Create a local AIOS calendar event (not written to Google Calendar).",
     input: z.object({

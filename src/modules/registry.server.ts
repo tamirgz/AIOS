@@ -8,8 +8,10 @@ import { settingsServerManifest } from "./settings/manifest.server";
 import { knowledgeServerManifest } from "./knowledge/manifest.server";
 import { agentsServerManifest } from "./agents/manifest.server";
 import { calendarServerManifest } from "./calendar/manifest.server";
+import { inboxServerManifest } from "./inbox/manifest.server";
 
 export const serverModules: ModuleServerManifest[] = [
+  inboxServerManifest,
   calendarServerManifest,
   tasksServerManifest,
   projectsServerManifest,

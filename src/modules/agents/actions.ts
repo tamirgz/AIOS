@@ -94,6 +94,20 @@ export async function deleteAgent(id: string) {
   await notifyChanged(id);
 }
 
+export async function decideApproval(id: string, approved: boolean) {
+  const { approvals } = await import("@/core/db/schema/approvals");
+  await db
+    .update(approvals)
+    .set({
+      status: approved ? "approved" : "rejected",
+      decidedAt: new Date(),
+    })
+    .where(eq(approvals.id, id));
+  await sql.notify("approvals_changed", id);
+  if (approved) await sql.notify("approval_decisions", id);
+  revalidatePath("/m/agents");
+}
+
 export async function requestRun(
   agentId: string,
 ): Promise<{ runId?: string; alreadyRunning?: boolean }> {

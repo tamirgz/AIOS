@@ -7,6 +7,45 @@ import { NOTIFICATION_LEVELS } from "@/core/db/schema/notifications";
 /** Core tools available alongside module tools. */
 const CORE_TOOLS: AiToolDef[] = [
   {
+    name: "search.everything",
+    description:
+      "Semantic search across ALL the user's data — notes, knowledge base, tasks — by meaning, not just keywords. Use this first when asked about anything the user may have saved.",
+    input: z.object({
+      query: z.string().min(1),
+      limit: z.number().int().min(1).max(20).default(8),
+    }),
+    async execute(input) {
+      const { searchEverything } = await import("@/core/embeddings");
+      const hits = await searchEverything(input.query, input.limit);
+      return hits.map((h) => ({
+        kind: h.kind,
+        id: h.id,
+        title: h.title,
+        snippet: h.snippet,
+      }));
+    },
+  },
+  {
+    name: "memory.update",
+    description:
+      "Update a persistent memory block (who_i_am, current_focus, preferences, active_projects). Use whenever you learn something durable about the user or their work. Keep blocks concise — they have char budgets.",
+    input: z.object({
+      label: z.enum([
+        "who_i_am",
+        "current_focus",
+        "preferences",
+        "active_projects",
+      ]),
+      value: z.string().min(1),
+      mode: z.enum(["replace", "append"]).default("replace"),
+    }),
+    async execute(input) {
+      const { updateMemoryBlock } = await import("@/core/memory");
+      const next = await updateMemoryBlock(input.label, input.value, input.mode);
+      return { updated: input.label, length: next.length };
+    },
+  },
+  {
     name: "notify.send",
     description:
       "Send the user a notification (bell feed + Slack if configured). Use for reports, reminders, and anything the user should see without opening the app.",

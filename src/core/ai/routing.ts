@@ -25,6 +25,11 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
     provider: "anthropic",
     model: "claude-sonnet-5",
   },
+  {
+    taskKey: "inbox.triage",
+    provider: "anthropic",
+    model: "claude-haiku-4-5-20251001",
+  },
 ];
 
 /** Insert default rows once so the Settings UI always has something to edit. */

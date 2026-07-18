@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   uuid,
+  vector,
 } from "drizzle-orm/pg-core";
 
 export const TASK_STATUSES = ["todo", "doing", "done"] as const;
@@ -27,6 +28,8 @@ export const tasks = pgTable("tasks", {
     .notNull()
     .defaultNow(),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  /** nomic-embed-text vector, filled by the worker's embedding sweep. */
+  embedding: vector("embedding", { dimensions: 768 }),
 });
 
 export type Task = typeof tasks.$inferSelect;

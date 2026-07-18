@@ -25,6 +25,12 @@ export interface AiToolDef<I = any> {
   description: string;
   input: ZodType<I>;
   execute(input: I, ctx: AiToolContext): Promise<unknown>;
+  /**
+   * "safe" (default): executes immediately everywhere.
+   * "approval": in unattended AGENT runs the call is queued for the user to
+   * approve (chat executes directly — the user is present).
+   */
+  risk?: "safe" | "approval";
 }
 
 export interface AgentTemplate {

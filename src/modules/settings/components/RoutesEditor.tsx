@@ -11,6 +11,7 @@ const KEY_LABELS: Record<string, string> = {
   chat: "⌘K chat & commands",
   "agent.default": "Agents (default)",
   "knowledge.enrich": "Knowledge enrichment",
+  "inbox.triage": "Inbox triage",
 };
 
 function RouteRow({ route }: { route: AiRoute }) {

@@ -16,7 +16,7 @@ import { agentRuns, agents, type Agent } from "@/core/db/schema/agents";
 import { notifications } from "@/core/db/schema/notifications";
 import { getSetting, SETTING_KEYS } from "@/core/app-settings";
 import { serverModules } from "@/modules/registry.server";
-import { enqueueRun, executeRun } from "./executor";
+import { enqueueRun, executeApproval, executeRun } from "./executor";
 
 async function deliverToSlack(notificationId: string) {
   const webhook = await getSetting(SETTING_KEYS.slackWebhookUrl);
@@ -144,6 +144,12 @@ async function main() {
     log(`run request → ${runId}`);
     executeRun(runId).catch((e) => log(`run ${runId} failed: ${e}`));
   });
+  await listener.listen("approval_decisions", (approvalId) => {
+    log(`approval decision → ${approvalId}`);
+    executeApproval(approvalId).catch((e) =>
+      log(`approval ${approvalId} failed: ${e}`),
+    );
+  });
   await listener.listen("config_changed", (key) => {
     log(`config_changed → ${key} (routes re-read per run; noted)`);
   });
@@ -166,6 +172,18 @@ async function main() {
   new Cron("*/5 * * * *", () => {
     sweepOrphans().catch(() => {});
     syncSchedules().catch(() => {});
+  });
+
+  // Embedding sweep: local nomic-embed-text via Ollama, rows with NULL
+  // embeddings only — idempotent, free, offline.
+  new Cron("*/2 * * * *", { protect: true }, async () => {
+    try {
+      const { sweepEmbeddings } = await import("@/core/embeddings");
+      const n = await sweepEmbeddings();
+      if (n > 0) log(`embedded ${n} row(s)`);
+    } catch (e) {
+      log(`embedding sweep failed (ollama down?): ${String(e).slice(0, 120)}`);
+    }
   });
 
   // Catch up: execute any queued runs left from before boot.
