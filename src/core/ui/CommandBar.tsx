@@ -126,7 +126,7 @@ function ChatView({
   }, [chat.turns]);
 
   return (
-    <div className="flex h-105 flex-col">
+    <div className="flex h-[min(26.25rem,72vh)] flex-col">
       <div
         ref={scrollRef}
         className="flex-1 space-y-3 overflow-y-auto px-4 py-3"

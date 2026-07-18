@@ -84,7 +84,11 @@ export const anthropicProvider: AIProvider = {
             if (block.type === "text" && block.text.trim()) {
               finalText = block.text;
               yield { type: "text", text: block.text };
-            } else if (block.type === "tool_use") {
+            } else if (
+              block.type === "tool_use" &&
+              block.name.startsWith(MCP_PREFIX)
+            ) {
+              // Internal harness tools (ToolSearch etc.) are not surfaced.
               yield {
                 type: "tool_call",
                 name: deNamespace(block.name),

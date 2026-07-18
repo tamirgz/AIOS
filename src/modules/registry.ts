@@ -5,12 +5,14 @@ import { tasksManifest } from "./tasks/manifest";
 import { projectsManifest } from "./projects/manifest";
 import { notesManifest } from "./notes/manifest";
 import { contentManifest } from "./content/manifest";
+import { settingsManifest } from "./settings/manifest";
 
 export const modules: ModuleManifest[] = [
   tasksManifest,
   projectsManifest,
   notesManifest,
   contentManifest,
+  settingsManifest,
 ];
 
 export const navModules = [...modules].sort(

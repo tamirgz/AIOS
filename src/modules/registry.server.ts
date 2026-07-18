@@ -4,12 +4,14 @@ import { tasksServerManifest } from "./tasks/manifest.server";
 import { projectsServerManifest } from "./projects/manifest.server";
 import { notesServerManifest } from "./notes/manifest.server";
 import { contentServerManifest } from "./content/manifest.server";
+import { settingsServerManifest } from "./settings/manifest.server";
 
 export const serverModules: ModuleServerManifest[] = [
   tasksServerManifest,
   projectsServerManifest,
   notesServerManifest,
   contentServerManifest,
+  settingsServerManifest,
 ];
 
 export function getServerModule(
