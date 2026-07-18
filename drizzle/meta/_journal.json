@@ -15,6 +15,13 @@
       "when": 1784399328130,
       "tag": "0001_melodic_tana_nile",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784401782817,
+      "tag": "0002_neat_magus",
+      "breakpoints": true
     }
   ]
 }

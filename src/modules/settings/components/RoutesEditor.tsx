@@ -10,6 +10,7 @@ import { saveRoute } from "../actions";
 const KEY_LABELS: Record<string, string> = {
   chat: "⌘K chat & commands",
   "agent.default": "Agents (default)",
+  "knowledge.enrich": "Knowledge enrichment",
 };
 
 function RouteRow({ route }: { route: AiRoute }) {

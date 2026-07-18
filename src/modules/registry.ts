@@ -6,12 +6,16 @@ import { projectsManifest } from "./projects/manifest";
 import { notesManifest } from "./notes/manifest";
 import { contentManifest } from "./content/manifest";
 import { settingsManifest } from "./settings/manifest";
+import { knowledgeManifest } from "./knowledge/manifest";
+import { agentsManifest } from "./agents/manifest";
 
 export const modules: ModuleManifest[] = [
   tasksManifest,
   projectsManifest,
   notesManifest,
   contentManifest,
+  knowledgeManifest,
+  agentsManifest,
   settingsManifest,
 ];
 

@@ -51,6 +51,16 @@ export interface ModuleRouteProps {
   params: string[];
 }
 
+/**
+ * Background job handler run by the worker process. The worker LISTENs on
+ * `channel`; a NOTIFY with a payload invokes `handle`. Modules use this for
+ * async pipelines (e.g. knowledge enrichment) without touching worker code.
+ */
+export interface ModuleJob {
+  channel: string;
+  handle(payload: string, ctx: AiToolContext): Promise<void>;
+}
+
 export interface ModuleServerManifest {
   id: string;
   /** "" is the module root page; "[id]" matches a single dynamic segment. */
@@ -59,4 +69,5 @@ export interface ModuleServerManifest {
   schema: Record<string, PgTable>;
   aiTools: AiToolDef[];
   agentTemplates: AgentTemplate[];
+  jobs?: ModuleJob[];
 }

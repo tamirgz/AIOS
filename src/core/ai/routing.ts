@@ -20,6 +20,11 @@ export interface ResolvedRoute {
 const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   { taskKey: "chat", provider: "anthropic", model: "claude-sonnet-5" },
   { taskKey: "agent.default", provider: "anthropic", model: "claude-sonnet-5" },
+  {
+    taskKey: "knowledge.enrich",
+    provider: "anthropic",
+    model: "claude-sonnet-5",
+  },
 ];
 
 /** Insert default rows once so the Settings UI always has something to edit. */

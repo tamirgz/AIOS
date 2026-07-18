@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { asc, eq, ilike } from "drizzle-orm";
+import { and, asc, eq, ilike } from "drizzle-orm";
 import type { AiToolDef } from "@/core/modules/types.server";
 import {
   priorityRank,
@@ -45,16 +45,14 @@ export const taskTools: AiToolDef[] = [
       limit: z.number().int().min(1).max(100).default(50),
     }),
     async execute(input, { db }) {
+      const filters = [
+        input.status ? eq(tasks.status, input.status) : undefined,
+        input.search ? ilike(tasks.title, `%${input.search}%`) : undefined,
+      ].filter((f) => f !== undefined);
       const rows = await db
         .select()
         .from(tasks)
-        .where(
-          input.status
-            ? eq(tasks.status, input.status)
-            : input.search
-              ? ilike(tasks.title, `%${input.search}%`)
-              : undefined,
-        )
+        .where(filters.length ? and(...filters) : undefined)
         .orderBy(priorityRank, asc(tasks.createdAt))
         .limit(input.limit);
       return rows.map((t) => ({
@@ -63,6 +61,8 @@ export const taskTools: AiToolDef[] = [
         status: t.status,
         priority: t.priority,
         dueAt: t.dueAt,
+        createdAt: t.createdAt,
+        completedAt: t.completedAt,
       }));
     },
   },

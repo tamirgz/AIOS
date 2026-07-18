@@ -1,0 +1,64 @@
+import { eq } from "drizzle-orm";
+import { db, sql } from "@/core/db/client";
+import type { ModuleJob } from "@/core/modules/types.server";
+import { enrichItem } from "./enrich";
+import { fetchRaw } from "./fetchers";
+import { knowledgeItems, type KnowledgeStatus } from "./schema";
+
+async function setStatus(
+  id: string,
+  status: KnowledgeStatus,
+  patch: Record<string, unknown> = {},
+) {
+  await db
+    .update(knowledgeItems)
+    .set({ status, updatedAt: new Date(), ...patch })
+    .where(eq(knowledgeItems.id, id));
+  await sql.notify("knowledge_changed", id);
+}
+
+/**
+ * Staged pipeline: captured → fetching → enriching → ready | error.
+ * Runs in the worker (LISTEN "knowledge_ingest", payload = item id).
+ * Each stage persists its output, so a retry resumes with what exists.
+ */
+export async function processKnowledgeItem(itemId: string): Promise<void> {
+  const [item] = await db
+    .select()
+    .from(knowledgeItems)
+    .where(eq(knowledgeItems.id, itemId));
+  if (!item) return;
+  if (item.status === "ready") return; // idempotent re-delivery guard
+
+  try {
+    let raw = item.raw as Record<string, unknown> | null;
+    if (!raw && item.url) {
+      await setStatus(itemId, "fetching", { statusDetail: null });
+      raw = await fetchRaw(item.kind, item.url);
+      await setStatus(itemId, "fetching", { raw });
+    }
+
+    await setStatus(itemId, "enriching");
+    const insight = await enrichItem({ ...item, raw });
+
+    const title =
+      (raw?.title as string | undefined) ??
+      item.title ??
+      insight.summary.slice(0, 80);
+
+    await setStatus(itemId, "ready", {
+      insight,
+      title,
+      statusDetail: null,
+    });
+  } catch (e) {
+    await setStatus(itemId, "error", { statusDetail: String(e).slice(0, 500) });
+  }
+}
+
+export const knowledgeJobs: ModuleJob[] = [
+  {
+    channel: "knowledge_ingest",
+    handle: (payload) => processKnowledgeItem(payload),
+  },
+];

@@ -1,0 +1,27 @@
+import { eq } from "drizzle-orm";
+import { db } from "@/core/db/client";
+import type { ModuleRouteProps } from "@/core/modules/types.server";
+import { GlassPanel } from "@/core/ui/GlassPanel";
+import { KnowledgeDetail } from "../components/KnowledgeDetail";
+import { knowledgeItems } from "../schema";
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function KnowledgeDetailPage({ params }: ModuleRouteProps) {
+  const id = params[0];
+  const [item] = UUID_RE.test(id)
+    ? await db.select().from(knowledgeItems).where(eq(knowledgeItems.id, id))
+    : [];
+
+  if (!item) {
+    return (
+      <GlassPanel className="px-8 py-16 text-center">
+        <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-flare">
+          item not found
+        </p>
+      </GlassPanel>
+    );
+  }
+  return <KnowledgeDetail item={item} />;
+}
