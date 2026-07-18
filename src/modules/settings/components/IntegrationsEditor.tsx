@@ -24,12 +24,14 @@ function IntegrationField({
   const dirty = value !== initial || (value !== "" && !saved && value === initial);
 
   return (
-    <div className="glass rounded-xl p-4">
-      <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">
-        {settingKey}
+    <div className="glass rounded-xl p-3">
+      <p className="text-sm text-ink">
+        {label}{" "}
+        <span className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+          {settingKey}
+        </span>
       </p>
-      <p className="mb-1 text-sm text-ink">{label}</p>
-      <p className="mb-3 text-xs leading-relaxed text-ink-dim">{hint}</p>
+      <p className="mb-2 text-xs leading-snug text-ink-dim">{hint}</p>
       <div className="flex gap-2">
         <input
           type="password"
@@ -73,7 +75,7 @@ export function IntegrationsEditor({
   slackWebhook: string;
 }) {
   return (
-    <div className="mt-8 flex flex-col gap-3">
+    <div className="flex flex-col gap-2.5">
       <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
         integrations
       </p>

@@ -33,15 +33,15 @@ function CaptureBox() {
           if (ref.current) ref.current.value = "";
         });
       }}
-      className="glass mb-6 flex items-start gap-3 rounded-2xl p-4 focus-within:glass-edge"
+      className="glass mb-4 flex items-start gap-3 rounded-2xl p-3 focus-within:glass-edge"
     >
       <Inbox className="mt-1 size-5 shrink-0 text-solar" />
       <textarea
         ref={ref}
-        rows={2}
+        rows={1}
         autoFocus
         placeholder="Dump anything — a to-do, an idea, a link, 'call dan tuesday 3pm'… AI files it for you."
-        className="min-h-14 flex-1 resize-y bg-transparent text-sm leading-relaxed text-ink outline-none placeholder:text-ink-faint"
+        className="min-h-10 flex-1 resize-y bg-transparent text-sm leading-relaxed text-ink outline-none placeholder:text-ink-faint"
         disabled={pending}
       />
       <button

@@ -31,7 +31,7 @@ function NavItem({
       )}
       <span
         className={cn(
-          "relative flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm transition-colors",
+          "relative flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-colors",
           active
             ? "text-ink"
             : "text-ink-dim hover:text-ink hover:bg-white/3",
@@ -57,9 +57,9 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="glass sticky top-4 m-4 mr-0 flex h-[calc(100vh-2rem)] w-60 shrink-0 flex-col rounded-(--radius-panel) p-4">
+    <aside className="glass sticky top-3 m-3 mr-0 flex h-[calc(100vh-1.5rem)] w-52 shrink-0 flex-col rounded-(--radius-panel) p-3">
       {/* logo */}
-      <Link href="/" className="mb-8 flex items-center gap-3 px-2 pt-1">
+      <Link href="/" className="mb-5 flex items-center gap-3 px-2 pt-1">
         <span className="relative flex size-9 items-center justify-center rounded-xl border border-plasma/30 bg-plasma/10">
           <span className="font-display text-lg font-bold text-plasma text-glow">
             A

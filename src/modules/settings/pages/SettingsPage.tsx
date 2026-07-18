@@ -14,17 +14,20 @@ export async function SettingsPage() {
     db.select().from(aiRoutes).orderBy(asc(aiRoutes.taskKey)),
     getSetting(SETTING_KEYS.calendarIcsUrl),
     getSetting(SETTING_KEYS.slackWebhookUrl),
-    listMemoryBlocks(),
+    // Memory being unavailable must not take the whole page down.
+    listMemoryBlocks().catch(() => []),
   ]);
 
   return (
-    <div className="max-w-3xl">
-      <RoutesEditor routes={routes} />
+    <div className="grid max-w-6xl grid-cols-1 gap-x-6 gap-y-5 xl:grid-cols-2">
+      <div className="flex flex-col gap-5">
+        <RoutesEditor routes={routes} />
+        <IntegrationsEditor
+          icsUrl={icsUrl ?? ""}
+          slackWebhook={slackWebhook ?? ""}
+        />
+      </div>
       <MemoryEditor blocks={memory} />
-      <IntegrationsEditor
-        icsUrl={icsUrl ?? ""}
-        slackWebhook={slackWebhook ?? ""}
-      />
     </div>
   );
 }

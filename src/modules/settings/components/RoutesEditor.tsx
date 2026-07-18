@@ -42,13 +42,13 @@ function RouteRow({ route }: { route: AiRoute }) {
   const dirty = provider !== route.provider || model !== route.model;
 
   return (
-    <div className="glass flex flex-wrap items-center gap-3 rounded-xl p-4">
-      <div className="min-w-44">
-        <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">
-          {route.taskKey}
-        </p>
+    <div className="glass flex flex-wrap items-center gap-2.5 rounded-xl p-3">
+      <div className="min-w-40">
         <p className="text-sm text-ink">
           {KEY_LABELS[route.taskKey] ?? route.taskKey}
+        </p>
+        <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-ink-faint">
+          {route.taskKey}
         </p>
       </div>
 
@@ -119,7 +119,7 @@ function RouteRow({ route }: { route: AiRoute }) {
 
 export function RoutesEditor({ routes }: { routes: AiRoute[] }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2.5">
       <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
         ai routing — which brain answers which job
       </p>

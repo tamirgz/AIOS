@@ -49,7 +49,7 @@ function QuickAdd() {
         e.preventDefault();
         submit();
       }}
-      className="glass mb-5 flex items-center gap-2 rounded-xl p-2 pl-4 focus-within:glass-edge"
+      className="glass mb-4 flex items-center gap-2 rounded-xl p-1.5 pl-3 focus-within:glass-edge"
     >
       <Plus className="size-4 text-plasma" />
       <input

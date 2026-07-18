@@ -224,7 +224,7 @@ export function AgentDetail({
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            rows={5}
+            rows={4}
             className="w-full resize-y rounded-lg border border-white/8 bg-abyss/50 p-3 font-mono text-xs leading-relaxed text-ink outline-none focus:border-flare/30"
           />
         </div>

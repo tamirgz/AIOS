@@ -38,17 +38,17 @@ export function TopBar() {
   const title = mod?.title ?? "Dashboard";
 
   return (
-    <header className="mb-6 flex items-center justify-between">
-      <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
+    <header className="mb-4 flex items-center justify-between">
+      <div className="flex items-baseline gap-3">
+        <h1 className="font-display text-xl font-semibold tracking-wide text-ink">
+          {title}
+        </h1>
+        <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-ink-faint">
           aios /{" "}
           <span style={mod ? { color: mod.accent } : { color: "var(--color-plasma)" }}>
             {title.toLowerCase()}
           </span>
         </p>
-        <h1 className="font-display text-2xl font-semibold tracking-wide text-ink">
-          {title}
-        </h1>
       </div>
       <div className="flex items-center gap-3">
         <NotificationsBell />

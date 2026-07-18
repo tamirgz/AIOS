@@ -14,7 +14,7 @@ function BlockField({ block }: { block: MemoryBlock }) {
   const dirty = value !== block.value;
 
   return (
-    <div className="glass rounded-xl p-4">
+    <div className="glass rounded-xl p-3">
       <div className="mb-1 flex items-baseline justify-between">
         <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-plasma">
           {block.label}
@@ -28,7 +28,7 @@ function BlockField({ block }: { block: MemoryBlock }) {
           {value.length}/{block.charLimit}
         </p>
       </div>
-      <p className="mb-2 text-xs text-ink-dim">{block.description}</p>
+      <p className="mb-1.5 text-xs text-ink-dim">{block.description}</p>
       <textarea
         value={value}
         onChange={(e) => {
@@ -36,7 +36,7 @@ function BlockField({ block }: { block: MemoryBlock }) {
           setSaved(false);
           setError(null);
         }}
-        rows={3}
+        rows={2}
         placeholder="(empty — chat and agents will fill this as they learn, or write it yourself)"
         className="w-full resize-y rounded-lg border border-white/8 bg-abyss/50 p-3 text-sm leading-relaxed text-ink outline-none placeholder:text-ink-faint focus:border-plasma/30"
       />
@@ -70,7 +70,7 @@ function BlockField({ block }: { block: MemoryBlock }) {
 
 export function MemoryEditor({ blocks }: { blocks: MemoryBlock[] }) {
   return (
-    <div className="mt-8 flex flex-col gap-3">
+    <div className="flex flex-col gap-2.5">
       <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
         persistent memory — injected into every AI call
       </p>

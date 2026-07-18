@@ -27,10 +27,10 @@ export function WidgetFrame({
         damping: 30,
         delay: index * 0.07,
       }}
-      className={cn("glass flex flex-col rounded-(--radius-panel) p-5", className)}
+      className={cn("glass flex flex-col rounded-(--radius-panel) p-4", className)}
     >
       <p
-        className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em]"
+        className="mb-2 font-mono text-[10px] uppercase tracking-[0.25em]"
         style={{ color: accent }}
       >
         {title}

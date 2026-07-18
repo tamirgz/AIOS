@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const SIZE_CLASS = {
   sm: "col-span-12 md:col-span-4",
-  md: "col-span-12 md:col-span-6",
+  md: "col-span-12 md:col-span-6 xl:col-span-4",
   lg: "col-span-12",
 } as const;
 
@@ -19,7 +19,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="grid grid-cols-12 gap-4">
+    <div className="grid grid-cols-12 gap-3">
       {widgets.length === 0 && (
         <GlassPanel className="col-span-12 flex flex-col items-center gap-3 px-8 py-20 text-center">
           <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-plasma text-glow">

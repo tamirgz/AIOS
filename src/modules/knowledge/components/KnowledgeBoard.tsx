@@ -27,7 +27,7 @@ function CaptureBox() {
           if (noteRef.current) noteRef.current.value = "";
         });
       }}
-      className="glass mb-6 rounded-2xl p-4 focus-within:glass-edge"
+      className="glass mb-4 rounded-2xl p-3 focus-within:glass-edge"
     >
       <div className="flex items-start gap-3">
         <BrainCircuit className="mt-1 size-5 shrink-0 text-orchid" />
@@ -35,7 +35,7 @@ function CaptureBox() {
           ref={inputRef}
           rows={2}
           placeholder="Paste anything — a GitHub repo, Instagram/TikTok link, a quote, an idea…"
-          className="min-h-16 flex-1 resize-y bg-transparent text-sm leading-relaxed text-ink outline-none placeholder:text-ink-faint"
+          className="min-h-10 flex-1 resize-y bg-transparent text-sm leading-relaxed text-ink outline-none placeholder:text-ink-faint"
           disabled={pending}
         />
       </div>

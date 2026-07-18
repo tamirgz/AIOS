@@ -42,7 +42,7 @@ function QuickAddEvent() {
           if (titleRef.current) titleRef.current.value = "";
         });
       }}
-      className="glass mb-5 flex flex-wrap items-center gap-2 rounded-xl p-2 pl-4 focus-within:glass-edge"
+      className="glass mb-4 flex flex-wrap items-center gap-2 rounded-xl p-1.5 pl-3 focus-within:glass-edge"
     >
       <CalendarPlus className="size-4 text-plasma" />
       <input
@@ -150,7 +150,7 @@ function MonthGrid({
               type="button"
               onClick={() => onSelect(d)}
               className={cn(
-                "flex aspect-square flex-col items-center justify-start gap-0.5 rounded-lg pt-1 transition",
+                "flex h-11 flex-col items-center justify-start gap-0.5 rounded-lg pt-0.5 transition",
                 inMonth ? "text-ink-dim" : "text-ink-faint/50",
                 isSelected && "glass-edge bg-white/4",
                 !isSelected && "hover:bg-white/4",

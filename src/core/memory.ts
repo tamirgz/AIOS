@@ -23,10 +23,20 @@ const DEFAULT_BLOCKS = [
 ] as const;
 
 export async function ensureDefaultMemoryBlocks() {
-  await db
-    .insert(memoryBlocks)
-    .values(DEFAULT_BLOCKS.map((b) => ({ ...b })))
-    .onConflictDoNothing();
+  // Read-first: only write when blocks are actually missing, so the hot path
+  // (every AI call renders memory) stays a plain SELECT.
+  const existing = await db
+    .select({ label: memoryBlocks.label })
+    .from(memoryBlocks);
+  if (existing.length >= DEFAULT_BLOCKS.length) return;
+  const have = new Set(existing.map((r) => r.label));
+  const missing = DEFAULT_BLOCKS.filter((b) => !have.has(b.label));
+  if (missing.length) {
+    await db
+      .insert(memoryBlocks)
+      .values(missing.map((b) => ({ ...b })))
+      .onConflictDoNothing();
+  }
 }
 
 export async function listMemoryBlocks() {
@@ -34,9 +44,15 @@ export async function listMemoryBlocks() {
   return db.select().from(memoryBlocks).orderBy(asc(memoryBlocks.label));
 }
 
-/** Rendered for system prompts. Empty blocks are listed so models know they exist. */
+/** Rendered for system prompts. Never throws — memory being unavailable must
+ *  not take down chat, agents, or pages. */
 export async function renderMemoryContext(): Promise<string> {
-  const blocks = await listMemoryBlocks();
+  let blocks;
+  try {
+    blocks = await listMemoryBlocks();
+  } catch {
+    return "";
+  }
   const lines = blocks.map((b) =>
     b.value.trim()
       ? `<${b.label}>\n${b.value.trim()}\n</${b.label}>`
