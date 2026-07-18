@@ -1,0 +1,62 @@
+// Server-side module contract: components, DB schema, AI tools, agent
+// templates. Imported only from server components and the agent worker —
+// never from client components. (Enforced by convention, not the
+// `server-only` package, because the worker runs under plain Node/tsx.)
+import type { ComponentType } from "react";
+import type { PgTable } from "drizzle-orm/pg-core";
+import type { ZodType } from "zod";
+import type { Db } from "@/core/db/client";
+
+export interface AiToolContext {
+  db: Db;
+  /** Set when the tool is invoked from an agent run (not chat). */
+  agentRunId?: string;
+  /** Processed-items ledger, available to agent runs for idempotency. */
+  ledger?: {
+    has(itemKey: string): Promise<boolean>;
+    mark(itemKey: string, result?: unknown): Promise<void>;
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface AiToolDef<I = any> {
+  /** Namespaced: "<module>.<action>", e.g. "tasks.create". */
+  name: string;
+  description: string;
+  input: ZodType<I>;
+  execute(input: I, ctx: AiToolContext): Promise<unknown>;
+}
+
+export interface AgentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  defaultPrompt: string;
+  /** Tool names from the global registry this template needs. */
+  defaultTools: string[];
+  /** Cron pattern, or null for manual-only. */
+  defaultSchedule: string | null;
+}
+
+export interface ModuleWidget {
+  id: string;
+  title: string;
+  size: "sm" | "md" | "lg";
+  /** May be an async server component — rendered by the dashboard grid. */
+  component: ComponentType;
+}
+
+export interface ModuleRouteProps {
+  /** Path segments after /m/<module-id>/. */
+  params: string[];
+}
+
+export interface ModuleServerManifest {
+  id: string;
+  /** "" is the module root page; "[id]" matches a single dynamic segment. */
+  routes: Record<string, ComponentType<ModuleRouteProps>>;
+  widgets: ModuleWidget[];
+  schema: Record<string, PgTable>;
+  aiTools: AiToolDef[];
+  agentTemplates: AgentTemplate[];
+}

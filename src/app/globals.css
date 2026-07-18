@@ -1,0 +1,173 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   AIOS design system — "deep-space mission control"
+   Obsidian base · plasma-teal signal · solar-amber counterpoint
+--------------------------------------------------------------------------- */
+
+@theme {
+  --font-display: var(--font-chakra), "Chakra Petch", sans-serif;
+  --font-sans: var(--font-instrument), "Instrument Sans", sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", monospace;
+
+  /* base surfaces */
+  --color-void: #04070c;
+  --color-abyss: #070d16;
+  --color-panel: #0d1622;
+  --color-raise: #13202f;
+
+  /* ink */
+  --color-ink: #e8f2f0;
+  --color-ink-dim: #93a8b3;
+  --color-ink-faint: #51636f;
+
+  /* accents */
+  --color-plasma: #00e5c7;
+  --color-plasma-dim: #0a9c8a;
+  --color-solar: #ffb454;
+  --color-ion: #7dd3fc;
+  --color-flare: #ff6b81;
+  --color-violet: #b197fc;
+
+  /* radii */
+  --radius-panel: 1.1rem;
+
+  --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-void);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-plasma) 30%, transparent);
+}
+
+/* --- scrollbars ---------------------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-plasma) 25%, transparent)
+    transparent;
+}
+
+/* --- glass surfaces ------------------------------------------------------ */
+@utility glass {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--color-raise) 82%, transparent),
+    color-mix(in oklab, var(--color-abyss) 62%, transparent)
+  );
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid color-mix(in oklab, var(--color-ion) 12%, transparent);
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, var(--color-ink) 7%, transparent) inset,
+    0 24px 60px -30px rgb(0 0 0 / 0.8);
+}
+
+@utility glass-edge {
+  border: 1px solid color-mix(in oklab, var(--color-plasma) 22%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--color-plasma) 8%, transparent),
+    0 0 34px -8px color-mix(in oklab, var(--color-plasma) 35%, transparent);
+}
+
+@utility text-glow {
+  text-shadow: 0 0 18px
+    color-mix(in oklab, var(--color-plasma) 55%, transparent);
+}
+
+/* --- animated aurora background layers ----------------------------------- */
+.bg-aurora {
+  position: fixed;
+  inset: -20%;
+  z-index: -3;
+  pointer-events: none;
+  filter: blur(70px) saturate(120%);
+  background:
+    radial-gradient(
+      42% 34% at 18% 22%,
+      rgb(0 229 199 / 0.13) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      38% 30% at 82% 12%,
+      rgb(125 211 252 / 0.09) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      46% 38% at 74% 82%,
+      rgb(255 180 84 / 0.07) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      30% 26% at 32% 88%,
+      rgb(177 151 252 / 0.06) 0%,
+      transparent 70%
+    );
+  animation: aurora-drift 36s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(-2%, -1%, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translate3d(2.5%, 2%, 0) rotate(2.2deg) scale(1.06);
+  }
+  100% {
+    transform: translate3d(-1.5%, 2.5%, 0) rotate(-1.6deg) scale(1.03);
+  }
+}
+
+/* starmap grid, faded out radially */
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgb(125 211 252 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(125 211 252 / 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(
+    ellipse 90% 80% at 50% 30%,
+    black 20%,
+    transparent 75%
+  );
+}
+
+/* film grain */
+.bg-grain {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* status dot */
+@utility dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  box-shadow: 0 0 10px 1px currentColor;
+}
