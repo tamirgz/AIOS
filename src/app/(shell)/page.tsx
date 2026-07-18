@@ -1,7 +1,11 @@
 import { serverModules } from "@/modules/registry.server";
 import { modules } from "@/modules/registry";
 import { GlassPanel } from "@/core/ui/GlassPanel";
+import { WidgetFrame } from "@/core/ui/WidgetFrame";
 import { cn } from "@/core/ui/cn";
+
+// Widgets render live DB data — never prerender this page at build time.
+export const dynamic = "force-dynamic";
 
 const SIZE_CLASS = {
   sm: "col-span-12 md:col-span-4",
@@ -32,24 +36,19 @@ export default function DashboardPage() {
         </GlassPanel>
       )}
 
-      {widgets.map((w) => {
+      {widgets.map((w, i) => {
         const mod = modules.find((m) => m.id === w.moduleId);
         const Widget = w.component;
         return (
-          <GlassPanel
+          <WidgetFrame
             key={`${w.moduleId}:${w.id}`}
-            className={cn("flex flex-col p-5", SIZE_CLASS[w.size])}
+            index={i}
+            accent={mod?.accent ?? "var(--color-ink-faint)"}
+            title={w.title}
+            className={cn(SIZE_CLASS[w.size])}
           >
-            <p
-              className="mb-3 font-mono text-[10px] uppercase tracking-[0.25em]"
-              style={{ color: mod?.accent ?? "var(--color-ink-faint)" }}
-            >
-              {w.title}
-            </p>
-            <div className="min-h-0 flex-1">
-              <Widget />
-            </div>
-          </GlassPanel>
+            <Widget />
+          </WidgetFrame>
         );
       })}
     </div>
