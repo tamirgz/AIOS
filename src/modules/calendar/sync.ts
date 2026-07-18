@@ -60,17 +60,19 @@ export async function syncIcs(): Promise<{ synced: number } | null> {
   }
 
   // Remove ICS events (in the future window) that vanished from the feed.
-  await db
-    .delete(calendarEvents)
-    .where(
-      and(
-        eq(calendarEvents.source, "ics"),
-        gte(calendarEvents.startAt, new Date()),
-        seenUids.length
-          ? notInArray(calendarEvents.icsUid, seenUids)
-          : undefined,
-      ),
-    );
+  // Guard: an empty/failed feed must NOT wipe the calendar — without the UID
+  // filter this delete would drop every future synced event.
+  if (seenUids.length > 0) {
+    await db
+      .delete(calendarEvents)
+      .where(
+        and(
+          eq(calendarEvents.source, "ics"),
+          gte(calendarEvents.startAt, new Date()),
+          notInArray(calendarEvents.icsUid, seenUids),
+        ),
+      );
+  }
 
   await sql.notify("calendar_changed", "synced");
   return { synced };

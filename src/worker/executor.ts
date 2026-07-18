@@ -101,11 +101,20 @@ export async function enqueueRun(
 }
 
 export async function executeRun(runId: string): Promise<void> {
-  const [run] = await db
-    .select()
-    .from(agentRuns)
-    .where(eq(agentRuns.id, runId));
-  if (!run || run.status !== "queued") return;
+  // Atomic claim: only one caller wins the queued→running transition, so the
+  // NOTIFY path and the periodic pick-up sweep can never double-execute.
+  const [claimed] = await db
+    .update(agentRuns)
+    .set({
+      status: "running",
+      startedAt: new Date(),
+      heartbeatAt: new Date(),
+    })
+    .where(and(eq(agentRuns.id, runId), eq(agentRuns.status, "queued")))
+    .returning();
+  if (!claimed) return;
+  await sql.notify("agent_runs", runId);
+  const run = claimed;
 
   const [agent] = await db
     .select()
@@ -119,12 +128,6 @@ export async function executeRun(runId: string): Promise<void> {
     });
     return;
   }
-
-  await patchRun(runId, {
-    status: "running",
-    startedAt: new Date(),
-    heartbeatAt: new Date(),
-  });
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);

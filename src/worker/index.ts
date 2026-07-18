@@ -9,7 +9,7 @@ import { config } from "dotenv";
 config({ path: ".env.local" });
 
 import { Cron } from "croner";
-import { and, eq, inArray, lt } from "drizzle-orm";
+import { and, eq, lt, sql as dsql } from "drizzle-orm";
 import postgres from "postgres";
 import { db } from "@/core/db/client";
 import { agentRuns, agents, type Agent } from "@/core/db/schema/agents";
@@ -86,6 +86,8 @@ async function syncSchedules() {
 
 async function sweepOrphans() {
   const cutoff = new Date(Date.now() - ORPHAN_AFTER_MS);
+  // coalesce: queued runs never get a heartbeat — judge them by created_at,
+  // otherwise a run whose NOTIFY was missed is invisible to the sweep.
   const orphaned = await db
     .update(agentRuns)
     .set({
@@ -95,12 +97,27 @@ async function sweepOrphans() {
     })
     .where(
       and(
-        inArray(agentRuns.status, ["running", "queued"]),
-        lt(agentRuns.heartbeatAt, cutoff),
+        eq(agentRuns.status, "running"),
+        dsql`coalesce(${agentRuns.heartbeatAt}, ${agentRuns.createdAt}) < ${cutoff.toISOString()}::timestamptz`,
       ),
     )
     .returning({ id: agentRuns.id });
   if (orphaned.length) log(`orphan sweep: failed ${orphaned.length} run(s)`);
+}
+
+/** Execute queued runs whose NOTIFY was missed (e.g. worker restart window). */
+async function pickUpQueuedRuns() {
+  const stale = new Date(Date.now() - 30_000);
+  const queued = await db
+    .select({ id: agentRuns.id })
+    .from(agentRuns)
+    .where(
+      and(eq(agentRuns.status, "queued"), lt(agentRuns.createdAt, stale)),
+    );
+  for (const q of queued) {
+    log(`picking up stale queued run ${q.id}`);
+    executeRun(q.id).catch((e) => log(`run ${q.id} failed: ${e}`));
+  }
 }
 
 async function main() {
@@ -168,10 +185,12 @@ async function main() {
     log(`listening for module jobs on "${channel}"`);
   }
 
-  // Periodic safety net: orphan sweep + schedule resync every 5 minutes.
+  // Periodic safety net: orphan sweep + schedule resync + stale queued
+  // pick-up every 5 minutes.
   new Cron("*/5 * * * *", () => {
-    sweepOrphans().catch(() => {});
-    syncSchedules().catch(() => {});
+    sweepOrphans().catch((e) => log(`safety-net orphan sweep failed: ${e}`));
+    syncSchedules().catch((e) => log(`safety-net schedule sync failed: ${e}`));
+    pickUpQueuedRuns().catch((e) => log(`safety-net queued pickup failed: ${e}`));
   });
 
   // Embedding sweep: local nomic-embed-text via Ollama, rows with NULL

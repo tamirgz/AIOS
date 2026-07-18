@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
 import { aiRoutes, type AIProviderId } from "@/core/db/schema/ai-routes";
 import type { AIProvider } from "./provider";
@@ -32,21 +32,30 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   },
 ];
 
-/** Insert default rows once so the Settings UI always has something to edit. */
+/** Insert default rows once so the Settings UI always has something to edit.
+ *  Read-first: the common case stays a single SELECT. */
 export async function ensureDefaultRoutes() {
-  await db.insert(aiRoutes).values(DEFAULTS).onConflictDoNothing();
+  const existing = await db
+    .select({ taskKey: aiRoutes.taskKey })
+    .from(aiRoutes);
+  const have = new Set(existing.map((r) => r.taskKey));
+  const missing = DEFAULTS.filter((d) => !have.has(d.taskKey));
+  if (missing.length) {
+    await db.insert(aiRoutes).values(missing).onConflictDoNothing();
+  }
 }
 
-/** Exact key → "agent.default" → "chat" → hard default. */
+/** Exact key → "agent.default" → "chat" → hard default. One query. */
 export async function resolveRoute(taskKey: string): Promise<ResolvedRoute> {
   const keys =
     taskKey === "chat" ? ["chat"] : [taskKey, "agent.default", "chat"];
+  const rows = await db
+    .select()
+    .from(aiRoutes)
+    .where(inArray(aiRoutes.taskKey, keys));
+  const byKey = new Map(rows.map((r) => [r.taskKey, r]));
   for (const key of keys) {
-    const [row] = await db
-      .select()
-      .from(aiRoutes)
-      .where(eq(aiRoutes.taskKey, key))
-      .limit(1);
+    const row = byKey.get(key);
     if (row) {
       return {
         taskKey,

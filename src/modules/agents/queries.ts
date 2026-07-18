@@ -13,18 +13,38 @@ export interface AgentWithLatestRun {
 }
 
 export async function listAgentsWithLatestRun(): Promise<AgentWithLatestRun[]> {
-  const all = await db.select().from(agents).orderBy(desc(agents.createdAt));
-  const results: AgentWithLatestRun[] = [];
-  for (const agent of all) {
-    const [latestRun] = await db
-      .select()
-      .from(agentRuns)
-      .where(eq(agentRuns.agentId, agent.id))
-      .orderBy(desc(agentRuns.createdAt))
-      .limit(1);
-    results.push({ agent, latestRun: latestRun ?? null });
-  }
-  return results;
+  // Two queries total regardless of agent count (was one per agent).
+  const [all, latest] = await Promise.all([
+    db.select().from(agents).orderBy(desc(agents.createdAt)),
+    db.execute<AgentRun & { agent_id: string }>(
+      dsql`select distinct on (agent_id) * from agent_runs
+           order by agent_id, created_at desc`,
+    ),
+  ]);
+  const latestByAgent = new Map(
+    [...latest].map((r) => [
+      r.agent_id,
+      {
+        id: r.id,
+        agentId: r.agent_id,
+        status: r.status,
+        trigger: r.trigger,
+        startedAt: (r as unknown as { started_at: Date | null }).started_at,
+        finishedAt: (r as unknown as { finished_at: Date | null }).finished_at,
+        heartbeatAt: (r as unknown as { heartbeat_at: Date | null }).heartbeat_at,
+        transcript: r.transcript,
+        result: r.result,
+        error: r.error,
+        tokensIn: (r as unknown as { tokens_in: number }).tokens_in,
+        tokensOut: (r as unknown as { tokens_out: number }).tokens_out,
+        createdAt: (r as unknown as { created_at: Date }).created_at,
+      } as AgentRun,
+    ]),
+  );
+  return all.map((agent) => ({
+    agent,
+    latestRun: latestByAgent.get(agent.id) ?? null,
+  }));
 }
 
 export async function getAgent(id: string): Promise<Agent | null> {

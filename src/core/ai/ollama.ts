@@ -51,42 +51,73 @@ export const ollamaProvider: AIProvider = {
 
     try {
       for (let turn = 0; turn < maxTurns; turn++) {
-        const res = await openai.chat.completions.create(
+        // Streaming: yield text as it generates — a 30B local model can take
+        // many seconds per turn, and a silent wait reads as a hang in the UI.
+        const stream = await openai.chat.completions.create(
           {
             model: opts.model,
             messages,
             tools: tools.length ? tools : undefined,
+            stream: true,
+            stream_options: { include_usage: true },
           },
           { signal: opts.signal },
         );
 
-        inputTokens += res.usage?.prompt_tokens ?? 0;
-        outputTokens += res.usage?.completion_tokens ?? 0;
+        let turnText = "";
+        const toolCallAcc = new Map<
+          number,
+          { id: string; name: string; args: string }
+        >();
 
-        const msg = res.choices[0]?.message;
-        if (!msg) break;
-
-        if (msg.content) {
-          finalText = msg.content;
-          yield { type: "text", text: msg.content };
+        for await (const chunk of stream) {
+          const usage = chunk.usage;
+          if (usage) {
+            inputTokens += usage.prompt_tokens ?? 0;
+            outputTokens += usage.completion_tokens ?? 0;
+          }
+          const delta = chunk.choices[0]?.delta;
+          if (!delta) continue;
+          if (delta.content) {
+            turnText += delta.content;
+            yield { type: "text", text: turnText };
+          }
+          for (const tc of delta.tool_calls ?? []) {
+            const acc = toolCallAcc.get(tc.index) ?? {
+              id: "",
+              name: "",
+              args: "",
+            };
+            if (tc.id) acc.id = tc.id;
+            if (tc.function?.name) acc.name += tc.function.name;
+            if (tc.function?.arguments) acc.args += tc.function.arguments;
+            toolCallAcc.set(tc.index, acc);
+          }
         }
 
-        const calls = msg.tool_calls ?? [];
+        if (turnText) finalText = turnText;
+
+        const calls = [...toolCallAcc.values()].filter((c) => c.name);
         if (calls.length === 0) break;
 
-        messages.push(msg);
+        messages.push({
+          role: "assistant",
+          content: turnText || null,
+          tool_calls: calls.map((c) => ({
+            id: c.id || `call_${c.name}`,
+            type: "function" as const,
+            function: { name: c.name, arguments: c.args || "{}" },
+          })),
+        });
         for (const call of calls) {
-          if (call.type !== "function") continue;
-          const name = fromWireName(call.function.name);
+          const name = fromWireName(call.name);
           const def = opts.tools.find((t) => t.name === name);
           let result: unknown;
           if (!def) {
             result = { error: `unknown tool ${name}` };
           } else {
             try {
-              const input = def.input.parse(
-                JSON.parse(call.function.arguments || "{}"),
-              );
+              const input = def.input.parse(JSON.parse(call.args || "{}"));
               yield { type: "tool_call", name, input };
               result = await def.execute(input, opts.toolCtx);
             } catch (e) {
@@ -96,7 +127,7 @@ export const ollamaProvider: AIProvider = {
           yield { type: "tool_result", name, result };
           messages.push({
             role: "tool",
-            tool_call_id: call.id,
+            tool_call_id: call.id || `call_${call.name}`,
             content: JSON.stringify(result ?? null),
           });
         }

@@ -16,6 +16,34 @@ export async function GET(req: Request) {
 
   const stream = new ReadableStream({
     async start(controller) {
+      // Register cleanup BEFORE any await: AbortSignal fires "abort" only
+      // once, and a client that disconnects during LISTEN setup would
+      // otherwise leak this dedicated Postgres connection forever.
+      let closed = false;
+      const cleanup = () => {
+        if (closed) return;
+        closed = true;
+        clearInterval(keepalive);
+        listener.end({ timeout: 1 }).catch(() => {});
+        try {
+          controller.close();
+        } catch {
+          // already closed
+        }
+      };
+      const keepalive = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(": keepalive\n\n"));
+        } catch {
+          cleanup();
+        }
+      }, 25_000);
+      req.signal.addEventListener("abort", cleanup, { once: true });
+      if (req.signal.aborted) {
+        cleanup();
+        return;
+      }
+
       const send = (channel: string, payload: string) => {
         try {
           controller.enqueue(
@@ -37,29 +65,12 @@ export async function GET(req: Request) {
         "inbox_changed",
         "approvals_changed",
       ]) {
+        if (closed) return;
         await listener.listen(channel, (payload) =>
           send(channel, payload ?? ""),
         );
       }
       send("hello", "connected");
-
-      const keepalive = setInterval(() => {
-        try {
-          controller.enqueue(encoder.encode(": keepalive\n\n"));
-        } catch {
-          clearInterval(keepalive);
-        }
-      }, 25_000);
-
-      req.signal.addEventListener("abort", () => {
-        clearInterval(keepalive);
-        listener.end({ timeout: 1 }).catch(() => {});
-        try {
-          controller.close();
-        } catch {
-          // already closed
-        }
-      });
     },
   });
 
