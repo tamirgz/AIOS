@@ -2,9 +2,15 @@
 // system means adding its manifest here and in registry.server.ts.
 import type { ModuleManifest } from "@/core/modules/types";
 import { tasksManifest } from "./tasks/manifest";
+import { projectsManifest } from "./projects/manifest";
+import { notesManifest } from "./notes/manifest";
+import { contentManifest } from "./content/manifest";
 
 export const modules: ModuleManifest[] = [
   tasksManifest,
+  projectsManifest,
+  notesManifest,
+  contentManifest,
 ];
 
 export const navModules = [...modules].sort(

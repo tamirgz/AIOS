@@ -1,9 +1,15 @@
 // Server-side module registry — ONE line per module, mirroring registry.ts.
 import type { ModuleServerManifest } from "@/core/modules/types.server";
 import { tasksServerManifest } from "./tasks/manifest.server";
+import { projectsServerManifest } from "./projects/manifest.server";
+import { notesServerManifest } from "./notes/manifest.server";
+import { contentServerManifest } from "./content/manifest.server";
 
 export const serverModules: ModuleServerManifest[] = [
   tasksServerManifest,
+  projectsServerManifest,
+  notesServerManifest,
+  contentServerManifest,
 ];
 
 export function getServerModule(

@@ -49,7 +49,17 @@ export function TopBar() {
           {title}
         </h1>
       </div>
-      <Clock />
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new Event("aios:commandbar"))}
+          className="flex items-center gap-2 rounded-lg border border-white/8 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-ink-dim transition hover:border-plasma/30 hover:text-plasma"
+          title="Open command bar"
+        >
+          <span className="text-plasma">⌘K</span> command
+        </button>
+        <Clock />
+      </div>
     </header>
   );
 }

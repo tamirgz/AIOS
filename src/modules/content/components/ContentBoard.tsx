@@ -5,40 +5,63 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
   ArrowRight,
-  Flame,
+  Clapperboard,
+  FileText,
+  Lightbulb,
+  PenLine,
   Plus,
   Trash2,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import {
-  createTask,
-  deleteTask,
-  setTaskStatus,
+  createContent,
+  deleteContent,
+  setContentStage,
 } from "../actions";
-import type { Task, TaskPriority, TaskStatus } from "../schema";
+import type { ContentItem, ContentKind, ContentStage } from "../schema";
 
-const COLUMNS: { status: TaskStatus; label: string; accent: string }[] = [
-  { status: "todo", label: "Queue", accent: "var(--color-ion)" },
-  { status: "doing", label: "In flight", accent: "var(--color-solar)" },
-  { status: "done", label: "Landed", accent: "var(--color-plasma)" },
+const COLUMNS: { stage: ContentStage; label: string; accent: string }[] = [
+  { stage: "idea", label: "Spark", accent: "var(--color-ion)" },
+  { stage: "draft", label: "Drafting", accent: "var(--color-solar)" },
+  { stage: "review", label: "In review", accent: "var(--color-violet)" },
+  { stage: "published", label: "Live", accent: "var(--color-plasma)" },
 ];
 
-const PRIORITY_STYLE: Record<TaskPriority, string> = {
-  high: "text-flare",
-  medium: "text-solar",
-  low: "text-ink-faint",
+const KIND_ICON: Record<ContentKind, LucideIcon> = {
+  post: PenLine,
+  article: FileText,
+  video: Clapperboard,
+  idea: Lightbulb,
 };
+
+const KIND_CYCLE: ContentKind[] = ["post", "article", "video", "idea"];
+
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function formatPublishAt(d: Date) {
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
+
+function isWithinSevenDays(d: Date) {
+  const diff = d.getTime() - Date.now();
+  return diff <= 7 * 86_400_000;
+}
 
 function QuickAdd() {
   const [pending, startTransition] = useTransition();
-  const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [kind, setKind] = useState<ContentKind>("post");
   const inputRef = useRef<HTMLInputElement>(null);
+  const KindIcon = KIND_ICON[kind];
 
   const submit = () => {
     const title = inputRef.current?.value.trim();
     if (!title) return;
     startTransition(async () => {
-      await createTask({ title, priority });
+      await createContent({ title, kind });
       if (inputRef.current) inputRef.current.value = "";
     });
   };
@@ -54,7 +77,7 @@ function QuickAdd() {
       <Plus className="size-4 text-plasma" />
       <input
         ref={inputRef}
-        placeholder="Log a new task… (Enter to commit)"
+        placeholder="Capture a content idea… (Enter to commit)"
         className="h-9 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
         disabled={pending}
         autoFocus
@@ -62,18 +85,15 @@ function QuickAdd() {
       <button
         type="button"
         onClick={() =>
-          setPriority((p) =>
-            p === "medium" ? "high" : p === "high" ? "low" : "medium",
+          setKind(
+            (k) => KIND_CYCLE[(KIND_CYCLE.indexOf(k) + 1) % KIND_CYCLE.length],
           )
         }
-        title={`Priority: ${priority} (click to cycle)`}
-        className={cn(
-          "flex items-center gap-1.5 rounded-lg border border-white/8 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest transition hover:bg-white/5",
-          PRIORITY_STYLE[priority],
-        )}
+        title={`Kind: ${kind} (click to cycle)`}
+        className="flex items-center gap-1.5 rounded-lg border border-white/8 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest text-ink-dim transition hover:bg-white/5"
       >
-        <Flame className="size-3.5" />
-        {priority}
+        <KindIcon className="size-3.5" />
+        {kind}
       </button>
       <button
         type="submit"
@@ -86,21 +106,22 @@ function QuickAdd() {
   );
 }
 
-function TaskCard({ task }: { task: Task }) {
+function ContentCard({ item }: { item: ContentItem }) {
   const [pending, startTransition] = useTransition();
-  const idx = COLUMNS.findIndex((c) => c.status === task.status);
+  const idx = COLUMNS.findIndex((c) => c.stage === item.stage);
+  const KindIcon = KIND_ICON[item.kind];
   const move = (dir: -1 | 1) => {
-    const next = COLUMNS[idx + dir]?.status;
+    const next = COLUMNS[idx + dir]?.stage;
     if (!next) return;
     startTransition(async () => {
-      await setTaskStatus(task.id, next);
+      await setContentStage(item.id, next);
     });
   };
 
   return (
     <motion.div
       layout
-      layoutId={task.id}
+      layoutId={item.id}
       initial={{ opacity: 0, y: 10, scale: 0.98 }}
       animate={{ opacity: pending ? 0.4 : 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
@@ -108,24 +129,26 @@ function TaskCard({ task }: { task: Task }) {
       className="group glass rounded-xl p-3.5"
     >
       <div className="flex items-start gap-2">
-        <span
-          className={cn(
-            "mt-1 font-mono text-[9px] uppercase",
-            PRIORITY_STYLE[task.priority],
-          )}
-          title={`${task.priority} priority`}
-        >
-          ▲
-        </span>
-        <p
-          className={cn(
-            "flex-1 text-sm leading-snug",
-            task.status === "done" && "text-ink-faint line-through",
-          )}
-        >
-          {task.title}
-        </p>
+        <KindIcon
+          className="mt-0.5 size-3.5 shrink-0 text-ink-dim"
+          aria-label={item.kind}
+        />
+        <p className="flex-1 text-sm leading-snug">{item.title}</p>
       </div>
+      {item.publishAt && (
+        <div className="mt-2 pl-5.5">
+          <span
+            className={cn(
+              "rounded-md border border-white/8 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest",
+              isWithinSevenDays(item.publishAt)
+                ? "text-solar"
+                : "text-ink-faint",
+            )}
+          >
+            {formatPublishAt(item.publishAt)}
+          </span>
+        </div>
+      )}
       <div className="mt-2.5 flex items-center justify-between opacity-0 transition-opacity group-hover:opacity-100">
         <div className="flex gap-1">
           <button
@@ -149,13 +172,9 @@ function TaskCard({ task }: { task: Task }) {
         </div>
         <button
           type="button"
-          onClick={() =>
-            startTransition(async () => {
-              await deleteTask(task.id);
-            })
-          }
+          onClick={() => startTransition(() => deleteContent(item.id))}
           disabled={pending}
-          title="Delete task"
+          title="Delete content item"
           className="rounded-md p-1.5 text-ink-faint transition hover:bg-flare/10 hover:text-flare"
         >
           <Trash2 className="size-3.5" />
@@ -165,31 +184,31 @@ function TaskCard({ task }: { task: Task }) {
   );
 }
 
-export function TaskBoard({ tasks }: { tasks: Task[] }) {
+export function ContentBoard({ items }: { items: ContentItem[] }) {
   return (
     <div>
       <QuickAdd />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {COLUMNS.map((col) => {
-          const items = tasks.filter((t) => t.status === col.status);
+          const colItems = items.filter((c) => c.stage === col.stage);
           return (
-            <section key={col.status} className="min-h-40">
+            <section key={col.stage} className="min-h-40">
               <header className="mb-3 flex items-center gap-2 px-1">
                 <span className="dot" style={{ color: col.accent }} />
                 <h2 className="font-display text-sm font-medium uppercase tracking-[0.2em] text-ink-dim">
                   {col.label}
                 </h2>
                 <span className="ml-auto font-mono text-xs tabular-nums text-ink-faint">
-                  {items.length}
+                  {colItems.length}
                 </span>
               </header>
               <div className="flex flex-col gap-2.5">
                 <AnimatePresence mode="popLayout">
-                  {items.map((t) => (
-                    <TaskCard key={t.id} task={t} />
+                  {colItems.map((c) => (
+                    <ContentCard key={c.id} item={c} />
                   ))}
                 </AnimatePresence>
-                {items.length === 0 && (
+                {colItems.length === 0 && (
                   <div className="rounded-xl border border-dashed border-white/6 py-8 text-center font-mono text-[10px] uppercase tracking-widest text-ink-faint">
                     empty
                   </div>
