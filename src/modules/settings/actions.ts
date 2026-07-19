@@ -21,7 +21,20 @@ export async function saveMemoryBlock(label: string, value: string) {
 
 export async function saveIntegration(key: string, value: string) {
   if (!ALLOWED_INTEGRATION_KEYS.has(key)) throw new Error("unknown setting");
-  await setSetting(key, value.trim());
+  let cleaned = value.trim();
+  if (key === "obsidian_vault_path") {
+    // Users paste shell-quoted paths ('/My Drive/…') — strip wrapping quotes,
+    // expand ~, drop trailing slash.
+    cleaned = cleaned
+      .replace(/^['"]+/, "")
+      .replace(/['"]+$/, "")
+      .replace(/\/+$/, "");
+    if (cleaned.startsWith("~/")) {
+      const { homedir } = await import("node:os");
+      cleaned = homedir() + cleaned.slice(1);
+    }
+  }
+  await setSetting(key, cleaned);
   if (key === "calendar_ics_url" && value.trim()) {
     await sql.notify("calendar_sync", "settings-changed");
   }

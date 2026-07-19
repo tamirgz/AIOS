@@ -54,14 +54,30 @@ function toExcerpt(content: string): string {
  */
 export async function syncVault(
   log: (m: string) => void = () => {},
+  opts: { notifyOnError?: boolean } = {},
 ): Promise<{ indexed: number; removed: number } | null> {
-  const root = (await getSetting(OBSIDIAN_PATH_KEY))?.trim();
+  // Defensive: strip pasted shell quotes even if an old value predates the
+  // save-time normalization.
+  const root = (await getSetting(OBSIDIAN_PATH_KEY))
+    ?.trim()
+    .replace(/^['"]+/, "")
+    .replace(/['"]+$/, "");
   if (!root) return null;
 
   try {
     await stat(root);
   } catch {
     log(`obsidian vault path does not exist: ${root}`);
+    if (opts.notifyOnError) {
+      const { notify } = await import("@/core/notify");
+      await notify({
+        title: "Vault sync failed",
+        body: `The configured vault path does not exist or is not readable:\n${root}`,
+        level: "warn",
+        source: "vault",
+        href: "/m/settings",
+      });
+    }
     return null;
   }
 
@@ -135,7 +151,8 @@ export async function vaultStats() {
   return {
     total: Number(row.total),
     embedded: Number(row.embedded),
-    lastSync: row.lastSync,
+    // Raw SQL aggregates come back as strings, not Dates.
+    lastSync: row.lastSync ? new Date(row.lastSync as unknown as string) : null,
   };
 }
 
@@ -143,8 +160,10 @@ export const obsidianJobs: ModuleJob[] = [
   {
     channel: "obsidian_sync",
     schedule: "*/30 * * * *",
-    handle: async () => {
-      await syncVault(console.log);
+    // payload is "" for the cron tick; "manual"/"settings-changed" when the
+    // user acted — only then is an error surfaced as a notification.
+    handle: async (payload) => {
+      await syncVault(console.log, { notifyOnError: payload !== "" });
     },
   },
 ];
