@@ -10,6 +10,7 @@ import { knowledgeManifest } from "./knowledge/manifest";
 import { agentsManifest } from "./agents/manifest";
 import { calendarManifest } from "./calendar/manifest";
 import { inboxManifest } from "./inbox/manifest";
+import { obsidianManifest } from "./obsidian/manifest";
 
 export const modules: ModuleManifest[] = [
   inboxManifest,
@@ -19,6 +20,7 @@ export const modules: ModuleManifest[] = [
   notesManifest,
   contentManifest,
   knowledgeManifest,
+  obsidianManifest,
   agentsManifest,
   settingsManifest,
 ];

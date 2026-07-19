@@ -17,6 +17,7 @@ import { notifications } from "@/core/db/schema/notifications";
 import { getSetting, SETTING_KEYS } from "@/core/app-settings";
 import { serverModules } from "@/modules/registry.server";
 import { enqueueRun, executeApproval, executeRun } from "./executor";
+import { hasFreshBackup, runBackup } from "./backup";
 
 async function deliverToSlack(notificationId: string) {
   const webhook = await getSetting(SETTING_KEYS.slackWebhookUrl);
@@ -192,6 +193,16 @@ async function main() {
     syncSchedules().catch((e) => log(`safety-net schedule sync failed: ${e}`));
     pickUpQueuedRuns().catch((e) => log(`safety-net queued pickup failed: ${e}`));
   });
+
+  // Nightly database backup (03:30) + catch-up at boot when the newest dump
+  // is older than a day (covers a Mac that was asleep at 03:30).
+  new Cron("30 3 * * *", { protect: true }, async () => {
+    await runBackup(log);
+  });
+  if (!(await hasFreshBackup())) {
+    log("no fresh backup found — running one now");
+    runBackup(log).catch(() => {});
+  }
 
   // Embedding sweep: local nomic-embed-text via Ollama, rows with NULL
   // embeddings only — idempotent, free, offline.

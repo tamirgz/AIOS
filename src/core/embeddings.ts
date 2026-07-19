@@ -3,6 +3,7 @@ import { db } from "@/core/db/client";
 import { notes } from "@/modules/notes/schema";
 import { knowledgeItems } from "@/modules/knowledge/schema";
 import { tasks } from "@/modules/tasks/schema";
+import { obsidianNotes } from "@/modules/obsidian/schema";
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const MODEL = "nomic-embed-text";
@@ -77,16 +78,50 @@ export async function sweepEmbeddings(): Promise<number> {
     done++;
   }
 
+  // Vault index: larger batch — a first sync of a big vault backfills over
+  // successive sweeps (~1.5k notes/hour at 50 per 2-min tick).
+  const vaultRows = await db
+    .select({
+      id: obsidianNotes.id,
+      title: obsidianNotes.title,
+      excerpt: obsidianNotes.excerpt,
+    })
+    .from(obsidianNotes)
+    .where(isNull(obsidianNotes.embedding))
+    .limit(50);
+  for (const v of vaultRows) {
+    const e = await embedText(`${v.title}\n${v.excerpt}`);
+    await db
+      .update(obsidianNotes)
+      .set({ embedding: dsql`${toVec(e)}::vector` })
+      .where(dsql`${obsidianNotes.id} = ${v.id}`);
+    done++;
+  }
+
   return done;
 }
 
 export interface SemanticHit {
-  kind: "note" | "knowledge" | "task";
+  kind: "note" | "knowledge" | "task" | "vault";
   id: string;
   title: string;
   snippet: string | null;
   href: string;
   distance: number;
+}
+
+function hitHref(kind: string, id: string): string {
+  switch (kind) {
+    case "note":
+      return `/m/notes/${id}`;
+    case "knowledge":
+      return `/m/knowledge/${id}`;
+    // vault rows carry the file path in `id` — deep-link into Obsidian.
+    case "vault":
+      return `obsidian://open?path=${encodeURIComponent(id)}`;
+    default:
+      return "/m/tasks";
+  }
 }
 
 /** Hybrid-lite semantic search across notes, knowledge, and tasks. */
@@ -113,6 +148,10 @@ export async function searchEverything(
     (select 'task', id::text, title, null,
             (embedding <=> ${vec}::vector)
        from tasks where embedding is not null)
+    union all
+    (select 'vault', path, title, left(excerpt, 160),
+            (embedding <=> ${vec}::vector)
+       from obsidian_notes where embedding is not null)
     order by distance asc
     limit ${limit}
   `);
@@ -121,12 +160,7 @@ export async function searchEverything(
     id: r.id,
     title: r.title,
     snippet: r.snippet,
-    href:
-      r.kind === "note"
-        ? `/m/notes/${r.id}`
-        : r.kind === "knowledge"
-          ? `/m/knowledge/${r.id}`
-          : "/m/tasks",
+    href: hitHref(r.kind, r.id),
     distance: Number(r.distance),
   }));
 }
@@ -153,6 +187,10 @@ export async function relatedTo(
     (select 'knowledge', k.id::text, coalesce(k.title, left(k.input, 80)),
             (k.insight->>'summary'), (k.embedding <=> (select embedding from target))
        from knowledge_items k where k.embedding is not null and not (k.id::text = ${id}))
+    union all
+    (select 'vault', o.path, o.title, left(o.excerpt, 160),
+            (o.embedding <=> (select embedding from target))
+       from obsidian_notes o where o.embedding is not null)
     order by distance asc
     limit ${limit}
   `);
@@ -161,7 +199,7 @@ export async function relatedTo(
     id: r.id,
     title: r.title,
     snippet: r.snippet,
-    href: r.kind === "note" ? `/m/notes/${r.id}` : `/m/knowledge/${r.id}`,
+    href: hitHref(r.kind, r.id),
     distance: Number(r.distance),
   }));
 }

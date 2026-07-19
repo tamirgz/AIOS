@@ -64,6 +64,7 @@ export async function GET(req: Request) {
         "calendar_changed",
         "inbox_changed",
         "approvals_changed",
+        "obsidian_changed",
       ]) {
         if (closed) return;
         await listener.listen(channel, (payload) =>

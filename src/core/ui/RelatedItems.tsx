@@ -5,6 +5,7 @@ const KIND_COLOR = {
   note: "var(--color-violet)",
   knowledge: "var(--color-orchid)",
   task: "var(--color-ion)",
+  vault: "var(--color-violet)",
 } as const;
 
 /** Server component: semantic nearest-neighbours panel. */

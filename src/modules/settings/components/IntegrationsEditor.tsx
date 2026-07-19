@@ -11,12 +11,14 @@ function IntegrationField({
   hint,
   placeholder,
   initial,
+  secret = true,
 }: {
   settingKey: string;
   label: string;
   hint: string;
   placeholder: string;
   initial: string;
+  secret?: boolean;
 }) {
   const [value, setValue] = useState(initial);
   const [pending, startTransition] = useTransition();
@@ -34,7 +36,7 @@ function IntegrationField({
       <p className="mb-2 text-xs leading-snug text-ink-dim">{hint}</p>
       <div className="flex gap-2">
         <input
-          type="password"
+          type={secret ? "password" : "text"}
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
@@ -70,9 +72,11 @@ function IntegrationField({
 export function IntegrationsEditor({
   icsUrl,
   slackWebhook,
+  obsidianPath,
 }: {
   icsUrl: string;
   slackWebhook: string;
+  obsidianPath: string;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -92,6 +96,14 @@ export function IntegrationsEditor({
         hint="An incoming-webhook URL (api.slack.com/apps → Incoming Webhooks). Every AIOS notification — agent reports, briefs — is also delivered there."
         placeholder="https://hooks.slack.com/services/…"
         initial={slackWebhook}
+      />
+      <IntegrationField
+        settingKey="obsidian_vault_path"
+        label="Obsidian vault (read-only index)"
+        hint="Absolute path to your vault folder. AIOS indexes the .md files into semantic search so chat and agents answer from your notes — nothing is ever written back."
+        placeholder="/Users/you/Documents/SecondBrain"
+        initial={obsidianPath}
+        secret={false}
       />
     </div>
   );

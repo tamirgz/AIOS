@@ -9,6 +9,7 @@ import { knowledgeServerManifest } from "./knowledge/manifest.server";
 import { agentsServerManifest } from "./agents/manifest.server";
 import { calendarServerManifest } from "./calendar/manifest.server";
 import { inboxServerManifest } from "./inbox/manifest.server";
+import { obsidianServerManifest } from "./obsidian/manifest.server";
 
 export const serverModules: ModuleServerManifest[] = [
   inboxServerManifest,
@@ -18,6 +19,7 @@ export const serverModules: ModuleServerManifest[] = [
   notesServerManifest,
   contentServerManifest,
   knowledgeServerManifest,
+  obsidianServerManifest,
   agentsServerManifest,
   settingsServerManifest,
 ];
