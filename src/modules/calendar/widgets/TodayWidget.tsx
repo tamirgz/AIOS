@@ -26,15 +26,19 @@ export async function TodayWidget() {
             className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-white/4"
           >
             <span className="dot shrink-0" style={{ color: it.accent }} />
-            <span className="w-14 shrink-0 font-mono text-[10px] tabular-nums text-ink-faint">
+            <span className="w-12 shrink-0 text-right font-mono text-[10px] tabular-nums text-ink-faint">
               {it.allDay
                 ? "all day"
                 : it.at.toLocaleTimeString(undefined, {
                     hour: "2-digit",
                     minute: "2-digit",
+                    hour12: false,
                   })}
             </span>
-            <span className="flex-1 truncate text-sm text-ink-dim transition group-hover:text-ink">
+            <span
+              dir="auto"
+              className="flex-1 truncate text-left text-sm text-ink-dim transition group-hover:text-ink"
+            >
               {it.title}
             </span>
           </Link>

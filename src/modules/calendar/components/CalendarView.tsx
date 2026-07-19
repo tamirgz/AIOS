@@ -17,6 +17,28 @@ import type { AgendaItem } from "../agenda";
 
 const KIND_LABEL = { event: "event", task: "due", content: "publish" } as const;
 
+/** One color per item category — dots, chips and the legend all share it. */
+const LEGEND = [
+  { label: "google", color: "var(--color-ion)" },
+  { label: "aios event", color: "var(--color-plasma)" },
+  { label: "task due", color: "var(--color-solar)" },
+  { label: "publish", color: "var(--color-violet)" },
+] as const;
+
+const fmtTime = (d: Date) =>
+  d.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+/** "Tue 21 · 14:40" — weekday alone is ambiguous across recurring weeks. */
+const fmtUpNext = (it: AgendaItem) => {
+  const d = new Date(it.at);
+  const day = `${d.toLocaleDateString(undefined, { weekday: "short" })} ${d.getDate()}`;
+  return it.allDay ? `${day} · all day` : `${day} · ${fmtTime(d)}`;
+};
+
 function sameDay(a: Date, b: Date) {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -164,14 +186,22 @@ function MonthGrid({
               >
                 {d.getDate()}
               </span>
-              <span className="flex gap-0.5">
-                {dayItems.slice(0, 3).map((it, j) => (
+              <span className="flex items-center gap-[3px]">
+                {dayItems.slice(0, 4).map((it, j) => (
                   <span
                     key={j}
-                    className="size-1 rounded-full"
-                    style={{ background: it.accent }}
+                    className="size-[5px] rounded-full"
+                    style={{
+                      background: it.accent,
+                      boxShadow: `0 0 4px ${it.accent}`,
+                    }}
                   />
                 ))}
+                {dayItems.length > 4 && (
+                  <span className="font-mono text-[8px] leading-none text-ink-faint">
+                    +{dayItems.length - 4}
+                  </span>
+                )}
               </span>
             </button>
           );
@@ -213,7 +243,21 @@ export function CalendarView({
             selected={selected}
             onSelect={setSelected}
           />
-          <div className="mt-3 flex items-center justify-between px-1">
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 px-1">
+            {LEGEND.map((l) => (
+              <span
+                key={l.label}
+                className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-widest text-ink-faint"
+              >
+                <span
+                  className="size-[5px] rounded-full"
+                  style={{ background: l.color, boxShadow: `0 0 4px ${l.color}` }}
+                />
+                {l.label}
+              </span>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center justify-between px-1">
             <p className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
               {hasIcs
                 ? "google calendar synced via ics · every 5 min"
@@ -261,17 +305,13 @@ export function CalendarView({
                   className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-white/4"
                 >
                   <span className="dot shrink-0" style={{ color: it.accent }} />
-                  <span className="w-14 shrink-0 font-mono text-[10px] tabular-nums text-ink-faint">
-                    {it.allDay
-                      ? "all day"
-                      : new Date(it.at).toLocaleTimeString(undefined, {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                  <span className="w-12 shrink-0 text-right font-mono text-[10px] tabular-nums text-ink-faint">
+                    {it.allDay ? "all day" : fmtTime(new Date(it.at))}
                   </span>
                   <Link
                     href={it.href}
-                    className="flex-1 truncate text-sm text-ink-dim transition group-hover:text-ink"
+                    dir="auto"
+                    className="flex-1 truncate text-left text-sm text-ink-dim transition group-hover:text-ink"
                   >
                     {it.title}
                   </Link>
@@ -316,15 +356,20 @@ export function CalendarView({
                   className="flex items-center gap-2.5 px-2 py-1"
                 >
                   <span className="dot shrink-0" style={{ color: it.accent }} />
-                  <span className="w-24 shrink-0 font-mono text-[10px] text-ink-faint">
-                    {new Date(it.at).toLocaleDateString(undefined, {
-                      weekday: "short",
-                      hour: it.allDay ? undefined : "2-digit",
-                      minute: it.allDay ? undefined : "2-digit",
-                    })}
+                  <span className="w-24 shrink-0 font-mono text-[10px] tabular-nums text-ink-faint">
+                    {fmtUpNext(it)}
                   </span>
-                  <span className="truncate text-sm text-ink-dim">
+                  <span
+                    dir="auto"
+                    className="flex-1 truncate text-left text-sm text-ink-dim"
+                  >
                     {it.title}
+                  </span>
+                  <span
+                    className="font-mono text-[8px] uppercase tracking-widest opacity-60"
+                    style={{ color: it.accent }}
+                  >
+                    {KIND_LABEL[it.kind]}
                   </span>
                 </div>
               ))}
