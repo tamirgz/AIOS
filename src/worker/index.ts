@@ -209,7 +209,7 @@ async function main() {
   new Cron("*/2 * * * *", { protect: true }, async () => {
     try {
       const { sweepEmbeddings } = await import("@/core/embeddings");
-      const n = await sweepEmbeddings();
+      const n = await sweepEmbeddings(log);
       if (n > 0) log(`embedded ${n} row(s)`);
     } catch (e) {
       log(`embedding sweep failed (ollama down?): ${String(e).slice(0, 120)}`);

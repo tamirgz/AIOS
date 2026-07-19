@@ -6,19 +6,58 @@ import { tasks } from "@/modules/tasks/schema";
 import { obsidianNotes } from "@/modules/obsidian/schema";
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
-const MODEL = "nomic-embed-text";
-export const EMBEDDING_DIMS = 768;
+export const DEFAULT_EMBEDDING_MODEL = "nomic-embed-text";
+export const EMBEDDING_MODEL_KEY = "embedding_model";
+const ACTIVE_MODEL_KEY = "embedding_model_active";
+
+// Small memo so per-row sweep calls don't hit app_settings each time.
+let modelCache: { value: string; at: number } | null = null;
+
+export async function getEmbeddingModel(): Promise<string> {
+  if (modelCache && Date.now() - modelCache.at < 60_000) {
+    return modelCache.value;
+  }
+  const { getSetting } = await import("@/core/app-settings");
+  const value =
+    (await getSetting(EMBEDDING_MODEL_KEY))?.trim() || DEFAULT_EMBEDDING_MODEL;
+  modelCache = { value, at: Date.now() };
+  return value;
+}
 
 export async function embedText(text: string): Promise<number[]> {
+  const model = await getEmbeddingModel();
   const res = await fetch(`${OLLAMA_BASE}/api/embeddings`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: MODEL, prompt: text.slice(0, 8000) }),
-    signal: AbortSignal.timeout(20_000),
+    body: JSON.stringify({ model, prompt: text.slice(0, 8000) }),
+    signal: AbortSignal.timeout(30_000),
   });
-  if (!res.ok) throw new Error(`ollama embeddings → ${res.status}`);
-  const data = (await res.json()) as { embedding: number[] };
+  if (!res.ok) {
+    throw new Error(`ollama embeddings (${model}) → ${res.status}`);
+  }
+  const data = (await res.json()) as { embedding?: number[] };
+  if (!data.embedding?.length) {
+    throw new Error(`model "${model}" returned no embedding — is it an embedding model?`);
+  }
   return data.embedding;
+}
+
+/**
+ * Different models live in incompatible vector spaces (and differ in
+ * dimensions), so a model switch invalidates every stored embedding. Wipe
+ * them all; the sweep rebuilds with the new model.
+ */
+async function handleModelSwitch(log: (m: string) => void): Promise<void> {
+  const { getSetting, setSetting } = await import("@/core/app-settings");
+  const configured = await getEmbeddingModel();
+  const active = (await getSetting(ACTIVE_MODEL_KEY)) ?? DEFAULT_EMBEDDING_MODEL;
+  if (configured === active) return;
+  log(`embedding model changed ${active} → ${configured}: re-embedding everything`);
+  await db.update(notes).set({ embedding: null });
+  await db.update(knowledgeItems).set({ embedding: null });
+  await db.update(tasks).set({ embedding: null });
+  await db.update(obsidianNotes).set({ embedding: null });
+  await setSetting(ACTIVE_MODEL_KEY, configured);
 }
 
 const toVec = (e: number[]) => `[${e.join(",")}]`;
@@ -28,7 +67,10 @@ const toVec = (e: number[]) => `[${e.join(",")}]`;
  * embedding yet. Idempotent by construction — only touches NULL embeddings.
  * Local model via Ollama: free, offline, no tokens.
  */
-export async function sweepEmbeddings(): Promise<number> {
+export async function sweepEmbeddings(
+  log: (m: string) => void = () => {},
+): Promise<number> {
+  await handleModelSwitch(log);
   let done = 0;
 
   const noteRows = await db

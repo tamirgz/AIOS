@@ -4,8 +4,8 @@ import {
   text,
   timestamp,
   uuid,
-  vector,
 } from "drizzle-orm/pg-core";
+import { embeddingVector } from "@/core/db/vector";
 
 export const KNOWLEDGE_KINDS = [
   "github",
@@ -53,8 +53,8 @@ export const knowledgeItems = pgTable("knowledge_items", {
   /** Fetched source material (readme, oembed, page text …). */
   raw: jsonb("raw"),
   insight: jsonb("insight").$type<KnowledgeInsight>(),
-  /** nomic-embed-text vector, filled by the worker's embedding sweep. */
-  embedding: vector("embedding", { dimensions: 768 }),
+  /** Embedding (configurable Ollama model), filled by the worker's sweep. */
+  embedding: embeddingVector("embedding"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

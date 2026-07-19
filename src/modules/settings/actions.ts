@@ -10,6 +10,7 @@ const ALLOWED_INTEGRATION_KEYS = new Set([
   "slack_webhook_url",
   "calendar_ics_url",
   "obsidian_vault_path",
+  "embedding_model",
 ]);
 
 export async function saveMemoryBlock(label: string, value: string) {
