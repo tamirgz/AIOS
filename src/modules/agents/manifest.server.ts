@@ -1,4 +1,6 @@
 import type { ModuleServerManifest } from "@/core/modules/types.server";
+import { externalReports } from "./schema";
+import { externalReportJobs } from "./external";
 import { AgentsPage } from "./pages/AgentsPage";
 import { AgentDetailPage } from "./pages/AgentDetailPage";
 import { AgentActivityWidget } from "./widgets/AgentActivityWidget";
@@ -17,9 +19,10 @@ export const agentsServerManifest: ModuleServerManifest = {
       component: AgentActivityWidget,
     },
   ],
-  // Agent tables live in core (the worker owns them) — no module schema.
-  schema: {},
+  // Core owns agents/agent_runs; this module owns external_reports.
+  schema: { externalReports },
   aiTools: [],
+  jobs: externalReportJobs,
   agentTemplates: [
     {
       id: "memory-consolidation",

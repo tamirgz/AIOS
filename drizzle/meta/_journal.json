@@ -50,6 +50,13 @@
       "when": 1784445798793,
       "tag": "0006_thick_prima",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784481398102,
+      "tag": "0007_plain_gladiator",
+      "breakpoints": true
     }
   ]
 }
