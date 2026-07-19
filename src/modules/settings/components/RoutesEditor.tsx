@@ -12,6 +12,7 @@ const KEY_LABELS: Record<string, string> = {
   "agent.default": "Agents (default)",
   "knowledge.enrich": "Knowledge enrichment",
   "inbox.triage": "Inbox triage",
+  "ideas.analyze": "Idea reality-check",
 };
 
 function RouteRow({ route }: { route: AiRoute }) {

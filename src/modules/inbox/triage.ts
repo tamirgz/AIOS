@@ -8,6 +8,7 @@ const TRIAGE_TOOLS = [
   "tasks.create",
   "notes.create",
   "knowledge.capture",
+  "ideas.capture",
   "calendar.createEvent",
 ];
 
@@ -38,7 +39,8 @@ export async function triageInboxItem(itemId: string): Promise<void> {
         "Route the captured input into the right place using EXACTLY ONE tool (or none if it is noise):",
         "- actionable to-do → tasks.create (extract a clean imperative title; set priority/dueAt if implied)",
         "- URL/repo/video/quote worth keeping → knowledge.capture (pass the input through; add a note with your read of why it matters)",
-        "- longer thought/idea to write down → notes.create (give it a real title)",
+        "- a product/business/feature idea or 'what if…' concept → ideas.capture",
+        "- longer thought or journal-style note → notes.create (give it a real title)",
         "- something happening at a date/time → calendar.createEvent",
         "Then answer with ONE short sentence describing what you did.",
         `Current date-time: ${new Date().toISOString()}`,

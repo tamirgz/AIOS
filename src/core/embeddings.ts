@@ -4,6 +4,7 @@ import { notes } from "@/modules/notes/schema";
 import { knowledgeItems } from "@/modules/knowledge/schema";
 import { tasks } from "@/modules/tasks/schema";
 import { obsidianNotes } from "@/modules/obsidian/schema";
+import { ideas } from "@/modules/ideas/schema";
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 export const DEFAULT_EMBEDDING_MODEL = "nomic-embed-text";
@@ -57,6 +58,7 @@ async function handleModelSwitch(log: (m: string) => void): Promise<void> {
   await db.update(knowledgeItems).set({ embedding: null });
   await db.update(tasks).set({ embedding: null });
   await db.update(obsidianNotes).set({ embedding: null });
+  await db.update(ideas).set({ embedding: null });
   await setSetting(ACTIVE_MODEL_KEY, configured);
 }
 
@@ -120,6 +122,20 @@ export async function sweepEmbeddings(
     done++;
   }
 
+  const ideaRows = await db
+    .select({ id: ideas.id, title: ideas.title, notes: ideas.notes })
+    .from(ideas)
+    .where(isNull(ideas.embedding))
+    .limit(20);
+  for (const i of ideaRows) {
+    const e = await embedText(`${i.title}\n${i.notes ?? ""}`);
+    await db
+      .update(ideas)
+      .set({ embedding: dsql`${toVec(e)}::vector` })
+      .where(dsql`${ideas.id} = ${i.id}`);
+    done++;
+  }
+
   // Vault index: larger batch — a first sync of a big vault backfills over
   // successive sweeps (~1.5k notes/hour at 50 per 2-min tick).
   const vaultRows = await db
@@ -144,7 +160,7 @@ export async function sweepEmbeddings(
 }
 
 export interface SemanticHit {
-  kind: "note" | "knowledge" | "task" | "vault";
+  kind: "note" | "knowledge" | "task" | "vault" | "idea";
   id: string;
   title: string;
   snippet: string | null;
@@ -158,6 +174,8 @@ function hitHref(kind: string, id: string): string {
       return `/m/notes/${id}`;
     case "knowledge":
       return `/m/knowledge/${id}`;
+    case "idea":
+      return `/m/ideas/${id}`;
     // vault rows carry the file path in `id` — deep-link into Obsidian.
     case "vault":
       return `obsidian://open?path=${encodeURIComponent(id)}`;
@@ -194,6 +212,10 @@ export async function searchEverything(
     (select 'vault', path, title, left(excerpt, 160),
             (embedding <=> ${vec}::vector)
        from obsidian_notes where embedding is not null)
+    union all
+    (select 'idea', id::text, title, left(coalesce(notes, ''), 160),
+            (embedding <=> ${vec}::vector)
+       from ideas where embedding is not null)
     order by distance asc
     limit ${limit}
   `);

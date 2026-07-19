@@ -4,7 +4,7 @@ import type { ModuleManifest } from "@/core/modules/types";
 import { tasksManifest } from "./tasks/manifest";
 import { projectsManifest } from "./projects/manifest";
 import { notesManifest } from "./notes/manifest";
-import { contentManifest } from "./content/manifest";
+import { ideasManifest } from "./ideas/manifest";
 import { settingsManifest } from "./settings/manifest";
 import { knowledgeManifest } from "./knowledge/manifest";
 import { agentsManifest } from "./agents/manifest";
@@ -18,7 +18,7 @@ export const modules: ModuleManifest[] = [
   tasksManifest,
   projectsManifest,
   notesManifest,
-  contentManifest,
+  ideasManifest,
   knowledgeManifest,
   obsidianManifest,
   agentsManifest,

@@ -3,7 +3,7 @@ import type { ModuleServerManifest } from "@/core/modules/types.server";
 import { tasksServerManifest } from "./tasks/manifest.server";
 import { projectsServerManifest } from "./projects/manifest.server";
 import { notesServerManifest } from "./notes/manifest.server";
-import { contentServerManifest } from "./content/manifest.server";
+import { ideasServerManifest } from "./ideas/manifest.server";
 import { settingsServerManifest } from "./settings/manifest.server";
 import { knowledgeServerManifest } from "./knowledge/manifest.server";
 import { agentsServerManifest } from "./agents/manifest.server";
@@ -17,7 +17,7 @@ export const serverModules: ModuleServerManifest[] = [
   tasksServerManifest,
   projectsServerManifest,
   notesServerManifest,
-  contentServerManifest,
+  ideasServerManifest,
   knowledgeServerManifest,
   obsidianServerManifest,
   agentsServerManifest,

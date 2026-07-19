@@ -15,14 +15,13 @@ import { useLiveEvents } from "@/core/ui/useLiveEvents";
 import { createEvent, deleteEvent, requestIcsSync } from "../actions";
 import type { AgendaItem } from "../agenda";
 
-const KIND_LABEL = { event: "event", task: "due", content: "publish" } as const;
+const KIND_LABEL = { event: "event", task: "due" } as const;
 
-/** One color per item category — dots, chips and the legend all share it. */
+/** Category fallback colors — Google events use their own color when set. */
 const LEGEND = [
   { label: "google", color: "var(--color-ion)" },
   { label: "aios event", color: "var(--color-plasma)" },
   { label: "task due", color: "var(--color-solar)" },
-  { label: "publish", color: "var(--color-violet)" },
 ] as const;
 
 const fmtTime = (d: Date) =>

@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { relatedTo } from "@/core/embeddings";
 
-const KIND_COLOR = {
+const KIND_COLOR: Record<string, string> = {
   note: "var(--color-violet)",
   knowledge: "var(--color-orchid)",
   task: "var(--color-ion)",
   vault: "var(--color-violet)",
-} as const;
+  idea: "var(--color-gold)",
+};
 
 /** Server component: semantic nearest-neighbours panel. */
 export async function RelatedItems({
