@@ -57,6 +57,13 @@
       "when": 1784481398102,
       "tag": "0007_plain_gladiator",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784482896230,
+      "tag": "0008_striped_killraven",
+      "breakpoints": true
     }
   ]
 }

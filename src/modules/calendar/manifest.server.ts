@@ -2,6 +2,7 @@ import type { ModuleServerManifest } from "@/core/modules/types.server";
 import { calendarEvents } from "./schema";
 import { calendarTools } from "./tools";
 import { calendarJobs } from "./sync";
+import { googleJobs } from "./google";
 import { CalendarPage } from "./pages/CalendarPage";
 import { TodayWidget } from "./widgets/TodayWidget";
 
@@ -27,5 +28,5 @@ export const calendarServerManifest: ModuleServerManifest = {
       defaultSchedule: "0 7 * * *",
     },
   ],
-  jobs: calendarJobs,
+  jobs: [...calendarJobs, ...googleJobs],
 };

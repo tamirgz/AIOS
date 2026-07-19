@@ -13,16 +13,28 @@ import { EmbeddingModelPicker } from "../components/EmbeddingModelPicker";
 
 export async function SettingsPage() {
   await ensureDefaultRoutes();
-  const [routes, icsUrl, slackWebhook, obsidianPath, embeddingModel, memory] =
-    await Promise.all([
-      db.select().from(aiRoutes).orderBy(asc(aiRoutes.taskKey)),
-      getSetting(SETTING_KEYS.calendarIcsUrl),
-      getSetting(SETTING_KEYS.slackWebhookUrl),
-      getSetting("obsidian_vault_path"),
-      getSetting(EMBEDDING_MODEL_KEY),
-      // Memory being unavailable must not take the whole page down.
-      listMemoryBlocks().catch(() => []),
-    ]);
+  const [
+    routes,
+    icsUrl,
+    slackWebhook,
+    obsidianPath,
+    embeddingModel,
+    googleClientId,
+    googleClientSecret,
+    googleRefreshToken,
+    memory,
+  ] = await Promise.all([
+    db.select().from(aiRoutes).orderBy(asc(aiRoutes.taskKey)),
+    getSetting(SETTING_KEYS.calendarIcsUrl),
+    getSetting(SETTING_KEYS.slackWebhookUrl),
+    getSetting("obsidian_vault_path"),
+    getSetting(EMBEDDING_MODEL_KEY),
+    getSetting("google_client_id"),
+    getSetting("google_client_secret"),
+    getSetting("google_refresh_token"),
+    // Memory being unavailable must not take the whole page down.
+    listMemoryBlocks().catch(() => []),
+  ]);
 
   return (
     <div className="grid max-w-6xl grid-cols-1 gap-x-6 gap-y-5 xl:grid-cols-2">
@@ -35,6 +47,9 @@ export async function SettingsPage() {
           icsUrl={icsUrl ?? ""}
           slackWebhook={slackWebhook ?? ""}
           obsidianPath={obsidianPath ?? ""}
+          googleClientId={googleClientId ?? ""}
+          googleClientSecret={googleClientSecret ?? ""}
+          googleConnected={!!googleRefreshToken}
         />
       </div>
       <div className="flex flex-col gap-5">

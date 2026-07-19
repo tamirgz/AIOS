@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { saveIntegration } from "../actions";
+import { GoogleConnect } from "./GoogleConnect";
 
 function IntegrationField({
   settingKey,
@@ -73,10 +74,16 @@ export function IntegrationsEditor({
   icsUrl,
   slackWebhook,
   obsidianPath,
+  googleClientId,
+  googleClientSecret,
+  googleConnected,
 }: {
   icsUrl: string;
   slackWebhook: string;
   obsidianPath: string;
+  googleClientId: string;
+  googleClientSecret: string;
+  googleConnected: boolean;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -104,6 +111,25 @@ export function IntegrationsEditor({
         placeholder="/Users/you/Documents/SecondBrain"
         initial={obsidianPath}
         secret={false}
+      />
+      <IntegrationField
+        settingKey="google_client_id"
+        label="Google OAuth client ID"
+        hint="From console.cloud.google.com → Credentials → OAuth client (Web application, redirect URI http://localhost:3777/api/google/callback)."
+        placeholder="…apps.googleusercontent.com"
+        initial={googleClientId}
+        secret={false}
+      />
+      <IntegrationField
+        settingKey="google_client_secret"
+        label="Google OAuth client secret"
+        hint="From the same OAuth client. Stored locally in your Postgres only."
+        placeholder="GOCSPX-…"
+        initial={googleClientSecret}
+      />
+      <GoogleConnect
+        hasCredentials={!!googleClientId && !!googleClientSecret}
+        connected={googleConnected}
       />
     </div>
   );

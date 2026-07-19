@@ -321,7 +321,7 @@ export function CalendarView({
                   >
                     {KIND_LABEL[it.kind]}
                   </span>
-                  {it.kind === "event" && it.detail !== "google" && (
+                  {it.deletable && (
                     <button
                       type="button"
                       title="Delete event"

@@ -17,6 +17,10 @@ const WINDOW_RECURRING_DAYS = 90;
  * Runs every 5 minutes in the worker and on demand via NOTIFY calendar_sync.
  */
 export async function syncIcs(): Promise<{ synced: number } | null> {
+  // The Google API integration supersedes ICS (real colors, server-side
+  // recurrence expansion) — skip entirely when connected.
+  const { isGoogleConnected } = await import("./google");
+  if (await isGoogleConnected()) return null;
   const url = await getSetting(SETTING_KEYS.calendarIcsUrl);
   if (!url) return null;
 

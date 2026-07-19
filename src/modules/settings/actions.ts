@@ -11,7 +11,19 @@ const ALLOWED_INTEGRATION_KEYS = new Set([
   "calendar_ics_url",
   "obsidian_vault_path",
   "embedding_model",
+  "google_client_id",
+  "google_client_secret",
 ]);
+
+export async function disconnectGoogle() {
+  const { db } = await import("@/core/db/client");
+  const { appSettings } = await import("@/core/db/schema/app-settings");
+  const { eq } = await import("drizzle-orm");
+  await db
+    .delete(appSettings)
+    .where(eq(appSettings.key, "google_refresh_token"));
+  revalidatePath("/m/settings");
+}
 
 export async function saveMemoryBlock(label: string, value: string) {
   const { updateMemoryBlock } = await import("@/core/memory");

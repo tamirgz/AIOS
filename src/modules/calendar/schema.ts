@@ -8,7 +8,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const EVENT_SOURCES = ["local", "ics"] as const;
+export const EVENT_SOURCES = ["local", "ics", "google"] as const;
 
 export const calendarEvents = pgTable(
   "calendar_events",
@@ -21,8 +21,10 @@ export const calendarEvents = pgTable(
     endAt: timestamp("end_at", { withTimezone: true }),
     allDay: boolean("all_day").notNull().default(false),
     source: text("source", { enum: EVENT_SOURCES }).notNull().default("local"),
-    /** Stable UID from the ICS feed — sync upserts on this. */
+    /** Stable UID from the ICS feed / Google API — sync upserts on this. */
     icsUid: text("ics_uid"),
+    /** The event's own color (hex) — from the Google API; null = category default. */
+    color: text("color"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

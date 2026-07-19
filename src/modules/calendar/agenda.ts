@@ -14,6 +14,8 @@ export interface AgendaItem {
   detail: string | null;
   href: string;
   accent: string;
+  /** Only AIOS-local events may be deleted from AIOS. */
+  deletable: boolean;
 }
 
 /**
@@ -61,10 +63,13 @@ export async function getAgenda(from: Date, to: Date): Promise<AgendaItem[]> {
       at: e.startAt,
       endAt: e.endAt,
       allDay: e.allDay,
-      detail: e.location ?? (e.source === "ics" ? "google" : null),
+      detail: e.location ?? (e.source !== "local" ? "google" : null),
       href: "/m/calendar",
+      // The event's own Google color wins; category color is the fallback.
       accent:
-        e.source === "ics" ? "var(--color-ion)" : "var(--color-plasma)",
+        e.color ??
+        (e.source !== "local" ? "var(--color-ion)" : "var(--color-plasma)"),
+      deletable: e.source === "local",
     })),
     ...dueTasks.map((t) => ({
       id: t.id,
@@ -76,6 +81,7 @@ export async function getAgenda(from: Date, to: Date): Promise<AgendaItem[]> {
       detail: `${t.priority} priority`,
       href: "/m/tasks",
       accent: "var(--color-solar)",
+      deletable: false,
     })),
     ...publishing.map((c) => ({
       id: c.id,
@@ -87,6 +93,7 @@ export async function getAgenda(from: Date, to: Date): Promise<AgendaItem[]> {
       detail: `publish · ${c.kind}`,
       href: "/m/content",
       accent: "var(--color-violet)",
+      deletable: false,
     })),
   ];
 
