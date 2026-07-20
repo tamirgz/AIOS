@@ -5,6 +5,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import { embeddingVector } from "@/core/db/vector";
 
 export const PROJECT_STATUSES = ["active", "paused", "done"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
@@ -16,6 +17,8 @@ export const projects = pgTable("projects", {
   status: text("status", { enum: PROJECT_STATUSES })
     .notNull()
     .default("active"),
+  /** name + description embedding, for the relations/suggestions layer. */
+  embedding: embeddingVector("embedding"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

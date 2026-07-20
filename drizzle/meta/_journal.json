@@ -85,6 +85,13 @@
       "when": 1784567065823,
       "tag": "0011_notes_project_ref",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784582886587,
+      "tag": "0012_projects_embedding",
+      "breakpoints": true
     }
   ]
 }

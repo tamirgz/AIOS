@@ -5,6 +5,7 @@ import { knowledgeItems } from "@/modules/knowledge/schema";
 import { tasks } from "@/modules/tasks/schema";
 import { obsidianNotes } from "@/modules/obsidian/schema";
 import { ideas } from "@/modules/ideas/schema";
+import { projects } from "@/modules/projects/schema";
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 export const DEFAULT_EMBEDDING_MODEL = "nomic-embed-text";
@@ -133,6 +134,24 @@ export async function sweepEmbeddings(
       .update(ideas)
       .set({ embedding: dsql`${toVec(e)}::vector` })
       .where(dsql`${ideas.id} = ${i.id}`);
+    done++;
+  }
+
+  const projectRows = await db
+    .select({
+      id: projects.id,
+      name: projects.name,
+      description: projects.description,
+    })
+    .from(projects)
+    .where(isNull(projects.embedding))
+    .limit(20);
+  for (const p of projectRows) {
+    const e = await embedText(`${p.name}\n${p.description ?? ""}`);
+    await db
+      .update(projects)
+      .set({ embedding: dsql`${toVec(e)}::vector` })
+      .where(dsql`${projects.id} = ${p.id}`);
     done++;
   }
 
@@ -282,4 +301,199 @@ export async function relatedTo(
     href: hitHref(r.kind, r.id),
     distance: Number(r.distance),
   }));
+}
+
+// ── Relations layer ─────────────────────────────────────────────────────────
+// Quality gates. Cosine distance: 0 = identical, 1 = orthogonal. In a personal
+// corpus, < ~0.55 is a genuine thematic match; looser than that is noise.
+const RELATED_MAX_DISTANCE = 0.55;
+const PROJECT_STRONG = 0.45;
+const PROJECT_POSSIBLE = 0.58;
+
+export interface Connection {
+  kind: "note" | "idea" | "knowledge" | "task" | "vault" | "project";
+  id: string;
+  title: string;
+  snippet: string | null;
+  href: string;
+  distance: number;
+}
+
+export interface ProjectSuggestion {
+  id: string;
+  name: string;
+  confidence: "strong" | "possible";
+  distance: number;
+}
+
+export interface Connections {
+  projectSuggestion: ProjectSuggestion | null;
+  related: Connection[];
+}
+
+const SOURCE_TABLE: Record<string, string> = {
+  note: "notes",
+  idea: "ideas",
+  knowledge: "knowledge_items",
+};
+
+/**
+ * Best-fit project via two signals, strongest first:
+ *  1) Neighbour vote — which project do this item's closest notes/tasks
+ *     already belong to (weighted by closeness). Robust even when a project's
+ *     own description is thin.
+ *  2) Direct — the project whose name+description embeds closest.
+ */
+async function suggestProject(
+  table: string,
+  sourceId: string,
+): Promise<ProjectSuggestion | null> {
+  // 1 — neighbour vote.
+  const voteRows = await db.execute<{
+    project_ref: string;
+    score: number;
+    best: number;
+    n: number;
+  }>(dsql`
+    with target as (
+      select embedding from ${dsql.raw(table)}
+       where id = ${sourceId} and embedding is not null),
+    neighbours as (
+      select project_ref,
+             (embedding <=> (select embedding from target)) as d
+        from (
+          select project_ref, embedding, id::text as rid from notes
+           where embedding is not null and project_ref is not null
+          union all
+          select project_ref, embedding, id::text as rid from tasks
+           where embedding is not null and project_ref is not null
+        ) x
+       where rid <> ${sourceId}
+         and (select embedding from target) is not null
+         and (embedding <=> (select embedding from target)) < ${RELATED_MAX_DISTANCE})
+    select project_ref,
+           sum(${RELATED_MAX_DISTANCE} - d)::float8 as score,
+           min(d)::float8 as best,
+           count(*)::int as n
+      from neighbours
+     group by project_ref
+     order by score desc
+     limit 1
+  `);
+  const vote = [...voteRows][0];
+  if (vote?.project_ref) {
+    const projectId = vote.project_ref.split(":")[1];
+    const [row] = await db.execute<{ name: string }>(
+      dsql`select name from projects where id = ${projectId}`,
+    );
+    if (row) {
+      // Strong when multiple neighbours agree or one is very close.
+      const strong = vote.n >= 2 || Number(vote.best) < 0.42;
+      return {
+        id: projectId,
+        name: row.name,
+        distance: Number(vote.best),
+        confidence: strong ? "strong" : "possible",
+      };
+    }
+  }
+
+  // 2 — direct project embedding (fallback).
+  const projRows = await db.execute<{
+    id: string;
+    name: string;
+    distance: number;
+  }>(dsql`
+    with target as (
+      select embedding from ${dsql.raw(table)}
+       where id = ${sourceId} and embedding is not null)
+    select p.id::text, p.name,
+           (p.embedding <=> (select embedding from target))::float8 as distance
+      from projects p
+     where p.embedding is not null
+       and (select embedding from target) is not null
+     order by distance asc
+     limit 1
+  `);
+  const top = [...projRows][0];
+  if (top && Number(top.distance) <= PROJECT_POSSIBLE) {
+    return {
+      id: top.id,
+      name: top.name,
+      distance: Number(top.distance),
+      confidence: Number(top.distance) <= PROJECT_STRONG ? "strong" : "possible",
+    };
+  }
+  return null;
+}
+
+/**
+ * The relations engine: from any source item, return a best-fit project
+ * suggestion (with confidence) plus quality-gated, cross-type neighbours.
+ * Never throws — degrades to empty when embeddings aren't ready yet.
+ */
+export async function getConnections(
+  sourceKind: "note" | "idea" | "knowledge",
+  sourceId: string,
+  opts: { limit?: number; currentProjectId?: string | null } = {},
+): Promise<Connections> {
+  const table = SOURCE_TABLE[sourceKind];
+  if (!table) return { projectSuggestion: null, related: [] };
+  const limit = opts.limit ?? 6;
+  const selfClause = (col: string, k: string) =>
+    dsql.raw(
+      `not ('${sourceKind}' = '${k}' and ${col} = '${sourceId.replace(/'/g, "")}')`,
+    );
+
+  try {
+    let projectSuggestion: ProjectSuggestion | null = null;
+    if (!opts.currentProjectId) {
+      projectSuggestion = await suggestProject(table, sourceId);
+    }
+
+    const rows = await db.execute<{
+      kind: string;
+      id: string;
+      title: string;
+      snippet: string | null;
+      distance: number;
+    }>(dsql`
+      with target as (
+        select embedding from ${dsql.raw(table)}
+         where id = ${sourceId} and embedding is not null)
+      (select 'note' as kind, n.id::text, n.title, left(n.body, 140) as snippet,
+              (n.embedding <=> (select embedding from target)) as distance
+         from notes n where n.embedding is not null and ${selfClause("n.id::text", "note")})
+      union all
+      (select 'idea', i.id::text, i.title, left(coalesce(i.notes, ''), 140),
+              (i.embedding <=> (select embedding from target))
+         from ideas i where i.embedding is not null and ${selfClause("i.id::text", "idea")})
+      union all
+      (select 'knowledge', k.id::text, coalesce(k.title, left(k.input, 80)),
+              (k.insight->>'summary'), (k.embedding <=> (select embedding from target))
+         from knowledge_items k where k.embedding is not null and ${selfClause("k.id::text", "knowledge")})
+      union all
+      (select 'vault', o.path, o.title, left(o.excerpt, 140),
+              (o.embedding <=> (select embedding from target))
+         from obsidian_notes o where o.embedding is not null)
+      order by distance asc
+      limit ${limit + 4}
+    `);
+
+    const related: Connection[] = [...rows]
+      .map((r) => ({
+        kind: r.kind as Connection["kind"],
+        id: r.id,
+        title: r.title,
+        snippet: r.snippet,
+        href: hitHref(r.kind, r.id),
+        distance: Number(r.distance),
+      }))
+      .filter((c) => c.distance <= RELATED_MAX_DISTANCE)
+      .slice(0, limit);
+
+    return { projectSuggestion, related };
+  } catch {
+    return { projectSuggestion: null, related: [] };
+  }
 }

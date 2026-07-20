@@ -3,9 +3,10 @@ import { eq } from "drizzle-orm";
 import { ArrowLeft } from "lucide-react";
 import { db } from "@/core/db/client";
 import type { ModuleRouteProps } from "@/core/modules/types.server";
-import { RelatedItems } from "@/core/ui/RelatedItems";
+import { getConnections } from "@/core/embeddings";
 import { notes } from "../schema";
 import { NoteEditor } from "../components/NoteEditor";
+import { NoteConnections } from "../components/NoteConnections";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -35,15 +36,18 @@ export async function NoteDetailPage({ params }: ModuleRouteProps) {
   }
 
   const { listProjects } = await import("@/modules/projects/actions");
-  const projects = (await listProjects().catch(() => [])).map((p) => ({
-    id: p.id,
-    name: p.name,
-  }));
+  const [projectRows, connections] = await Promise.all([
+    listProjects().catch(() => []),
+    getConnections("note", note.id, {
+      currentProjectId: note.projectRef?.split(":")[1] ?? null,
+    }),
+  ]);
+  const projects = projectRows.map((p) => ({ id: p.id, name: p.name }));
 
   return (
     <>
       <NoteEditor note={note} projects={projects} />
-      <RelatedItems kind="note" id={note.id} />
+      <NoteConnections noteId={note.id} connections={connections} />
     </>
   );
 }
