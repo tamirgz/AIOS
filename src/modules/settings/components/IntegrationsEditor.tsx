@@ -77,6 +77,8 @@ export function IntegrationsEditor({
   googleClientId,
   googleClientSecret,
   googleConnected,
+  slackBotToken,
+  slackReportChannels,
 }: {
   icsUrl: string;
   slackWebhook: string;
@@ -84,6 +86,8 @@ export function IntegrationsEditor({
   googleClientId: string;
   googleClientSecret: string;
   googleConnected: boolean;
+  slackBotToken: string;
+  slackReportChannels: string;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -103,6 +107,21 @@ export function IntegrationsEditor({
         hint="An incoming-webhook URL (api.slack.com/apps → Incoming Webhooks). Every AIOS notification — agent reports, briefs — is also delivered there."
         placeholder="https://hooks.slack.com/services/…"
         initial={slackWebhook}
+      />
+      <IntegrationField
+        settingKey="slack_bot_token"
+        label="Slack bot token (read agent reports)"
+        hint="A bot token (xoxb-…) with channels:history. Lets AIOS read the channels your Claude Desktop routines post to — that's how their output reaches the Agents page."
+        placeholder="xoxb-…"
+        initial={slackBotToken}
+      />
+      <IntegrationField
+        settingKey="slack_report_channels"
+        label="Slack channels to ingest"
+        hint="Comma-separated channel IDs the bot has been invited to. Each new message becomes an external report."
+        placeholder="C0A1B2C3D4E, C0F5G6H7I8J"
+        initial={slackReportChannels}
+        secret={false}
       />
       <IntegrationField
         settingKey="obsidian_vault_path"

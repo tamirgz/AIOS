@@ -17,9 +17,11 @@ export const externalReports = pgTable(
   "external_reports",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    /** Stable identity of the origin, e.g. "file:daily-brief-2026-07-19.md" or "claude-job:292314b4". */
+    /** Stable identity of the origin, e.g. "file:brief.md", "slack:C123:1784.001". */
     source: text("source").notNull(),
-    kind: text("kind", { enum: ["dropbox", "claude-job"] }).notNull(),
+    kind: text("kind", { enum: ["dropbox", "claude-job", "slack"] }).notNull(),
+    /** Human label for where it came from, e.g. "#my-today". */
+    origin: text("origin"),
     title: text("title").notNull(),
     body: text("body").notNull(),
     /** When the external agent produced it (file mtime / job updatedAt). */

@@ -1,3 +1,6 @@
+-- Idempotent: the ideas table was first applied by hand (manual_0009_ideas_pipeline);
+-- this migration re-establishes the drizzle snapshot chain and adds
+-- external_reports.origin for Slack-sourced reports.
 CREATE TABLE IF NOT EXISTS "ideas" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"title" text NOT NULL,
@@ -13,8 +16,5 @@ CREATE TABLE IF NOT EXISTS "ideas" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-INSERT INTO "ideas" ("title", "category", "stage", "notes")
-SELECT "title", 'product', 'spark', "notes" FROM "content_items"
-ON CONFLICT DO NOTHING;
---> statement-breakpoint
-DROP TABLE IF EXISTS "content_items";
+DROP TABLE IF EXISTS "content_items" CASCADE;--> statement-breakpoint
+ALTER TABLE "external_reports" ADD COLUMN IF NOT EXISTS "origin" text;

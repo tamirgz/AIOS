@@ -13,6 +13,8 @@ const ALLOWED_INTEGRATION_KEYS = new Set([
   "embedding_model",
   "google_client_id",
   "google_client_secret",
+  "slack_bot_token",
+  "slack_report_channels",
 ]);
 
 export async function disconnectGoogle() {
@@ -52,6 +54,12 @@ export async function saveIntegration(key: string, value: string) {
   }
   if (key === "obsidian_vault_path" && value.trim()) {
     await sql.notify("obsidian_sync", "settings-changed");
+  }
+  if (key === "slack_report_channels" && value.trim()) {
+    // New channel list → re-read recent history, then poll.
+    const { backfillSlack } = await import("@/modules/agents/slack-intake");
+    await backfillSlack();
+    await sql.notify("slack_intake", "settings-changed");
   }
   revalidatePath("/m/settings");
 }

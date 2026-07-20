@@ -1,6 +1,7 @@
 import type { ModuleServerManifest } from "@/core/modules/types.server";
 import { externalReports } from "./schema";
 import { externalReportJobs } from "./external";
+import { slackIntakeJobs } from "./slack-intake";
 import { AgentsPage } from "./pages/AgentsPage";
 import { AgentDetailPage } from "./pages/AgentDetailPage";
 import { AgentActivityWidget } from "./widgets/AgentActivityWidget";
@@ -22,7 +23,7 @@ export const agentsServerManifest: ModuleServerManifest = {
   // Core owns agents/agent_runs; this module owns external_reports.
   schema: { externalReports },
   aiTools: [],
-  jobs: externalReportJobs,
+  jobs: [...externalReportJobs, ...slackIntakeJobs],
   agentTemplates: [
     {
       id: "memory-consolidation",
