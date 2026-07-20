@@ -3,13 +3,13 @@
 import type { Connections } from "@/core/embeddings";
 import { ConnectionsPanel } from "@/core/ui/ConnectionsPanel";
 import { ProjectSuggestionCard } from "@/core/ui/ProjectSuggestionCard";
-import { setNoteProject } from "../actions";
+import { setIdeaProject } from "../actions";
 
-export function NoteConnections({
-  noteId,
+export function IdeaConnections({
+  ideaId,
   connections,
 }: {
-  noteId: string;
+  ideaId: string;
   connections: Connections;
 }) {
   const { projectSuggestion, related } = connections;
@@ -19,7 +19,7 @@ export function NoteConnections({
       {projectSuggestion && (
         <ProjectSuggestionCard
           suggestion={projectSuggestion}
-          onLink={(projectId) => setNoteProject(noteId, projectId)}
+          onLink={(projectId) => setIdeaProject(ideaId, projectId)}
         />
       )}
       <ConnectionsPanel related={related} />
