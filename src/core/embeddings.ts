@@ -264,46 +264,9 @@ export async function searchEverything(
   }));
 }
 
-/** Nearest neighbours of an existing item (for "related" panels). */
-export async function relatedTo(
-  kind: "note" | "knowledge",
-  id: string,
-  limit = 5,
-): Promise<SemanticHit[]> {
-  const table = kind === "note" ? "notes" : "knowledge_items";
-  const rows = await db.execute<{
-    kind: string;
-    id: string;
-    title: string;
-    snippet: string | null;
-    distance: number;
-  }>(dsql`
-    with target as (select embedding from ${dsql.raw(table)} where id = ${id} and embedding is not null)
-    (select 'note' as kind, n.id::text, n.title, left(n.body, 160) as snippet,
-            (n.embedding <=> (select embedding from target)) as distance
-       from notes n where n.embedding is not null and not (n.id::text = ${id}))
-    union all
-    (select 'knowledge', k.id::text, coalesce(k.title, left(k.input, 80)),
-            (k.insight->>'summary'), (k.embedding <=> (select embedding from target))
-       from knowledge_items k where k.embedding is not null and not (k.id::text = ${id}))
-    union all
-    (select 'vault', o.path, o.title, left(o.excerpt, 160),
-            (o.embedding <=> (select embedding from target))
-       from obsidian_notes o where o.embedding is not null)
-    order by distance asc
-    limit ${limit}
-  `);
-  return [...rows].map((r) => ({
-    kind: r.kind as SemanticHit["kind"],
-    id: r.id,
-    title: r.title,
-    snippet: r.snippet,
-    href: hitHref(r.kind, r.id),
-    distance: Number(r.distance),
-  }));
-}
-
 // ── Relations layer ─────────────────────────────────────────────────────────
+// (Superseded the old flat relatedTo() — getConnections below is the single
+//  cross-type relations engine used by every detail page.)
 // Quality gates. Cosine distance: 0 = identical, 1 = orthogonal. In a personal
 // corpus, < ~0.55 is a genuine thematic match; looser than that is noise.
 const RELATED_MAX_DISTANCE = 0.55;

@@ -2,7 +2,9 @@ import { eq } from "drizzle-orm";
 import { db } from "@/core/db/client";
 import type { ModuleRouteProps } from "@/core/modules/types.server";
 import { GlassPanel } from "@/core/ui/GlassPanel";
+import { getConnections } from "@/core/embeddings";
 import { IdeaDetail } from "../components/IdeaDetail";
+import { IdeaConnections } from "../components/IdeaConnections";
 import { ideas } from "../schema";
 
 const UUID_RE =
@@ -23,5 +25,16 @@ export async function IdeaDetailPage({ params }: ModuleRouteProps) {
       </GlassPanel>
     );
   }
-  return <IdeaDetail idea={idea} />;
+  const connections = await getConnections("idea", idea.id, {
+    currentProjectId: idea.projectRef?.split(":")[1] ?? null,
+  });
+
+  return (
+    <>
+      <IdeaDetail idea={idea} />
+      <div className="max-w-3xl">
+        <IdeaConnections ideaId={idea.id} connections={connections} />
+      </div>
+    </>
+  );
 }

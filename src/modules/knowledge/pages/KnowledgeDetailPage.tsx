@@ -2,7 +2,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/core/db/client";
 import type { ModuleRouteProps } from "@/core/modules/types.server";
 import { GlassPanel } from "@/core/ui/GlassPanel";
-import { RelatedItems } from "@/core/ui/RelatedItems";
+import { getConnections } from "@/core/embeddings";
+import { ConnectionsPanel } from "@/core/ui/ConnectionsPanel";
 import { KnowledgeDetail } from "../components/KnowledgeDetail";
 import { knowledgeItems } from "../schema";
 
@@ -24,11 +25,13 @@ export async function KnowledgeDetailPage({ params }: ModuleRouteProps) {
       </GlassPanel>
     );
   }
+  const { related } = await getConnections("knowledge", item.id);
+
   return (
     <>
       <KnowledgeDetail item={item} />
-      <div className="max-w-3xl">
-        <RelatedItems kind="knowledge" id={item.id} />
+      <div className="mt-4 max-w-3xl">
+        <ConnectionsPanel related={related} />
       </div>
     </>
   );

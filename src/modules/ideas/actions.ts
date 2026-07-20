@@ -55,6 +55,20 @@ export async function deleteIdea(id: string) {
   revalidate();
 }
 
+/** Link/unlink an idea to an existing project (entity-ref). */
+export async function setIdeaProject(id: string, projectId: string | null) {
+  await db
+    .update(ideas)
+    .set({
+      projectRef: projectId ? `projects:${projectId}` : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(ideas.id, id));
+  revalidate(id);
+  revalidatePath("/m/projects");
+  if (projectId) revalidatePath(`/m/projects/${projectId}`);
+}
+
 /** Queue the AI reality-check (runs in the worker). */
 export async function requestAnalysis(id: string) {
   await db
