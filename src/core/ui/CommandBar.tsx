@@ -57,9 +57,12 @@ function useChat() {
 
   const send = useCallback(
     async (text: string) => {
+      // Cap resent history — long conversations otherwise grow token cost
+      // linearly with every message.
       const history = turns
         .filter((t) => !t.pending && !t.error)
-        .map((t) => ({ role: t.role, content: t.content }));
+        .map((t) => ({ role: t.role, content: t.content }))
+        .slice(-12);
       const nextMessages = [...history, { role: "user" as const, content: text }];
       setTurns((t) => [
         ...t,
