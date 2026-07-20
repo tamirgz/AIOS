@@ -136,6 +136,22 @@ export async function sweepEmbeddings(
     done++;
   }
 
+  // Archival memory entries — recall depends on these.
+  const { memoryEntries } = await import("@/core/db/schema/memory");
+  const memRows = await db
+    .select({ id: memoryEntries.id, text: memoryEntries.text })
+    .from(memoryEntries)
+    .where(isNull(memoryEntries.embedding))
+    .limit(30);
+  for (const m of memRows) {
+    const e = await embedText(m.text);
+    await db
+      .update(memoryEntries)
+      .set({ embedding: dsql`${toVec(e)}::vector` })
+      .where(dsql`${memoryEntries.id} = ${m.id}`);
+    done++;
+  }
+
   // Vault index: larger batch — a first sync of a big vault backfills over
   // successive sweeps (~1.5k notes/hour at 50 per 2-min tick).
   const vaultRows = await db

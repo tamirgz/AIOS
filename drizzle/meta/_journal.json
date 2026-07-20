@@ -71,6 +71,13 @@
       "when": 1784526360021,
       "tag": "0009_ideas_and_origin",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784538980233,
+      "tag": "0010_memory_entries",
+      "breakpoints": true
     }
   ]
 }

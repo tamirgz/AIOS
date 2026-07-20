@@ -1,4 +1,12 @@
-import { integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
+import { embeddingVector } from "@/core/db/vector";
 
 /**
  * Letta-style labeled memory blocks — small, size-budgeted context injected
@@ -16,3 +24,35 @@ export const memoryBlocks = pgTable("memory_blocks", {
 });
 
 export type MemoryBlock = typeof memoryBlocks.$inferSelect;
+
+export const MEMORY_ENTRY_KINDS = [
+  "fact",
+  "decision",
+  "lesson",
+  "event",
+  "superseded",
+] as const;
+export type MemoryEntryKind = (typeof MEMORY_ENTRY_KINDS)[number];
+
+/**
+ * Archival memory — append-only, semantically searchable long-tail memory
+ * (Letta's "archival" tier). Core blocks stay small and always-injected;
+ * everything else lands here and is retrieved on demand via memory.recall.
+ */
+export const memoryEntries = pgTable(
+  "memory_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    kind: text("kind", { enum: MEMORY_ENTRY_KINDS }).notNull().default("fact"),
+    text: text("text").notNull(),
+    /** Where it came from: "chat", "agent:<name>", "block:<label>". */
+    source: text("source").notNull(),
+    embedding: embeddingVector("embedding"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("memory_entries_created").on(t.createdAt)],
+);
+
+export type MemoryEntry = typeof memoryEntries.$inferSelect;

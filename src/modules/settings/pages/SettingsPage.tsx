@@ -39,6 +39,20 @@ export async function SettingsPage() {
     // Memory being unavailable must not take the whole page down.
     listMemoryBlocks().catch(() => []),
   ]);
+  const { memoryEntries } = await import("@/core/db/schema/memory");
+  const { desc: descOrder, sql: dsql } = await import("drizzle-orm");
+  const [journal, [{ n: journalCount }]] = await Promise.all([
+    db
+      .select()
+      .from(memoryEntries)
+      .orderBy(descOrder(memoryEntries.createdAt))
+      .limit(8)
+      .catch(() => []),
+    db
+      .select({ n: dsql<number>`count(*)` })
+      .from(memoryEntries)
+      .catch(() => [{ n: 0 }]),
+  ]);
 
   return (
     <div className="grid max-w-6xl grid-cols-1 gap-x-6 gap-y-5 xl:grid-cols-2">
@@ -59,7 +73,11 @@ export async function SettingsPage() {
         />
       </div>
       <div className="flex flex-col gap-5">
-        <MemoryEditor blocks={memory} />
+        <MemoryEditor
+          blocks={memory}
+          journal={journal}
+          journalCount={Number(journalCount)}
+        />
         <UsagePanel />
       </div>
     </div>
