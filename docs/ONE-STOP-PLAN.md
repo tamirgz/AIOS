@@ -87,6 +87,8 @@ Rule of thumb: **volume & summarization → local; judgment & action → Claude.
 
 ## 4 · Execution phases
 
+> **Re-sequenced 2026-07-20:** the Workbench (see WORKBENCH-PLAN.md, phases W1–W3) executes **before** Phase 1 below — the usability review found one-off task delegation to be the #1 gap, and every later integration feeds into that surface.
+
 ### Phase 1 — Close the loop (Gmail + activation + local rerouting)
 *Goal: the morning brief becomes complete enough that AIOS is the first thing you open.*
 - You: the 3 token setups (§1). Google client gains `gmail.readonly` scope — **one OAuth for calendar + mail**.
