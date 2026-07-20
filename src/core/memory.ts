@@ -61,15 +61,17 @@ export async function renderMemoryContext(): Promise<string> {
   } catch {
     return "";
   }
-  const lines = blocks.map((b) =>
-    b.value.trim()
-      ? `<${b.label}>\n${b.value.trim()}\n</${b.label}>`
-      : `<${b.label}> (empty — fill via memory.update when you learn something) </${b.label}>`,
-  );
+  // Token discipline: only non-empty blocks are rendered in full; empty ones
+  // collapse to a single mention line.
+  const filled = blocks.filter((b) => b.value.trim());
+  const empty = blocks.filter((b) => !b.value.trim()).map((b) => b.label);
   return [
     "PERSISTENT MEMORY (shared across chat and all agents; keep it current with the memory.update tool):",
-    ...lines,
-    "Long-tail memory: use memory.recall to search past decisions/lessons/events before repeating work, and memory.remember to store durable ones.",
+    ...filled.map((b) => `<${b.label}>\n${b.value.trim()}\n</${b.label}>`),
+    ...(empty.length
+      ? [`(empty blocks awaiting content: ${empty.join(", ")})`]
+      : []),
+    "Long-tail memory: memory.recall to search past decisions/lessons; memory.remember to store durable ones.",
   ].join("\n");
 }
 
@@ -192,7 +194,8 @@ export async function recallEntries(
     if ([...rows].length > 0) {
       return [...rows].map((r) => ({
         kind: r.kind,
-        text: r.text,
+        // Snippet, not full text — recall results feed back into prompts.
+        text: r.text.length > 500 ? r.text.slice(0, 500) + "…" : r.text,
         when: new Date(r.created_at),
         source: r.source,
       }));

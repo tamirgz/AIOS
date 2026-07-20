@@ -28,7 +28,29 @@ export async function POST(req: Request) {
 
   await ensureDefaultRoutes();
   const route = await resolveRoute("chat");
-  const tools = getAllTools();
+  // Claude handles the full registry well (and the SDK prompt-caches tool
+  // definitions). Small local models get a lean, high-value subset — fewer
+  // definitions means less context burned and better tool selection.
+  const LEAN_TOOLS = new Set([
+    "search.everything",
+    "memory.update",
+    "memory.remember",
+    "memory.recall",
+    "tasks.create",
+    "tasks.list",
+    "tasks.setStatus",
+    "notes.create",
+    "notes.search",
+    "knowledge.capture",
+    "knowledge.search",
+    "calendar.agenda",
+    "ideas.capture",
+    "notify.send",
+  ]);
+  const tools =
+    route.providerId === "ollama"
+      ? getAllTools().filter((t) => LEAN_TOOLS.has(t.name))
+      : getAllTools();
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
