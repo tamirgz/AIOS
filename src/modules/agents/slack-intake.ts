@@ -1,4 +1,4 @@
-import { sql as dsql } from "drizzle-orm";
+import { eq, sql as dsql } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
 import { getSetting, setSetting } from "@/core/app-settings";
 import type { ModuleJob } from "@/core/modules/types.server";
@@ -37,24 +37,82 @@ async function slackApi<T>(
   return data;
 }
 
-/** Slack markup → readable text (emoji codes, links, bold/italic markers). */
-function toPlain(text: string): string {
-  return text
-    .replace(/<(https?:\/\/[^|>]+)\|([^>]+)>/g, "$2 ($1)")
-    .replace(/<(https?:\/\/[^>]+)>/g, "$1")
-    .replace(/<mailto:[^|>]+\|([^>]+)>/g, "$1")
-    .replace(/:[a-z0-9_+-]+:/g, "")
-    .replace(/[*_]{1,2}([^*_]+)[*_]{1,2}/g, "$1")
+/**
+ * Slack mrkdwn → Markdown (not stripped plain text): links stay clickable,
+ * bold/italic/bullets survive, emoji shortcodes become real emoji, and
+ * Slack's HTML entities are unescaped.
+ */
+/** Slack-flavoured shortcodes that differ from the standard emoji names. */
+const SLACK_EMOJI_ALIASES: Record<string, string> = {
+  robot_face: "robot",
+  "e-mail": "email",
+  thumbsup: "+1",
+  thumbsdown: "-1",
+  slightly_smiling_face: "slightly_smiling_face",
+  white_frowning_face: "frowning",
+  simple_smile: "smile",
+};
+
+export function slackToMarkdown(text: string, emojify: (s: string) => string) {
+  let out = text
+    // Links first — before entity unescaping, so labels can't break parsing.
+    .replace(/<(https?:\/\/[^|>]+)\|([^>]+)>/g, "[$2]($1)")
+    .replace(/<(https?:\/\/[^>]+)>/g, "<$1>")
+    .replace(/<mailto:([^|>]+)\|([^>]+)>/g, "[$2](mailto:$1)")
+    .replace(/<#[A-Z0-9]+\|([^>]+)>/g, "#$1")
+    .replace(/<!(here|channel|everyone)>/g, "@$1");
+
+  // Slack HTML-escapes these three in message text.
+  out = out
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+
+  out = out
+    // Slack bold is *single* asterisks; Markdown needs double.
+    .replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,:;!?]|$)/g, "$1**$2**")
+    .replace(/~([^~\n]+)~/g, "~~$1~~")
+    // Slack bullets → markdown list items.
+    .replace(/^[ \t]*[•·][ \t]*/gm, "- ")
     .replace(/[ \t]+\n/g, "\n")
     .trim();
+
+  // Slack-only shortcodes → standard names, then real emoji; anything still
+  // unresolved is dropped rather than shown as raw ":name:".
+  out = out.replace(
+    /:([a-z0-9_+-]+):/g,
+    (m, name: string) => `:${SLACK_EMOJI_ALIASES[name] ?? name}:`,
+  );
+  out = emojify(out).replace(/:[a-z0-9_+-]{2,}:/g, "").replace(/ {2,}/g, " ");
+
+  // A standalone italic line (optionally emoji-prefixed) is a section header
+  // in these digests — promote it so the rendered view gets real hierarchy.
+  out = out
+    .split("\n")
+    .map((line) => {
+      const m = line
+        .trim()
+        .match(/^([\p{Extended_Pictographic}️\s]*)_([^_]{2,120})_$/u);
+      return m ? `### ${(m[1] ?? "").trim()} ${m[2]}`.trim() : line;
+    })
+    .join("\n");
+
+  return out;
 }
 
-function titleOf(plain: string, fallback: string): string {
-  const first = plain
+/** Title = first meaningful line, with markdown/emoji stripped for the header. */
+function titleOf(markdown: string, fallback: string): string {
+  const first = markdown
     .split("\n")
     .map((l) => l.trim())
     .find((l) => l.length > 0);
-  return (first ?? fallback).slice(0, 150);
+  if (!first) return fallback.slice(0, 150);
+  return first
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[*_~`#>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 150);
 }
 
 /**
@@ -112,27 +170,38 @@ export async function scanSlackReports(
         .filter((m) => (m.text ?? "").trim().length > 0)
         .sort((a, b) => Number(a.ts) - Number(b.ts));
 
+      const { emojify } = await import("node-emoji");
       for (const m of messages) {
         if (lastTs && Number(m.ts) <= Number(lastTs)) continue;
-        const plain = toPlain(m.text ?? "").slice(0, MAX_BODY);
-        const [row] = await db
+        const md = slackToMarkdown(m.text ?? "", emojify).slice(0, MAX_BODY);
+        const fields = {
+          kind: "slack" as const,
+          origin: name,
+          title: titleOf(md, `${name} report`),
+          body: md,
+          reportedAt: new Date(Number(m.ts) * 1000),
+        };
+        const source = `slack:${channel}:${m.ts}`;
+        // Known already? Then this is a formatting refresh, not a new report —
+        // update quietly, don't re-notify.
+        const [known] = await db
+          .select({ id: externalReports.id })
+          .from(externalReports)
+          .where(eq(externalReports.source, source))
+          .limit(1);
+        await db
           .insert(externalReports)
-          .values({
-            source: `slack:${channel}:${m.ts}`,
-            kind: "slack",
-            origin: name,
-            title: titleOf(plain, `${name} report`),
-            body: plain,
-            reportedAt: new Date(Number(m.ts) * 1000),
-          })
-          .onConflictDoNothing()
-          .returning({ id: externalReports.id });
-        if (row) {
+          .values({ source, ...fields })
+          .onConflictDoUpdate({
+            target: externalReports.source,
+            set: { ...fields, ingestedAt: new Date() },
+          });
+        if (!known) {
           fresh++;
           const { notify } = await import("@/core/notify");
           await notify({
-            title: `${name}: ${titleOf(plain, "report").slice(0, 80)}`,
-            body: plain.slice(0, 300),
+            title: `${name}: ${fields.title.slice(0, 80)}`,
+            body: md.slice(0, 300),
             level: "info",
             source: `slack:${name}`,
             href: "/m/agents",

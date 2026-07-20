@@ -5,44 +5,75 @@ import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown, MonitorDown } from "lucide-react";
 import type { ExternalReport } from "../schema";
 import { cn } from "@/core/ui/cn";
+import { Markdown } from "@/core/ui/Markdown";
 import { useLiveEvents } from "@/core/ui/useLiveEvents";
 
 function ReportRow({ report }: { report: ExternalReport }) {
   const [open, setOpen] = useState(false);
+  const origin =
+    report.origin ??
+    (report.kind === "claude-job" ? "claude desktop" : "drop-box");
+  const preview = report.body
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[*_~`#>-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
   return (
-    <div className="glass rounded-xl p-3.5">
+    <div
+      className={cn(
+        "glass overflow-hidden rounded-xl transition",
+        open && "glass-edge",
+      )}
+    >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 text-left"
+        className="flex w-full items-start gap-3 p-3.5 text-left transition hover:bg-white/3"
       >
-        <MonitorDown className="size-3.5 shrink-0 text-ion" />
-        <span className="flex-1 truncate text-left text-sm text-ink" dir="auto">
-          {report.title}
+        <MonitorDown className="mt-0.5 size-4 shrink-0 text-ion" />
+        <span className="min-w-0 flex-1">
+          <span
+            dir="auto"
+            className="block truncate text-left text-sm font-medium text-ink"
+          >
+            {report.title}
+          </span>
+          {!open && preview && (
+            <span className="mt-0.5 block truncate text-left text-xs text-ink-faint">
+              {preview.slice(0, 120)}
+            </span>
+          )}
         </span>
-        <span className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
-          {report.origin ??
-            (report.kind === "claude-job" ? "claude desktop" : "drop-box")}
+        <span className="flex shrink-0 items-center gap-2.5">
+          <span className="rounded-md border border-ion/20 bg-ion/5 px-1.5 py-0.5 font-mono text-[9px] text-ion">
+            {origin}
+          </span>
+          <span className="font-mono text-[9px] tabular-nums text-ink-faint">
+            {new Date(report.reportedAt).toLocaleString(undefined, {
+              month: "short",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            })}
+          </span>
+          <ChevronDown
+            className={cn(
+              "size-3.5 text-ink-faint transition",
+              open && "rotate-180",
+            )}
+          />
         </span>
-        <span className="font-mono text-[9px] text-ink-faint">
-          {new Date(report.reportedAt).toLocaleString(undefined, {
-            month: "short",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
-        <ChevronDown
-          className={cn("size-3.5 text-ink-faint transition", open && "rotate-180")}
-        />
       </button>
+
       {open && (
-        <p
+        <div
           dir="auto"
-          className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap border-t border-white/5 pt-3 text-left text-xs leading-relaxed text-ink-dim"
+          className="max-h-[28rem] overflow-y-auto border-t border-white/6 px-4 py-3.5 text-left"
         >
-          {report.body}
-        </p>
+          <Markdown>{report.body}</Markdown>
+        </div>
       )}
     </div>
   );
