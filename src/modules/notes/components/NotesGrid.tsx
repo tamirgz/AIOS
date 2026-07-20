@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
-import { Plus } from "lucide-react";
+import { FolderKanban, Plus } from "lucide-react";
 import { createNote } from "../actions";
 import type { Note } from "../schema";
 
@@ -34,7 +34,15 @@ function snippet(body: string) {
   return body.replace(/[#>*`_\[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 140);
 }
 
-function NoteCard({ note, index }: { note: Note; index: number }) {
+function NoteCard({
+  note,
+  index,
+  projectName,
+}: {
+  note: Note;
+  index: number;
+  projectName?: string;
+}) {
   const excerpt = snippet(note.body);
   return (
     <motion.div
@@ -60,6 +68,14 @@ function NoteCard({ note, index }: { note: Note; index: number }) {
           </p>
         )}
         <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
+          {projectName && (
+            <span className="flex items-center gap-1 rounded border border-solar/25 bg-solar/5 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-solar">
+              <FolderKanban className="size-2.5" />
+              <span className="max-w-28 truncate normal-case tracking-normal">
+                {projectName}
+              </span>
+            </span>
+          )}
           {(note.tags ?? []).map((tag) => (
             <span
               key={tag}
@@ -83,7 +99,14 @@ function NoteCard({ note, index }: { note: Note; index: number }) {
   );
 }
 
-export function NotesGrid({ notes }: { notes: Note[] }) {
+export function NotesGrid({
+  notes,
+  projectNames = {},
+}: {
+  notes: Note[];
+  /** projectId → name, for the card badge. */
+  projectNames?: Record<string, string>;
+}) {
   return (
     <div>
       <header className="mb-5 flex items-center justify-between">
@@ -105,7 +128,16 @@ export function NotesGrid({ notes }: { notes: Note[] }) {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {notes.map((n, i) => (
-            <NoteCard key={n.id} note={n} index={i} />
+            <NoteCard
+              key={n.id}
+              note={n}
+              index={i}
+              projectName={
+                n.projectRef
+                  ? projectNames[n.projectRef.split(":")[1]]
+                  : undefined
+              }
+            />
           ))}
         </div>
       )}

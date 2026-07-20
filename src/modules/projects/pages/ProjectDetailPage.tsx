@@ -7,6 +7,7 @@ import type { Task, TaskStatus } from "../../tasks/schema";
 import { getProject, getProjectTasks } from "../queries";
 import { DeleteProjectButton } from "../components/DeleteProjectButton";
 import { ProjectTaskQuickAdd } from "../components/ProjectTaskQuickAdd";
+import { ProjectNotes } from "../components/ProjectNotes";
 import { StatusCycleButton } from "../components/StatusCycleButton";
 
 const TASK_GROUPS: { status: TaskStatus; label: string; accent: string }[] = [
@@ -73,7 +74,11 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
     );
   }
 
-  const projectTasks = await getProjectTasks(id);
+  const { listNotesForProject } = await import("@/modules/notes/actions");
+  const [projectTasks, projectNotes] = await Promise.all([
+    getProjectTasks(id),
+    listNotesForProject(id).catch(() => []),
+  ]);
   const done = projectTasks.filter((t) => t.status === "done").length;
 
   return (
@@ -135,6 +140,8 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
           );
         })}
       </div>
+
+      <ProjectNotes projectId={project.id} notes={projectNotes} />
     </div>
   );
 }
