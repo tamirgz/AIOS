@@ -10,6 +10,7 @@ import { ArrowLeft, Trash2 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { deleteNote, updateNote } from "../actions";
 import type { Note } from "../schema";
+import { ProjectPicker, type PickerProject } from "./ProjectPicker";
 
 type SaveStatus = "saved" | "saving" | "unsaved";
 
@@ -83,7 +84,13 @@ const mdComponents: Components = {
   strong: (props) => <strong className="font-semibold text-ink" {...props} />,
 };
 
-export function NoteEditor({ note }: { note: Note }) {
+export function NoteEditor({
+  note,
+  projects = [],
+}: {
+  note: Note;
+  projects?: PickerProject[];
+}) {
   const router = useRouter();
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body);
@@ -147,6 +154,11 @@ export function NoteEditor({ note }: { note: Note }) {
           <ArrowLeft className="size-3.5" />
           notes
         </Link>
+        <ProjectPicker
+          noteId={note.id}
+          projects={projects}
+          currentProjectId={note.projectRef?.split(":")[1] ?? null}
+        />
         <span
           className={cn(
             "ml-auto font-mono text-[10px] uppercase tracking-widest",

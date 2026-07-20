@@ -34,9 +34,15 @@ export async function NoteDetailPage({ params }: ModuleRouteProps) {
     );
   }
 
+  const { listProjects } = await import("@/modules/projects/actions");
+  const projects = (await listProjects().catch(() => [])).map((p) => ({
+    id: p.id,
+    name: p.name,
+  }));
+
   return (
     <>
-      <NoteEditor note={note} />
+      <NoteEditor note={note} projects={projects} />
       <RelatedItems kind="note" id={note.id} />
     </>
   );

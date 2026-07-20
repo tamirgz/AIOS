@@ -1,0 +1,1 @@
+ALTER TABLE "notes" ADD COLUMN "project_ref" text;
