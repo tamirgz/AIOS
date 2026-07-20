@@ -13,7 +13,7 @@
 **The AI layer.**
 - Two providers, per-job routing (Settings): **Anthropic via Claude Max** (no API key — Agent SDK on host credentials) and **local Ollama** (any installed model, streaming, tool-calling).
 - One tool registry: every module's tools are available to ⌘K chat *and* to agents (per-agent allowlists). `search.everything`, `memory.update`, `notify.send` are core tools.
-- **Memory blocks** (who_i_am / current_focus / preferences / active_projects) injected into every AI call; agents maintain them; weekly consolidation template exists.
+- **Two-tier memory** *(hardened 2026-07-20)*: **core blocks** (who_i_am / current_focus / preferences / active_projects + up-to-12 dynamic blocks, char-budgeted, injected into every AI call, replaced values auto-archived) and **archival memory** (`memory_entries`: append-only facts/decisions/lessons/events, locally embedded, retrieved on demand via `memory.recall`; stored via `memory.remember`; both always available to chat and every agent). Weekly **Memory consolidation agent installed and enabled** (Sun 20:00) — distills work state into blocks and records durable lessons. Journal + add-block UI in Settings.
 - **Deterministic fast path**: `task:`/`note:` prefixes in ⌘K → zero-token CRUD; universal capture → Inbox → AI triage (Haiku) routes to tasks/notes/knowledge/calendar.
 - **Semantic search** over notes+knowledge+tasks+ideas+**220 Obsidian vault notes**, embedded locally (nomic-embed-text, model configurable with safe wipe-and-rebuild switching). "Related — by meaning" panels.
 

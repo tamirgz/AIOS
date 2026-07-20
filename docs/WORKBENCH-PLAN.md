@@ -79,7 +79,7 @@ Full findings in the session log; the load-bearing conclusions:
 
 **UI**: Workbench page (cards grouped by status, ambient chips: executor, model, turn/heartbeat, cost); task drawer = three panes (prompt+plan | live event tail | diff with per-file view); New-task = one box + type picker + optional repo picker; steer input at the bottom of a running task; retry/best-of-N buttons; merge/PR + archive on review. `needs_input` mirrors into Inbox and the bell.
 
-**Integration hooks**: ⌘K `do:`/`delegate:` fast path → creates a Workbench task; "make this a task" action on ideas and inbox items; completed research/docs tasks offer one-click "save to Knowledge/Notes".
+**Integration hooks**: ⌘K `do:`/`delegate:` fast path → creates a Workbench task; "make this a task" action on ideas and inbox items; completed research/docs tasks offer one-click "save to Knowledge/Notes". **Memory**: task outcomes worth keeping (approach chosen, why an attempt failed) are recorded via `memory.remember` — native agents do it themselves; for CLI attempts the engine appends a short outcome event that the weekly consolidation agent distills.
 
 ## 5 · Execution phases
 

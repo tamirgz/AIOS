@@ -33,6 +33,12 @@ export async function saveMemoryBlock(label: string, value: string) {
   revalidatePath("/m/settings");
 }
 
+export async function createMemoryBlock(label: string, description: string) {
+  const { createMemoryBlockDef } = await import("@/core/memory");
+  await createMemoryBlockDef(label, description);
+  revalidatePath("/m/settings");
+}
+
 export async function saveIntegration(key: string, value: string) {
   if (!ALLOWED_INTEGRATION_KEYS.has(key)) throw new Error("unknown setting");
   let cleaned = value.trim();

@@ -141,11 +141,18 @@ export async function executeRun(runId: string): Promise<void> {
   try {
     const { provider, model } = await routeFor(agent);
     const ledger = ledgerFor(agent.id, runId);
-    // ledger.* and memory.update are always available, like in chat.
+    // ledger.* and the memory suite are always available, like in chat.
     // Approval-tier tools are wrapped: unattended runs queue the call for the
     // user instead of executing it.
     const tools = [
-      ...getToolsByNames([...agent.tools, "memory.update"]).map((t) =>
+      ...getToolsByNames([
+        ...new Set([
+          ...agent.tools,
+          "memory.update",
+          "memory.remember",
+          "memory.recall",
+        ]),
+      ]).map((t) =>
         t.risk === "approval" ? wrapWithApproval(t, agent, runId) : t,
       ),
       ...ledgerTools(ledger),
