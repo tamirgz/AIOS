@@ -22,6 +22,8 @@ export async function SettingsPage() {
     googleClientId,
     googleClientSecret,
     googleRefreshToken,
+    slackBotToken,
+    slackReportChannels,
     memory,
   ] = await Promise.all([
     db.select().from(aiRoutes).orderBy(asc(aiRoutes.taskKey)),
@@ -32,6 +34,8 @@ export async function SettingsPage() {
     getSetting("google_client_id"),
     getSetting("google_client_secret"),
     getSetting("google_refresh_token"),
+    getSetting("slack_bot_token"),
+    getSetting("slack_report_channels"),
     // Memory being unavailable must not take the whole page down.
     listMemoryBlocks().catch(() => []),
   ]);
@@ -50,6 +54,8 @@ export async function SettingsPage() {
           googleClientId={googleClientId ?? ""}
           googleClientSecret={googleClientSecret ?? ""}
           googleConnected={!!googleRefreshToken}
+          slackBotToken={slackBotToken ?? ""}
+          slackReportChannels={slackReportChannels ?? ""}
         />
       </div>
       <div className="flex flex-col gap-5">

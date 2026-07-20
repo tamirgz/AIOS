@@ -1,6 +1,6 @@
 {
-  "id": "1efd1ac9-0c11-4f5d-a3e3-0e9711b3f3c8",
-  "prevId": "26e483d6-694c-4ec4-8e25-580699d62882",
+  "id": "9a056e3b-dc77-4b83-b004-f5faf2c892b8",
+  "prevId": "1efd1ac9-0c11-4f5d-a3e3-0e9711b3f3c8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -619,6 +619,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "origin": {
+          "name": "origin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "title": {
           "name": "title",
           "type": "text",
@@ -805,8 +811,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.content_items": {
-      "name": "content_items",
+    "public.ideas": {
+      "name": "ideas",
       "schema": "",
       "columns": {
         "id": {
@@ -822,19 +828,19 @@
           "primaryKey": false,
           "notNull": true
         },
-        "kind": {
-          "name": "kind",
+        "category": {
+          "name": "category",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'post'"
+          "default": "'product'"
         },
         "stage": {
           "name": "stage",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'idea'"
+          "default": "'spark'"
         },
         "notes": {
           "name": "notes",
@@ -842,9 +848,34 @@
           "primaryKey": false,
           "notNull": false
         },
-        "publish_at": {
-          "name": "publish_at",
-          "type": "timestamp with time zone",
+        "analysis_status": {
+          "name": "analysis_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'none'"
+        },
+        "analysis": {
+          "name": "analysis",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "analysis_error": {
+          "name": "analysis_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "project_ref": {
+          "name": "project_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "embedding": {
+          "name": "embedding",
+          "type": "vector",
           "primaryKey": false,
           "notNull": false
         },

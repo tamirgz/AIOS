@@ -17,9 +17,12 @@ function ReportRow({ report }: { report: ExternalReport }) {
         className="flex w-full items-center gap-3 text-left"
       >
         <MonitorDown className="size-3.5 shrink-0 text-ion" />
-        <span className="flex-1 truncate text-sm text-ink">{report.title}</span>
+        <span className="flex-1 truncate text-left text-sm text-ink" dir="auto">
+          {report.title}
+        </span>
         <span className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
-          {report.kind === "claude-job" ? "claude desktop" : "drop-box"}
+          {report.origin ??
+            (report.kind === "claude-job" ? "claude desktop" : "drop-box")}
         </span>
         <span className="font-mono text-[9px] text-ink-faint">
           {new Date(report.reportedAt).toLocaleString(undefined, {
@@ -34,7 +37,10 @@ function ReportRow({ report }: { report: ExternalReport }) {
         />
       </button>
       {open && (
-        <p className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap border-t border-white/5 pt-3 text-xs leading-relaxed text-ink-dim">
+        <p
+          dir="auto"
+          className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap border-t border-white/5 pt-3 text-left text-xs leading-relaxed text-ink-dim"
+        >
           {report.body}
         </p>
       )}
@@ -57,11 +63,11 @@ export function ExternalReports({
         external reports — agents running outside aios
       </p>
       <p className="mb-3 text-xs leading-relaxed text-ink-dim">
-        Claude Desktop background jobs are picked up automatically. For Desktop{" "}
-        <em>scheduled</em> agents, add to their prompt: &ldquo;write your final
-        report as a .md file into{" "}
-        <code className="font-mono text-[11px] text-ion">{dropboxDir}</code>
-        &rdquo; — it lands here (and in the bell) within 5 minutes.
+        Claude Desktop routines that post to Slack are ingested automatically —
+        configure the bot token + channels in Settings. Local jobs and any tool
+        that writes a .md file into{" "}
+        <code className="font-mono text-[11px] text-ion">{dropboxDir}</code>{" "}
+        are picked up too, within 5 minutes.
       </p>
       {reports.length === 0 ? (
         <div className="rounded-xl border border-dashed border-white/6 py-8 text-center font-mono text-[10px] uppercase tracking-widest text-ink-faint">
