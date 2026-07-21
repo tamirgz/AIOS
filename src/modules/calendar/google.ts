@@ -2,6 +2,7 @@ import { and, eq, gte, notInArray } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
 import { getSetting, setSetting } from "@/core/app-settings";
 import type { ModuleJob } from "@/core/modules/types.server";
+import { firstConferenceUrl } from "./meeting-url";
 import { calendarEvents } from "./schema";
 
 export const GOOGLE_KEYS = {
@@ -118,6 +119,33 @@ interface GoogleEvent {
   colorId?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
+  /** Legacy Meet field — still populated for Meet calls. */
+  hangoutLink?: string;
+  /** Modern conferencing block: Meet, Zoom, Teams… */
+  conferenceData?: {
+    entryPoints?: { entryPointType?: string; uri?: string }[];
+  };
+  /** The event in Google Calendar's web UI. */
+  htmlLink?: string;
+}
+
+/**
+ * The join URL for an event. `hangoutLink` covers Meet; `conferenceData`
+ * covers add-ons that register a conference solution. Zoom invites often do
+ * neither and simply put the URL in `location`, so that is the last resort.
+ * Measured on the live calendar: 31/72 events carry hangoutLink, and only 3
+ * mention a link in the description — the description is not a substitute.
+ */
+function meetingUrlOf(ev: GoogleEvent): string | null {
+  if (ev.hangoutLink) return ev.hangoutLink;
+  const points = ev.conferenceData?.entryPoints ?? [];
+  const video = points.find((p) => p.entryPointType === "video" && p.uri);
+  return (
+    video?.uri ??
+    points.find((p) => p.uri)?.uri ??
+    firstConferenceUrl(ev.location) ??
+    null
+  );
 }
 
 /**
@@ -193,6 +221,8 @@ export async function syncGoogle(
         title: ev.summary ?? "(untitled)",
         notes: ev.description?.slice(0, 2000) ?? null,
         location: ev.location ?? null,
+        meetingUrl: meetingUrlOf(ev),
+        sourceUrl: ev.htmlLink ?? null,
         startAt: new Date(startRaw),
         endAt: ev.end?.dateTime
           ? new Date(ev.end.dateTime)

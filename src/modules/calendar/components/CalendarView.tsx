@@ -9,11 +9,13 @@ import {
   ChevronRight,
   RefreshCw,
   Trash2,
+  Video,
 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { useLiveEvents } from "@/core/ui/useLiveEvents";
 import { createEvent, deleteEvent, requestIcsSync } from "../actions";
 import type { AgendaItem } from "../agenda";
+import { EventDetail } from "./EventDetail";
 
 const KIND_LABEL = { event: "event", task: "due" } as const;
 
@@ -221,8 +223,9 @@ export function CalendarView({
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
   const [selected, setSelected] = useState(() => new Date());
+  const [detail, setDetail] = useState<AgendaItem | null>(null);
   const [syncPending, startSync] = useTransition();
-  const [, startDelete] = useTransition();
+  const [deletePending, startDelete] = useTransition();
   useLiveEvents(["calendar_changed"]);
 
   const dayItems = items.filter((it) => sameDay(new Date(it.at), selected));
@@ -307,13 +310,38 @@ export function CalendarView({
                   <span className="w-12 shrink-0 text-right font-mono text-[10px] tabular-nums text-ink-faint">
                     {it.allDay ? "all day" : fmtTime(new Date(it.at))}
                   </span>
-                  <Link
-                    href={it.href}
-                    dir="auto"
-                    className="flex-1 truncate text-left text-sm text-ink-dim transition group-hover:text-ink"
-                  >
-                    {it.title}
-                  </Link>
+                  {it.kind === "task" ? (
+                    <Link
+                      href={it.href}
+                      dir="auto"
+                      className="flex-1 truncate text-left text-sm text-ink-dim transition group-hover:text-ink"
+                    >
+                      {it.title}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      dir="auto"
+                      onClick={() => setDetail(it)}
+                      className="flex-1 truncate text-left text-sm text-ink-dim transition group-hover:text-ink"
+                    >
+                      {it.title}
+                    </button>
+                  )}
+                  {/* One click to the call — no need to open the panel first. */}
+                  {it.meetingUrl && (
+                    <a
+                      href={it.meetingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Join the call"
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex shrink-0 items-center gap-1 rounded-md border border-plasma/25 bg-plasma/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-plasma transition hover:bg-plasma/20"
+                    >
+                      <Video className="size-3" />
+                      join
+                    </a>
+                  )}
                   <span
                     className="font-mono text-[9px] uppercase tracking-widest"
                     style={{ color: it.accent }}
@@ -352,18 +380,40 @@ export function CalendarView({
               {upcoming.map((it) => (
                 <div
                   key={`${it.kind}:${it.id}`}
-                  className="flex items-center gap-2.5 px-2 py-1"
+                  className="group flex items-center gap-2.5 rounded-lg px-2 py-1 transition hover:bg-white/4"
                 >
                   <span className="dot shrink-0" style={{ color: it.accent }} />
                   <span className="w-24 shrink-0 font-mono text-[10px] tabular-nums text-ink-faint">
                     {fmtUpNext(it)}
                   </span>
-                  <span
-                    dir="auto"
-                    className="flex-1 truncate text-left text-sm text-ink-dim"
-                  >
-                    {it.title}
-                  </span>
+                  {it.kind === "task" ? (
+                    <span
+                      dir="auto"
+                      className="flex-1 truncate text-left text-sm text-ink-dim"
+                    >
+                      {it.title}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      dir="auto"
+                      onClick={() => setDetail(it)}
+                      className="flex-1 truncate text-left text-sm text-ink-dim transition group-hover:text-ink"
+                    >
+                      {it.title}
+                    </button>
+                  )}
+                  {it.meetingUrl && (
+                    <a
+                      href={it.meetingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      title="Join the call"
+                      className="shrink-0 text-plasma/70 transition hover:text-plasma"
+                    >
+                      <Video className="size-3" />
+                    </a>
+                  )}
                   <span
                     className="font-mono text-[8px] uppercase tracking-widest opacity-60"
                     style={{ color: it.accent }}
@@ -376,6 +426,18 @@ export function CalendarView({
           </section>
         </div>
       </div>
+
+      <EventDetail
+        item={detail}
+        onClose={() => setDetail(null)}
+        deletePending={deletePending}
+        onDelete={(id) =>
+          startDelete(async () => {
+            await deleteEvent(id);
+            setDetail(null);
+          })
+        }
+      />
     </div>
   );
 }

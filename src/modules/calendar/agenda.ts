@@ -15,6 +15,14 @@ export interface AgendaItem {
   accent: string;
   /** Only AIOS-local events may be deleted from AIOS. */
   deletable: boolean;
+  /** Detail-panel fields — null for task rows. */
+  location: string | null;
+  notes: string | null;
+  /** Video-call URL, when the event has one — drives the JOIN button. */
+  meetingUrl: string | null;
+  /** The event in its origin app (Google Calendar). */
+  sourceUrl: string | null;
+  source: string;
 }
 
 /**
@@ -59,6 +67,11 @@ export async function getAgenda(from: Date, to: Date): Promise<AgendaItem[]> {
         e.color ??
         (e.source !== "local" ? "var(--color-ion)" : "var(--color-plasma)"),
       deletable: e.source === "local",
+      location: e.location,
+      notes: e.notes,
+      meetingUrl: e.meetingUrl,
+      sourceUrl: e.sourceUrl,
+      source: e.source,
     })),
     ...dueTasks.map((t) => ({
       id: t.id,
@@ -71,6 +84,11 @@ export async function getAgenda(from: Date, to: Date): Promise<AgendaItem[]> {
       href: "/m/tasks",
       accent: "var(--color-solar)",
       deletable: false,
+      location: null,
+      notes: t.notes,
+      meetingUrl: null,
+      sourceUrl: null,
+      source: "task",
     })),
   ];
 
