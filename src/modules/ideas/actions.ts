@@ -45,7 +45,8 @@ export async function setIdeaStage(id: string, stage: IdeaStage) {
 export async function updateIdeaNotes(id: string, notes: string) {
   await db
     .update(ideas)
-    .set({ notes: notes.trim() || null, updatedAt: new Date() })
+    // Content changed → drop the stale embedding; the sweep re-computes it.
+    .set({ notes: notes.trim() || null, embedding: null, updatedAt: new Date() })
     .where(eq(ideas.id, id));
   revalidate(id);
 }

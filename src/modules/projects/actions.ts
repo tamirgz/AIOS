@@ -47,9 +47,15 @@ export async function updateProject(
     status: ProjectStatus;
   }>,
 ) {
+  // Name/description feed the project embedding used by suggestions.
+  const contentChanged = "name" in patch || "description" in patch;
   const [row] = await db
     .update(projects)
-    .set({ ...patch, updatedAt: new Date() })
+    .set({
+      ...patch,
+      ...(contentChanged ? { embedding: null } : {}),
+      updatedAt: new Date(),
+    })
     .where(eq(projects.id, id))
     .returning();
   revalidateProjects(id);

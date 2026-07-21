@@ -10,6 +10,7 @@ import {
   NotebookPen,
 } from "lucide-react";
 import type { Connection } from "@/core/embeddings";
+import { useLiveEvents } from "@/core/ui/useLiveEvents";
 
 const KIND_META: Record<
   Connection["kind"],
@@ -38,6 +39,10 @@ export function ConnectionsPanel({
   related: Connection[];
   emptyHint?: string;
 }) {
+  // Re-render when the worker finishes embedding — a note you just wrote
+  // gains its connections as soon as they exist.
+  useLiveEvents(["embeddings_updated"]);
+
   if (related.length === 0) {
     return (
       <section className="glass rounded-xl p-5">

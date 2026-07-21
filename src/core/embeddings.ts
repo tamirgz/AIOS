@@ -1,5 +1,5 @@
 import { isNull, sql as dsql } from "drizzle-orm";
-import { db } from "@/core/db/client";
+import { db, sql } from "@/core/db/client";
 import { notes } from "@/modules/notes/schema";
 import { knowledgeItems } from "@/modules/knowledge/schema";
 import { tasks } from "@/modules/tasks/schema";
@@ -191,6 +191,9 @@ export async function sweepEmbeddings(
     done++;
   }
 
+  // Tell open pages that search/connections just got fresher data, so a note
+  // you just typed shows its connections without a manual reload.
+  if (done > 0) await sql.notify("embeddings_updated", String(done));
   return done;
 }
 
