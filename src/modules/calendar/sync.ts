@@ -3,6 +3,7 @@ import { and, eq, gte, notInArray } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
 import { getSetting, SETTING_KEYS } from "@/core/app-settings";
 import type { ModuleJob } from "@/core/modules/types.server";
+import { firstConferenceUrl } from "./meeting-url";
 import { calendarEvents } from "./schema";
 
 const WINDOW_PAST_DAYS = 30;
@@ -38,6 +39,27 @@ export async function syncIcs(): Promise<{ synced: number } | null> {
     ev.datetype === "date" ||
     (ev.start as { dateOnly?: boolean })?.dateOnly === true;
 
+  /**
+   * Join URL. Google publishes it as the non-standard `X-GOOGLE-CONFERENCE`
+   * property (116 events in this feed); node-ical passes unknown properties
+   * through untouched, as a string or as `{ val }`. Otherwise it may sit in
+   * the location (Zoom add-on) or only in the description (148 events).
+   */
+  const meetingUrlOf = (ev: VEvent): string | null => {
+    const raw = (ev as unknown as Record<string, unknown>)["X-GOOGLE-CONFERENCE"];
+    const direct =
+      typeof raw === "string"
+        ? raw
+        : typeof (raw as { val?: string } | undefined)?.val === "string"
+          ? (raw as { val: string }).val
+          : null;
+    if (direct?.startsWith("http")) return direct;
+    return (
+      firstConferenceUrl(ev.location ? String(ev.location) : null) ??
+      firstConferenceUrl(ev.description ? String(ev.description) : null)
+    );
+  };
+
   const upsert = async (
     uid: string,
     ev: VEvent,
@@ -50,6 +72,7 @@ export async function syncIcs(): Promise<{ synced: number } | null> {
       title: String(ev.summary ?? "(untitled)"),
       notes: ev.description ? String(ev.description).slice(0, 2000) : null,
       location: ev.location ? String(ev.location) : null,
+      meetingUrl: meetingUrlOf(ev),
       startAt,
       endAt,
       allDay: isAllDay(ev),

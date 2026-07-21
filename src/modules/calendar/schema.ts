@@ -25,6 +25,11 @@ export const calendarEvents = pgTable(
     icsUid: text("ics_uid"),
     /** The event's own color (hex) — from the Google API; null = category default. */
     color: text("color"),
+    /** Video-call URL (Meet/Zoom/Teams) — Google `hangoutLink`/`conferenceData`,
+     *  or the ICS `X-GOOGLE-CONFERENCE` property. Powers the JOIN button. */
+    meetingUrl: text("meeting_url"),
+    /** The event in its origin app (Google `htmlLink`) — "open in Google Calendar". */
+    sourceUrl: text("source_url"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

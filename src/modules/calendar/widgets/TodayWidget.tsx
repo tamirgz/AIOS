@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Video } from "lucide-react";
 import { getAgenda } from "../agenda";
 
 export async function TodayWidget() {
@@ -20,11 +21,13 @@ export async function TodayWidget() {
   return (
     <ul className="flex flex-col gap-2">
       {items.slice(0, 5).map((it) => (
-        <li key={`${it.kind}:${it.id}`}>
-          <Link
-            href={it.href}
-            className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-white/4"
-          >
+        // The join link is a sibling of the row link, not nested inside it —
+        // an <a> inside an <a> is invalid and swallows the inner click.
+        <li
+          key={`${it.kind}:${it.id}`}
+          className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-white/4"
+        >
+          <Link href={it.href} className="flex min-w-0 flex-1 items-center gap-2.5">
             <span className="dot shrink-0" style={{ color: it.accent }} />
             <span className="w-12 shrink-0 text-right font-mono text-[10px] tabular-nums text-ink-faint">
               {it.allDay
@@ -42,6 +45,18 @@ export async function TodayWidget() {
               {it.title}
             </span>
           </Link>
+          {it.meetingUrl && (
+            <a
+              href={it.meetingUrl}
+              target="_blank"
+              rel="noreferrer"
+              title="Join the call"
+              className="flex shrink-0 items-center gap-1 rounded-md border border-plasma/25 bg-plasma/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-plasma transition hover:bg-plasma/20"
+            >
+              <Video className="size-3" />
+              join
+            </a>
+          )}
         </li>
       ))}
     </ul>
