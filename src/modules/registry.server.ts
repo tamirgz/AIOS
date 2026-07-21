@@ -10,10 +10,12 @@ import { agentsServerManifest } from "./agents/manifest.server";
 import { calendarServerManifest } from "./calendar/manifest.server";
 import { inboxServerManifest } from "./inbox/manifest.server";
 import { obsidianServerManifest } from "./obsidian/manifest.server";
+import { workbenchServerManifest } from "./workbench/manifest.server";
 
 export const serverModules: ModuleServerManifest[] = [
   inboxServerManifest,
   calendarServerManifest,
+  workbenchServerManifest,
   tasksServerManifest,
   projectsServerManifest,
   notesServerManifest,

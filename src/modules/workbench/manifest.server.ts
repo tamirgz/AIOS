@@ -1,0 +1,27 @@
+import type { ModuleServerManifest } from "@/core/modules/types.server";
+import { workbenchJobs } from "./engine";
+import { attemptEvents, executors, taskAttempts, workbenchTasks } from "./schema";
+import { workbenchTools } from "./tools";
+import { WorkbenchPage } from "./pages/WorkbenchPage";
+import { TaskDetailPage } from "./pages/TaskDetailPage";
+import { WorkbenchWidget } from "./widgets/WorkbenchWidget";
+
+export const workbenchServerManifest: ModuleServerManifest = {
+  id: "workbench",
+  routes: {
+    "": WorkbenchPage,
+    "[id]": TaskDetailPage,
+  },
+  widgets: [
+    {
+      id: "workbench-active",
+      title: "Workbench",
+      size: "sm",
+      component: WorkbenchWidget,
+    },
+  ],
+  schema: { workbenchTasks, taskAttempts, attemptEvents, executors },
+  aiTools: workbenchTools,
+  agentTemplates: [],
+  jobs: workbenchJobs,
+};
