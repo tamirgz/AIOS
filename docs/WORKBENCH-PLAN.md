@@ -1,6 +1,8 @@
 # AIOS Workbench — Usability Review, Research Findings & Build Plan
 
-*2026-07-20. Deliverable of the "review usability + research best practices + plan the agentic task system" pass. Companion to ONE-STOP-PLAN.md (whose phases re-sequence behind this).*
+*2026-07-20; status appended 2026-07-21. Deliverable of the "review usability + research best practices + plan the agentic task system" pass. Companion to ONE-STOP-PLAN.md (whose phases re-sequence behind this).*
+
+**Status: W1 shipped and verified (2026-07-21). W2 is next.** See §6 for what actually got built, what changed against this plan, and the evidence.
 
 ---
 
@@ -89,3 +91,38 @@ Full findings in the session log; the load-bearing conclusions:
 - **Then:** ONE-STOP phases resume (Gmail → Ask/Notion → Telegram → consolidation) — unchanged in content, shifted in order.
 
 **Token policy fit:** research/complex-code on Max where judgment matters; code-local/docs types default to Ollama executors — the Workbench *increases* the share of free local work because executor choice finally exists at the point of use.
+
+---
+
+## 6 · W1 as built (2026-07-21) — status, deviations, evidence
+
+**Shipped** as `src/modules/workbench/` — folder + 2 registry lines + a migration, **zero edits to worker code** (the engine registers through the existing `ModuleJob` contract: `workbench_run`, `workbench_cancel`, and a `*/2 * * * *` sweep). The worker went from 8 to 11 job channels on restart with no other change.
+
+| Piece | State |
+|---|---|
+| `workbench_tasks` / `task_attempts` / `attempt_events` / `executors` schema | ✅ migration 0014 |
+| Engine: atomic claim, worktree-per-attempt, per-type timeout, SIGTERM→10s→SIGKILL on the **process group**, restart reconciliation, capacity cap 2 | ✅ |
+| claude-headless adapter (stream-json) | ✅ |
+| native adapter (AIOS providers + module tool registry) | ✅ |
+| Board (grouped by where attention goes) + detail (ask · live tail · per-file diff) | ✅ |
+| `workbench.delegate` / `.list` / `.get` AI tools | ✅ |
+| Retry-as-attempt | ✅ **pulled forward from W2** — the data model made it ~20 lines, and without it a failed attempt was a dead card |
+
+**Deviations from §4, and why:**
+
+1. **Detail page, not a drawer.** A route (`/m/workbench/<id>`) is linkable, survives refresh, and matches every other module. The three panes are unchanged.
+2. **Prompt file excluded from the review diff.** `.aios/task.md` is still written into the workdir for hand-reproducibility, but `commitCheckpoint` now stages with `:(exclude).aios` — the first real run committed it and it showed up as a changed file in review, which is noise. Caught by running the exit test, not by reading the code.
+3. **No `needs_input` path yet.** The status exists in the enum and the board renders it; nothing emits it until the W3 interrupt work.
+4. **Executor rows are seeded but not editable** — the Settings UI for them is W2, as planned.
+
+**Exit test, run on the real system:**
+
+| Delegated from the one box | Result |
+|---|---|
+| *"Research what changed in Postgres 18 vs 17 for a Drizzle + postgres.js app…"* (research) | ✅ `done` in 60 s unattended — a 400-word report with 5 concrete changes and 6 cited source URLs; 179 890 in / 2 850 out; $0.35 |
+| *"In git.ts, diffSince() truncates the patch mid-line — make it line-aligned…"* (code) | ✅ `review` in 14 s on branch `aios/task-5d336dfd`; correct `truncatePatch()` helper with the reasoning comment asked for; reviewed as a per-file diff in-app |
+| Retry of the same task | ✅ sibling attempt #2 on `aios/task-0df82487`, diff now **1 file** (the `.aios` fix from deviation 2, proven rather than assumed) |
+
+**Merge stayed manual**, per D5 — both branches are still sitting there for review.
+
+**What W1 does not yet do** (all W2/W3 by design): opencode/pi/aider executors, plan gate, steer-mid-run, best-of-N, merge/PR button, worktree sweeper, `needs_input` → Inbox.

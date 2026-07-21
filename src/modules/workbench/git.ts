@@ -60,7 +60,10 @@ export async function commitCheckpoint(
   workdir: string,
   message: string,
 ): Promise<boolean> {
-  await git(workdir, ["add", "-A"]);
+  // Everything the agent touched, except our own scaffolding: `.aios/task.md`
+  // is written into the worktree so a run can be reproduced by hand, and it
+  // has no business showing up as a changed file in the review diff.
+  await git(workdir, ["add", "-A", "--", ".", ":(exclude).aios"]);
   const staged = await git(workdir, ["diff", "--cached", "--name-only"]);
   if (!staged.trim()) return false;
   await git(workdir, [
