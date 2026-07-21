@@ -11,10 +11,12 @@ import { agentsManifest } from "./agents/manifest";
 import { calendarManifest } from "./calendar/manifest";
 import { inboxManifest } from "./inbox/manifest";
 import { obsidianManifest } from "./obsidian/manifest";
+import { workbenchManifest } from "./workbench/manifest";
 
 export const modules: ModuleManifest[] = [
   inboxManifest,
   calendarManifest,
+  workbenchManifest,
   tasksManifest,
   projectsManifest,
   notesManifest,
