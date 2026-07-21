@@ -1,14 +1,16 @@
 # AIOS — One-Stop Plan
 
-*Written 2026-07-20, after v0.1 (11 milestones, all shipped & verified). This is the working plan for turning AIOS from "an impressive dashboard" into the single place work happens.*
+*Written 2026-07-20, after v0.1 (11 milestones, all shipped & verified); status refreshed 2026-07-21. This is the working plan for turning AIOS from "an impressive dashboard" into the single place work happens.*
 
 ---
 
 ## 1 · Where we are (verified status)
 
-**Platform.** Next.js 16 + Postgres 17/pgvector (Docker :5544) + a launchd worker daemon. One-liner start (`aios` / AIOS.command, prod default). Nightly `pg_dump` backups with boot catch-up. Private GitHub repo. 17 tables. Every claim below was verified in the running system, not assumed.
+**Platform.** Next.js 16 + Postgres 17/pgvector (Docker :5544) + a launchd worker daemon. One-liner start (`aios` / AIOS.command, prod default — stops the running server, wipes `.next`, rebuilds, restarts the worker). Nightly `pg_dump` backups with boot catch-up. Private GitHub repo. 21 tables. Every claim below was verified in the running system, not assumed.
 
-**Modules (10)** — each one is a folder + 2 registry lines: Inbox, Calendar, Tasks, Projects, Notes, Ideas, Knowledge, Vault, Agents, Settings.
+**Modules (11)** — each one is a folder + 2 registry lines: Inbox, Calendar, **Workbench**, Tasks, Projects, Notes, Ideas, Knowledge, Vault, Agents, Settings.
+
+**Workbench** *(new 2026-07-21, W1)* — the one-off task surface: one box + a type picker, the type resolves executor/model/permissions. Tasks → attempts → normalized events; git worktree and branch per attempt; live tail and per-file diff in-app; retry as a sibling attempt. Executors today: Claude Code headless and AIOS-native (module tools, can run fully local). Details and exit-test evidence in WORKBENCH-PLAN.md §6.
 
 **The AI layer.**
 - Two providers, per-job routing (Settings): **Anthropic via Claude Max** (no API key — Agent SDK on host credentials) and **local Ollama** (any installed model, streaming, tool-calling).
@@ -23,15 +25,18 @@
 | Tool | State |
 |---|---|
 | Obsidian | ✅ Read-only vault index → semantic search, `obsidian.read`, deep links |
-| Google Calendar | ✅ ICS sync live (recurrence-expanded, real colors ready); full API OAuth built — **waiting on your GCP client id/secret** |
+| Google Calendar | ✅ **API OAuth connected and syncing** (119 events, server-side recurrence expansion, real per-event colors). Click an event → full details, physical location → Maps, and a JOIN button for meetings. ICS remains the fallback when the API is disconnected |
 | Slack outbound | ✅ Built (bell → Slack) — **waiting on your webhook URL** |
 | Slack inbound (routine reports) | ✅ Built for #tldr + #my-today — **waiting on your bot token** |
 | Claude Desktop routines | ✅ Via the Slack intake above (they post to Slack; local jobs + drop-box also covered) |
-| Gmail | ❌ Not built (Phase 1) |
-| Notion | ❌ Not built (Phase 2) |
-| NotebookLM | ❌ **No public API exists.** Strategy: replace the use-case, not integrate (Phase 2 "Ask") |
+| Claude Code (headless) | ✅ **New:** a Workbench executor — delegated research and repo work, on its own branch |
+| Gmail | ❌ Not built (Phase 4) — the OAuth client is already there, it needs the `gmail.readonly` scope |
+| Notion | ❌ Not built (Phase 5) |
+| NotebookLM | ❌ **No public API exists.** Strategy: replace the use-case, not integrate (the "Ask" phase) |
 
-**Awaiting you (3 five-minute setups).** ① GCP OAuth client → Settings (calendar colors now, Gmail later — same client). ② Slack bot token + channel IDs `C0A1B2C3D4E, C0F5G6H7I8J`. ③ Slack incoming webhook.
+**Awaiting you (2 five-minute setups).** ~~GCP OAuth client~~ ✅ **done — Google is connected.** ① Slack bot token + channel IDs `C0A1B2C3D4E, C0F5G6H7I8J`. ② Slack incoming webhook.
+
+**Meeting-link finding (2026-07-21, measured not assumed):** Google exposes the join URL as `hangoutLink`/`conferenceData` (31 of 72 events) and only 3 events mention it in the description — but the **Zoom add-on writes it into `location` with no conferenceData at all**, so the fallback chain is hangoutLink → conferenceData → location → description. ICS carries the same thing as `X-GOOGLE-CONFERENCE` (116 VEVENTs).
 
 ---
 
@@ -80,6 +85,8 @@ Claude Max is a quota, not a meter — the goal is spending it where judgment ma
 | `chat` (⌘K with tools) | **Claude Sonnet** | Multi-tool reliability; keep the flagship sharp |
 | `agent.default` (acting agents) | **Claude Sonnet** | Unattended + side-effects = no place to be cheap |
 | Memory consolidation (weekly) | **Ollama gemma4:31b** | Weekly compression; verify quality once, keep |
+| Workbench `research` / `code` | **Claude Code headless** (Max quota) | Judgment, web search and repo edits — measured: $0.35 for a cited research report, $0.18 for a small code fix |
+| Workbench `docs` (`workbench.native` route) | **Ollama** | Structuring and summarizing AIOS's own data; free, and W2 adds opencode+qwen for local *code* too |
 
 Rule of thumb: **volume & summarization → local; judgment & action → Claude.** Estimated effect: >80 % of daily AI calls go local once Gmail lands.
 
@@ -88,6 +95,8 @@ Rule of thumb: **volume & summarization → local; judgment & action → Claude.
 ## 4 · Execution phases
 
 > **Re-sequenced 2026-07-20:** the Workbench (see WORKBENCH-PLAN.md, phases W1–W3) executes **before** Phase 1 below — the usability review found one-off task delegation to be the #1 gap, and every later integration feeds into that surface.
+>
+> **Progress 2026-07-21:** **W1 is shipped and verified**; W2 (executor breadth: opencode, pi, aider) is next, then W3 (delegation UX). The phases below follow. EXECUTION-PLAN.md holds the live status table.
 
 ### Phase 1 — Close the loop (Gmail + activation + local rerouting)
 *Goal: the morning brief becomes complete enough that AIOS is the first thing you open.*
