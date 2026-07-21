@@ -107,7 +107,23 @@ export async function diffSince(
   const patch = files.length
     ? await git(workdir, ["diff", baseSha, "HEAD"])
     : "";
-  return { files, patch: patch.slice(0, 400_000) };
+  return { files, patch: truncatePatch(patch, 400_000) };
+}
+
+const PATCH_CAP = 400_000;
+
+/**
+ * Cutting at a fixed byte offset can land mid-line and leave a broken final
+ * hunk (e.g. a "+"/"-" line with no newline, or a truncated hunk header),
+ * which corrupts the diff for anyone parsing or applying it. Cutting at the
+ * last newline before the cap keeps every line in the output complete.
+ */
+function truncatePatch(patch: string, cap: number = PATCH_CAP): string {
+  if (patch.length <= cap) return patch;
+  const cutoff = patch.lastIndexOf("\n", cap);
+  const kept = cutoff === -1 ? "" : patch.slice(0, cutoff + 1);
+  const omitted = patch.length - kept.length;
+  return `${kept}\n[... patch truncated: ${omitted} bytes omitted ...]\n`;
 }
 
 /** Remove the worktree; the branch stays so nothing is lost by archiving. */
