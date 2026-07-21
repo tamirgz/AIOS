@@ -62,9 +62,16 @@ export async function updateNote(
     projectRef: string | null;
   }>,
 ) {
+  // Content changed → the stored embedding is stale. Clearing it makes the
+  // worker sweep re-embed, so search and connections reflect the new text.
+  const contentChanged = "title" in patch || "body" in patch;
   const [row] = await db
     .update(notes)
-    .set({ ...patch, updatedAt: new Date() })
+    .set({
+      ...patch,
+      ...(contentChanged ? { embedding: null } : {}),
+      updatedAt: new Date(),
+    })
     .where(eq(notes.id, id))
     .returning();
   revalidatePath("/");

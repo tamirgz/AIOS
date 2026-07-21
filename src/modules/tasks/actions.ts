@@ -63,9 +63,11 @@ export async function updateTask(
     projectRef: string | null;
   }>,
 ) {
+  // Content changed → stale embedding; the sweep re-computes it.
+  const contentChanged = "title" in patch || "notes" in patch;
   const [row] = await db
     .update(tasks)
-    .set(patch)
+    .set({ ...patch, ...(contentChanged ? { embedding: null } : {}) })
     .where(eq(tasks.id, id))
     .returning();
   revalidatePath("/");
