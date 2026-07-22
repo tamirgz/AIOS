@@ -71,6 +71,8 @@ Per-tool verdicts:
 
 ## 3 · Token policy — what runs free on Ollama
 
+**Auth rule (locked 2026-07-22): AIOS never uses a metered API key** — not Anthropic, not OpenAI or any provider added later. Subscription or local auth only. Enforced in `src/core/ai/auth.ts`: metered vars are deleted from AIOS's own process at startup and stripped from every spawned executor's environment, so a stray key cannot silently start billing. Settings → "AI authentication" shows the live state. On this machine Claude authenticates via the **CLI's logged-in Keychain session**; the `CLAUDE_CODE_OAUTH_TOKEN` line in `.env.local` is empty and unused. A "monthly spend limit" message is a Max-plan cap, not an API bill.
+
 Claude Max is a quota, not a meter — the goal is spending it where judgment matters and never on volume. The routing table already supports this per key; these are the target defaults:
 
 | Job (route key) | Model | Why |
