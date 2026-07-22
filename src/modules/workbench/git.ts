@@ -129,6 +129,23 @@ function truncatePatch(patch: string, cap: number = PATCH_CAP): string {
   return `${kept}\n[... patch truncated: ${omitted} bytes omitted ...]\n`;
 }
 
+/**
+ * Delete an attempt's branch, but only when it is already merged — `-d`
+ * refuses otherwise. Deleting a task should never be able to throw away work
+ * you haven't taken, so an unmerged branch survives and is reported back.
+ */
+export async function deleteBranchIfMerged(
+  repoPath: string,
+  branch: string,
+): Promise<boolean> {
+  try {
+    await git(repoPath, ["branch", "-d", branch]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Remove the worktree; the branch stays so nothing is lost by archiving. */
 export async function removeWorktree(
   repoPath: string,
