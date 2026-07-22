@@ -96,7 +96,7 @@ Rule of thumb: **volume & summarization → local; judgment & action → Claude.
 
 > **Re-sequenced 2026-07-20:** the Workbench (see WORKBENCH-PLAN.md, phases W1–W3) executes **before** Phase 1 below — the usability review found one-off task delegation to be the #1 gap, and every later integration feeds into that surface.
 >
-> **Progress 2026-07-21:** **W1 is shipped and verified**; W2 (executor breadth: opencode, pi, aider) is next, then W3 (delegation UX). The phases below follow. EXECUTION-PLAN.md holds the live status table.
+> **Progress 2026-07-22:** **W1 shipped and verified; W2 built and verified** (any coding agent is now a config row — opencode/pi/aider seeded, `code-local` type, executors editable in Settings). W2's comparison exit test is blocked from both sides: the Claude monthly spend limit is exhausted, and opencode+qwen3-coder runs but performs no file edits (WORKBENCH-PLAN §7). W3 (delegation UX) is next. EXECUTION-PLAN.md holds the live status table.
 
 ### Phase 1 — Close the loop (Gmail + activation + local rerouting)
 *Goal: the morning brief becomes complete enough that AIOS is the first thing you open.*

@@ -126,3 +126,31 @@ Full findings in the session log; the load-bearing conclusions:
 **Merge stayed manual**, per D5 — both branches are still sitting there for review.
 
 **What W1 does not yet do** (all W2/W3 by design): opencode/pi/aider executors, plan gate, steer-mid-run, best-of-N, merge/PR button, worktree sweeper, `needs_input` → Inbox.
+
+---
+
+## 7 · W2 as built (2026-07-22) — executor breadth
+
+**Shipped.** A generic CLI adapter (`adapters/cli.ts`): command template with `{{prompt}}` / `{{workdir}}` / `{{model}}`, a parser (`jsonl` | `pi-json` | `text`), a timeout. **opencode, pi and aider are seeded rows in the `executors` table** — adding another agent is a row, not a deploy. Plus the `code-local` task type, a per-task executor+model override in the new-task box, and an executors panel in Settings (verified: editing a model in the UI round-trips to the DB).
+
+**Verified end to end** with a CLI executor driving the full path — spawn → JSONL parse → 7 normalized events → worktree → checkpoint commit → per-file diff → `review`.
+
+**What the fixtures found** (all measured against the real tools, none assumed):
+
+| Finding | Consequence |
+|---|---|
+| opencode merges the user's global config, which carries personal MCP servers | AIOS writes and points at **its own** config via `OPENCODE_CONFIG`; a headless run must not depend on the user's MCP servers being reachable |
+| A linked worktree's `.git` is a **file**, so opencode resolves the project root to the *main* repo and treats the worktree as an **external directory** | Every write was silently blocked. Fixed with an `external_directory` allow rule scoped to that one attempt's worktree — `/world.txt` (which a local model really did attempt) is still denied |
+| `write` has no permission key, so it falls through to `ask` | A headless run silently drops its own edits. `--dangerously-skip-permissions` fixes it, and explicit denies still hold |
+| Local models write absolute paths and stop to ask "what next?" | The engine prepends workdir + relative-path + autonomy + date directives for CLI executors (the pitfalls the `dockerized-ollama-agent` skill already warned about) |
+
+**Honesty fixes the runs forced** — the exit test's real value:
+- An executor that exits 0 having printed **nothing** is now a failure, not a success.
+- A repo attempt that changes **no files** is a no-op, not "done". `qwen3-coder:30b` announced *"I've successfully written HELLO.md"* when no such file existed anywhere on disk; AIOS now reports `failed — finished without changing any files` and quotes the claim.
+- CLI runs report tokens and cost in the same columns as Claude runs (local = $0).
+
+**The exit test did not fully pass, and this is why.** It asked for the same task run on Claude and on opencode+qwen as sibling attempts, compared by diff. Blocked from both sides on this machine:
+1. **Claude's monthly spend limit is exhausted** (`exit 143 · You've hit your monthly spend limit`), so the Claude half cannot run at all right now.
+2. **opencode + qwen3-coder:30b runs but does not perform edits.** It starts, streams events, proposes a `write`, reports success — and writes nothing. Verified by searching the entire filesystem for the file. That is an opencode/local-model failure, not an AIOS wiring failure: the same pipeline produces a correct branch and diff with a different CLI executor.
+
+**Next for W2, when either side unblocks:** re-run the comparison; try `qwen3.5:35b-a3b-coding-nvfp4` (the Apple-Silicon variant the skill prefers) and `aider`, whose auto-commit-per-edit sidesteps the write-tool problem entirely.
