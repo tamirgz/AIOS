@@ -10,6 +10,9 @@ import { IntegrationsEditor } from "../components/IntegrationsEditor";
 import { MemoryEditor } from "../components/MemoryEditor";
 import { UsagePanel } from "../components/UsagePanel";
 import { EmbeddingModelPicker } from "../components/EmbeddingModelPicker";
+import { ExecutorsPanel } from "@/modules/workbench/components/ExecutorsPanel";
+import { listExecutors } from "@/modules/workbench/queries";
+import { ollamaProvider } from "@/core/ai/ollama";
 
 export async function SettingsPage() {
   await ensureDefaultRoutes();
@@ -39,6 +42,12 @@ export async function SettingsPage() {
     // Memory being unavailable must not take the whole page down.
     listMemoryBlocks().catch(() => []),
   ]);
+  const [workbenchExecutors, ollamaModels] = await Promise.all([
+    listExecutors(),
+    // Model names for the datalist; an unreachable Ollama just means no hints.
+    ollamaProvider.listModels().catch(() => [] as string[]),
+  ]);
+
   const { memoryEntries } = await import("@/core/db/schema/memory");
   const { desc: descOrder, sql: dsql } = await import("drizzle-orm");
   const [journal, [{ n: journalCount }]] = await Promise.all([
@@ -71,6 +80,7 @@ export async function SettingsPage() {
           slackBotToken={slackBotToken ?? ""}
           slackReportChannels={slackReportChannels ?? ""}
         />
+        <ExecutorsPanel executors={workbenchExecutors} models={ollamaModels} />
       </div>
       <div className="flex flex-col gap-5">
         <MemoryEditor

@@ -3,6 +3,7 @@ import { db } from "@/core/db/client";
 import { diffSince, type DiffSummary } from "./git";
 import {
   attemptEvents,
+  executors,
   taskAttempts,
   workbenchTasks,
   type AttemptEvent,
@@ -116,4 +117,20 @@ export async function listRunningTasks() {
       and(isNull(workbenchTasks.archivedAt), eq(workbenchTasks.status, "running")),
     )
     .limit(5);
+}
+
+/** Executors offered in the new-task override and edited in Settings. */
+export async function listExecutors() {
+  return db
+    .select({
+      id: executors.id,
+      name: executors.name,
+      kind: executors.kind,
+      defaultModel: executors.defaultModel,
+      commandTemplate: executors.commandTemplate,
+      gitMode: executors.gitMode,
+      enabled: executors.enabled,
+    })
+    .from(executors)
+    .orderBy(asc(executors.id));
 }

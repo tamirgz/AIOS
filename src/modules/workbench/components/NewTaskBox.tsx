@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, Code2, FileText, Sparkles, Wrench } from "lucide-react";
+import { BookOpen, Code2, Cpu, FileText, Sparkles, Wrench } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { createTask } from "../actions";
 import type { TaskType } from "../schema";
@@ -28,6 +28,13 @@ const TYPES: {
     needsRepo: true,
   },
   {
+    id: "code-local",
+    label: "code · local",
+    icon: Cpu,
+    hint: "Local agent + local model on its own branch — free, private, slower",
+    needsRepo: true,
+  },
+  {
     id: "docs",
     label: "docs",
     icon: FileText,
@@ -46,9 +53,17 @@ const TYPES: {
  * executor, model and permissions — the point of the Workbench is that
  * delegating shouldn't require configuring an agent first.
  */
-export function NewTaskBox({ defaultRepo }: { defaultRepo: string }) {
+export function NewTaskBox({
+  defaultRepo,
+  executors,
+}: {
+  defaultRepo: string;
+  executors: { id: string; name: string; defaultModel: string | null }[];
+}) {
   const [type, setType] = useState<TaskType>("research");
   const [repo, setRepo] = useState(defaultRepo);
+  const [executorId, setExecutorId] = useState("");
+  const [model, setModel] = useState("");
   const [pending, start] = useTransition();
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
@@ -62,6 +77,8 @@ export function NewTaskBox({ defaultRepo }: { defaultRepo: string }) {
         prompt,
         taskType: type,
         repoPath: active.needsRepo ? repo : null,
+        executorId: executorId || undefined,
+        model: model.trim() || undefined,
       });
       if (promptRef.current) promptRef.current.value = "";
       router.push(`/m/workbench/${task.id}`);
@@ -134,6 +151,39 @@ export function NewTaskBox({ defaultRepo }: { defaultRepo: string }) {
         <span className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
           ⌘↵ to send
         </span>
+      </div>
+
+      {/* The override exists for "this one is delicate, use Claude" and the
+          reverse — the type still decides when it's left on auto. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-white/6 pt-2.5">
+        <span className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+          executor
+        </span>
+        <select
+          value={executorId}
+          onChange={(e) => {
+            setExecutorId(e.target.value);
+            const ex = executors.find((x) => x.id === e.target.value);
+            setModel(ex?.defaultModel ?? "");
+          }}
+          className="rounded-lg border border-white/8 bg-abyss/60 px-2 py-1 font-mono text-[10px] text-ink-dim outline-none focus:border-plasma/40 [color-scheme:dark]"
+        >
+          <option value="">auto (by type)</option>
+          {executors.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.name}
+            </option>
+          ))}
+        </select>
+        {executorId && (
+          <input
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            spellCheck={false}
+            placeholder="model"
+            className="w-56 rounded-lg border border-white/8 bg-abyss/60 px-2 py-1 font-mono text-[10px] text-ink-dim outline-none focus:border-plasma/40"
+          />
+        )}
       </div>
     </section>
   );

@@ -13,6 +13,8 @@ import type { TaskType } from "./schema";
 export const TIMEOUTS: Record<TaskType, number> = {
   research: 15 * 60_000,
   code: 25 * 60_000,
+  // Local models are slower per token; give them room before we call it dead.
+  "code-local": 40 * 60_000,
   docs: 10 * 60_000,
   custom: 20 * 60_000,
 };
@@ -21,6 +23,7 @@ export const TIMEOUTS: Record<TaskType, number> = {
 export const TYPE_DEFAULT_EXECUTOR: Record<TaskType, string> = {
   research: "claude-headless",
   code: "claude-headless",
+  "code-local": "opencode",
   docs: "native",
   custom: "claude-headless",
 };

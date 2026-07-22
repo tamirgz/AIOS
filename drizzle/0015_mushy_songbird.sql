@@ -1,0 +1,1 @@
+ALTER TABLE "executors" ADD COLUMN "parser" text;

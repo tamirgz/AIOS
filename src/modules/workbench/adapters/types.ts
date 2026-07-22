@@ -18,6 +18,10 @@ export interface AdapterContext {
   signal: AbortSignal;
   /** Called as soon as a child process exists, so the engine can record it. */
   onPid?: (pid: number) => void;
+  /** CLI-executor extras, straight from the executor row (W2). */
+  commandTemplate?: string;
+  parser?: "jsonl" | "pi-json" | "text";
+  env?: Record<string, string>;
 }
 
 export interface AdapterResult {
