@@ -6,7 +6,6 @@
  */
 import { db } from "@/core/db/client";
 import { providers, resolveRoute } from "@/core/ai/routing";
-import { getAllTools } from "@/core/ai/tool-registry";
 import type { Adapter, AdapterContext, AdapterResult } from "./types";
 
 export const nativeAdapter: Adapter = {
@@ -29,6 +28,11 @@ export const nativeAdapter: Adapter = {
     });
 
     const { renderMemoryContext } = await import("@/core/memory");
+    // Imported here, not at module scope: the tool registry pulls in every
+    // module's server manifest — including this module's — so a static import
+    // closes a cycle back to the engine. Lazily it resolves at call time,
+    // when every manifest is already initialized.
+    const { getAllTools } = await import("@/core/ai/tool-registry");
     const tools = getAllTools();
 
     let finalText = "";

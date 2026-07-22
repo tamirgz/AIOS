@@ -12,6 +12,7 @@ import { and, asc, eq, inArray, sql as dsql } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
 import type { ModuleJob } from "@/core/modules/types.server";
 import { claudeHeadlessAdapter } from "./adapters/claude-headless";
+import { TIMEOUTS } from "./defaults";
 import { nativeAdapter } from "./adapters/native";
 import type { Adapter, AdapterEvent } from "./adapters/types";
 import {
@@ -26,28 +27,12 @@ import {
   executors,
   taskAttempts,
   workbenchTasks,
-  type TaskType,
 } from "./schema";
 
 /** Ollama serves one model at a time; two heavy attempts thrash the machine. */
 const MAX_CONCURRENT = 2;
 /** An attempt whose last event is older than this after a restart is dead. */
 const STALL_MS = 5 * 60 * 1000;
-
-const TIMEOUTS: Record<TaskType, number> = {
-  research: 15 * 60_000,
-  code: 25 * 60_000,
-  docs: 10 * 60_000,
-  custom: 20 * 60_000,
-};
-
-/** Task type → executor, unless the attempt names one (D6 defaults). */
-export const TYPE_DEFAULT_EXECUTOR: Record<TaskType, string> = {
-  research: "claude-headless",
-  code: "claude-headless",
-  docs: "native",
-  custom: "claude-headless",
-};
 
 const ADAPTERS: Record<string, Adapter> = {
   "claude-headless": claudeHeadlessAdapter,

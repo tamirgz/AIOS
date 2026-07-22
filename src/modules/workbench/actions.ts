@@ -3,9 +3,10 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, sql } from "@/core/db/client";
-import { removeWorktree } from "./git";
-import { TYPE_DEFAULT_EXECUTOR } from "./engine";
+import { deleteBranchIfMerged, removeWorktree } from "./git";
+import { TYPE_DEFAULT_EXECUTOR } from "./defaults";
 import {
+  attemptEvents,
   taskAttempts,
   workbenchTasks,
   type TaskType,
@@ -139,6 +140,74 @@ export async function archiveTask(taskId: string) {
     .where(eq(workbenchTasks.id, taskId));
   await sql.notify("workbench_changed", taskId);
   revalidate(taskId);
+}
+
+/** Put an archived task back on the board. */
+export async function unarchiveTask(taskId: string) {
+  await db
+    .update(workbenchTasks)
+    .set({ archivedAt: null, updatedAt: new Date() })
+    .where(eq(workbenchTasks.id, taskId));
+  await sql.notify("workbench_changed", taskId);
+  revalidate(taskId);
+}
+
+/**
+ * Hard delete: the task, its attempts and their events, plus the worktrees.
+ *
+ * Branches are only deleted when they are already merged — an unmerged branch
+ * is the one copy of work you haven't taken yet, so it survives and is named
+ * in the return value. Nothing here can silently destroy an agent's output.
+ */
+export async function deleteTask(taskId: string): Promise<{
+  deletedBranches: string[];
+  keptBranches: string[];
+}> {
+  const [task] = await db
+    .select()
+    .from(workbenchTasks)
+    .where(eq(workbenchTasks.id, taskId));
+  if (!task) return { deletedBranches: [], keptBranches: [] };
+
+  const attempts = await db
+    .select()
+    .from(taskAttempts)
+    .where(eq(taskAttempts.taskId, taskId));
+
+  // A running attempt must die before its worktree can be removed.
+  const live = attempts.find(
+    (a) => a.status === "running" || a.status === "queued",
+  );
+  if (live) {
+    await sql.notify("workbench_cancel", live.id);
+  }
+
+  const deletedBranches: string[] = [];
+  const keptBranches: string[] = [];
+  if (task.repoPath) {
+    for (const a of attempts) {
+      if (a.workdir) await removeWorktree(task.repoPath, a.workdir);
+      if (!a.branch) continue;
+      if (await deleteBranchIfMerged(task.repoPath, a.branch)) {
+        deletedBranches.push(a.branch);
+      } else {
+        keptBranches.push(a.branch);
+      }
+    }
+  }
+
+  // Events first, then attempts, then the task — these are entity-ref style
+  // links, not FKs with cascade, so the order is ours to get right.
+  const ids = attempts.map((a) => a.id);
+  if (ids.length) {
+    await db.delete(attemptEvents).where(inArray(attemptEvents.attemptId, ids));
+    await db.delete(taskAttempts).where(eq(taskAttempts.taskId, taskId));
+  }
+  await db.delete(workbenchTasks).where(eq(workbenchTasks.id, taskId));
+
+  await sql.notify("workbench_changed", taskId);
+  revalidate();
+  return { deletedBranches, keptBranches };
 }
 
 /** "I've looked at the diff" — closes the card without touching the branch. */

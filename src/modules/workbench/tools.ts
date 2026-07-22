@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, sql } from "@/core/db/client";
 import type { AiToolDef } from "@/core/modules/types.server";
-import { TYPE_DEFAULT_EXECUTOR } from "./engine";
+import { TYPE_DEFAULT_EXECUTOR } from "./defaults";
 import { TASK_TYPES, taskAttempts, workbenchTasks } from "./schema";
 
 /**

@@ -2,18 +2,28 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Archive,
   ArrowLeft,
   Check,
   FileDiff,
+  RotateCcw,
   RotateCw,
   Square,
   Terminal,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { useLiveEvents } from "@/core/ui/useLiveEvents";
-import { acceptTask, archiveTask, cancelTask, retryTask } from "../actions";
+import {
+  acceptTask,
+  archiveTask,
+  cancelTask,
+  deleteTask,
+  retryTask,
+  unarchiveTask,
+} from "../actions";
 import type { TaskDetail as Detail } from "../queries";
 import { STATUS_META } from "./TaskBoard";
 
@@ -131,6 +141,8 @@ function DiffPane({ diff }: { diff: NonNullable<Detail["diff"]> }) {
 export function TaskDetailView({ detail }: { detail: Detail }) {
   const { task, attempts, events, diff } = detail;
   const [pending, start] = useTransition();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const router = useRouter();
   const live = task.status === "running" || task.status === "queued";
   useLiveEvents(["workbench_changed"]);
 
@@ -200,15 +212,61 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
               accept
             </button>
           )}
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => start(async () => void (await archiveTask(task.id)))}
-            title="Archive (removes the worktree, keeps the branch)"
-            className="rounded-lg border border-white/8 p-2 text-ink-faint transition hover:text-ink disabled:opacity-40"
-          >
-            <Archive className="size-3" />
-          </button>
+          {task.archivedAt ? (
+            <>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  start(async () => {
+                    await unarchiveTask(task.id);
+                  })
+                }
+                className="flex items-center gap-1.5 rounded-lg border border-white/8 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-ink-dim transition hover:border-ion/30 hover:text-ion disabled:opacity-40"
+              >
+                <RotateCcw className="size-3" />
+                restore
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  confirmDelete
+                    ? start(async () => {
+                        await deleteTask(task.id);
+                        router.push("/m/workbench");
+                      })
+                    : setConfirmDelete(true)
+                }
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg border px-3 py-2 font-mono text-[10px] uppercase tracking-widest transition disabled:opacity-40",
+                  confirmDelete
+                    ? "border-flare/40 bg-flare/15 text-flare hover:bg-flare/25"
+                    : "border-white/8 text-ink-faint hover:border-flare/30 hover:text-flare",
+                )}
+              >
+                <Trash2 className="size-3" />
+                {confirmDelete ? "delete for good?" : "delete"}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  await archiveTask(task.id);
+                  // The card is hidden from the board now — don't strand the
+                  // user on a page for something they can no longer find.
+                  router.push("/m/workbench");
+                })
+              }
+              title="Archive (removes the worktree, keeps the branch)"
+              className="rounded-lg border border-white/8 p-2 text-ink-faint transition hover:text-ink disabled:opacity-40"
+            >
+              <Archive className="size-3" />
+            </button>
+          )}
         </div>
       </div>
 

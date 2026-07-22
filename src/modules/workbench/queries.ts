@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/core/db/client";
 import { diffSince, type DiffSummary } from "./git";
 import {
@@ -16,11 +16,15 @@ export interface TaskWithAttempt extends WorkbenchTask {
 }
 
 /** Cards for the board: every live task, newest first, with its latest run. */
-export async function listTasks(): Promise<TaskWithAttempt[]> {
+export async function listTasks(archived = false): Promise<TaskWithAttempt[]> {
   const tasks = await db
     .select()
     .from(workbenchTasks)
-    .where(isNull(workbenchTasks.archivedAt))
+    .where(
+      archived
+        ? isNotNull(workbenchTasks.archivedAt)
+        : isNull(workbenchTasks.archivedAt),
+    )
     .orderBy(desc(workbenchTasks.createdAt))
     .limit(60);
   if (tasks.length === 0) return [];
