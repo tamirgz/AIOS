@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import {
   BookOpen,
   Code2,
+  Cpu,
   FileText,
   GitBranch,
   Wrench,
@@ -18,6 +19,7 @@ import type { TaskStatus, TaskType } from "../schema";
 const TYPE_ICON: Record<TaskType, LucideIcon> = {
   research: BookOpen,
   code: Code2,
+  "code-local": Cpu,
   docs: FileText,
   custom: Wrench,
 };

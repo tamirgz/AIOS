@@ -7,6 +7,7 @@ import { deleteBranchIfMerged, removeWorktree } from "./git";
 import { TYPE_DEFAULT_EXECUTOR } from "./defaults";
 import {
   attemptEvents,
+  executors,
   taskAttempts,
   workbenchTasks,
   type TaskType,
@@ -208,6 +209,31 @@ export async function deleteTask(taskId: string): Promise<{
   await sql.notify("workbench_changed", taskId);
   revalidate();
   return { deletedBranches, keptBranches };
+}
+
+/** Edit an executor row — how a new coding agent joins AIOS without code. */
+export async function updateExecutor(
+  id: string,
+  patch: {
+    defaultModel?: string | null;
+    commandTemplate?: string | null;
+    enabled?: string;
+  },
+) {
+  await db
+    .update(executors)
+    .set({
+      ...(patch.defaultModel !== undefined
+        ? { defaultModel: patch.defaultModel || null }
+        : {}),
+      ...(patch.commandTemplate !== undefined
+        ? { commandTemplate: patch.commandTemplate || null }
+        : {}),
+      ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+    })
+    .where(eq(executors.id, id));
+  revalidatePath("/m/settings");
+  revalidatePath("/m/workbench");
 }
 
 /** "I've looked at the diff" — closes the card without touching the branch. */

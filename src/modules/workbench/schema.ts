@@ -16,7 +16,14 @@ import {
  * one model, on its own git branch. Retrying with a different agent is a
  * sibling attempt on the same card, which is also what makes best-of-N free.
  */
-export const TASK_TYPES = ["research", "code", "docs", "custom"] as const;
+export const TASK_TYPES = [
+  "research",
+  "code",
+  /** Same as `code`, but on a local executor + local model — free and private. */
+  "code-local",
+  "docs",
+  "custom",
+] as const;
 export type TaskType = (typeof TASK_TYPES)[number];
 
 export const TASK_STATUSES = [
@@ -151,8 +158,10 @@ export const executors = pgTable("executors", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   kind: text("kind", { enum: EXECUTOR_KINDS }).notNull(),
-  /** For "cli": the command line, with {{prompt}} / {{workdir}} placeholders. */
+  /** For "cli": the command line, with {{prompt}} / {{workdir}} / {{model}}. */
   commandTemplate: text("command_template"),
+  /** How to read the command's stdout: jsonl | pi-json | text. */
+  parser: text("parser", { enum: ["jsonl", "pi-json", "text"] }),
   defaultModel: text("default_model"),
   /** "worktree" isolates the run on its own branch; "none" runs in place. */
   gitMode: text("git_mode", { enum: ["worktree", "none"] })

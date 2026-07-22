@@ -12,6 +12,12 @@ import { and, asc, eq, inArray, sql as dsql } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
 import type { ModuleJob } from "@/core/modules/types.server";
 import { claudeHeadlessAdapter } from "./adapters/claude-headless";
+import {
+  AIOS_OPENCODE_CONFIG,
+  AIOS_OPENCODE_DIR,
+  cliAdapter,
+  type CliParser,
+} from "./adapters/cli";
 import { TIMEOUTS } from "./defaults";
 import { nativeAdapter } from "./adapters/native";
 import type { Adapter, AdapterEvent } from "./adapters/types";
@@ -37,12 +43,79 @@ const STALL_MS = 5 * 60 * 1000;
 const ADAPTERS: Record<string, Adapter> = {
   "claude-headless": claudeHeadlessAdapter,
   native: nativeAdapter,
+  cli: cliAdapter,
 };
 
 const log = (m: string) =>
   console.log(`[workbench ${new Date().toISOString()}] ${m}`);
 
-/** Seeded once so Settings (W2) has rows to edit and the engine has defaults. */
+/**
+ * AIOS keeps its own opencode config rather than editing the user's: theirs
+ * carries personal MCP servers and credentials, and a headless run must not
+ * depend on those being reachable. `OPENCODE_CONFIG` points opencode here.
+ *
+ * The Ollama provider block below is the verified shape from opencode's own
+ * published schema (ProviderConfig: npm + options.baseURL + models).
+ */
+async function writeOpencodeConfig(workdir: string): Promise<void> {
+  const models: Record<string, { name: string }> = {};
+  try {
+    const res = await fetch("http://localhost:11434/api/tags", {
+      signal: AbortSignal.timeout(4000),
+    });
+    const data = (await res.json()) as { models?: { name: string }[] };
+    for (const m of data.models ?? []) models[m.name] = { name: m.name };
+  } catch {
+    // Ollama down — seed the coder models so the config is still valid.
+    models["qwen3-coder:30b"] = { name: "qwen3-coder:30b" };
+    models["qwen2.5-coder:7b"] = { name: "qwen2.5-coder:7b" };
+  }
+
+  await mkdir(AIOS_OPENCODE_DIR, { recursive: true });
+  await writeFile(
+    AIOS_OPENCODE_CONFIG,
+    JSON.stringify(
+      {
+        $schema: "https://opencode.ai/config.json",
+        provider: {
+          ollama: {
+            npm: "@ai-sdk/openai-compatible",
+            name: "Ollama (local)",
+            // Host-run agents talk to Ollama on localhost; only containers
+            // need host.docker.internal.
+            options: { baseURL: "http://localhost:11434/v1", apiKey: "ollama" },
+            models,
+          },
+        },
+        // Unattended runs can't answer prompts. Edits are safe because the
+        // engine confines every attempt to a throwaway git worktree.
+        permission: {
+          read: "allow",
+          edit: "allow",
+          glob: "allow",
+          grep: "allow",
+          list: "allow",
+          bash: "allow",
+          // A linked worktree's .git is a *file* pointing at the main repo, so
+          // opencode resolves the project root there and treats the worktree
+          // itself as external — which silently blocked every write. Allow
+          // exactly this attempt's directory, and nothing else: a local model
+          // that invents "/world.txt" (observed) still gets stopped.
+          external_directory: {
+            [`${workdir}/**`]: "allow",
+            [workdir]: "allow",
+            "*": "deny",
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    "utf8",
+  );
+}
+
+/** Seeded once so Settings has rows to edit and the engine has defaults. */
 export async function ensureExecutors() {
   await db
     .insert(executors)
@@ -62,6 +135,47 @@ export async function ensureExecutors() {
         defaultModel: null,
         gitMode: "none" as const,
         timeoutMs: TIMEOUTS.docs,
+      },
+      // ── W2: local coding agents, as configuration rather than code ──────
+      {
+        id: "opencode",
+        name: "opencode + local model",
+        kind: "cli" as const,
+        // --dangerously-skip-permissions auto-approves anything not *explicitly*
+        // denied, so the external_directory: "deny" rule in the config still
+        // holds. Without it a headless run silently skips its own write calls:
+        // "write" has no permission key, so it falls through to "ask", and
+        // nothing is there to answer.
+        commandTemplate:
+          "opencode run --format json --dangerously-skip-permissions --model ollama/{{model}} {{prompt}}",
+        parser: "jsonl" as const,
+        defaultModel: "qwen3-coder:30b",
+        gitMode: "worktree" as const,
+        timeoutMs: TIMEOUTS["code-local"],
+      },
+      {
+        id: "pi",
+        name: "pi + local model",
+        kind: "cli" as const,
+        commandTemplate:
+          "pi --provider ollama --model {{model}} --mode json -p {{prompt}}",
+        parser: "pi-json" as const,
+        defaultModel: "qwen2.5-coder:7b",
+        gitMode: "worktree" as const,
+        timeoutMs: TIMEOUTS["code-local"],
+      },
+      {
+        id: "aider",
+        name: "aider + local model",
+        kind: "cli" as const,
+        // aider has no structured output, but it auto-commits every edit —
+        // which the worktree diff picks up regardless of what it printed.
+        commandTemplate:
+          "aider --yes --no-stream --model ollama_chat/{{model}} --message {{prompt}}",
+        parser: "text" as const,
+        defaultModel: "qwen3-coder:30b",
+        gitMode: "worktree" as const,
+        timeoutMs: TIMEOUTS["code-local"],
       },
     ])
     .onConflictDoNothing();
@@ -176,15 +290,42 @@ export async function runAttempt(attemptId: string): Promise<void> {
       .where(eq(taskAttempts.id, attempt.id));
 
     // ── execute ────────────────────────────────────────────────────────
+    // A CLI executor is driven entirely by its row: template, parser, and —
+    // for opencode — the config file AIOS manages instead of the user's.
+    if (executor?.kind === "cli") await writeOpencodeConfig(workdir);
+
+    // Local models need three things spelled out that Claude infers. Observed
+    // on the first real opencode run: it tried to read "/app.txt" (blocked by
+    // the external-directory rule, correctly) and then politely gave up.
+    const prompt =
+      executor?.kind === "cli"
+        ? [
+            `You are working inside the git worktree at ${workdir}.`,
+            "Use paths RELATIVE to that directory — never absolute paths starting with /. Writing outside it is blocked.",
+            "You are running unattended: do not ask questions, do not offer alternatives, do not stop to confirm. Make the edits yourself, then stop.",
+            `Today is ${new Date().toISOString().slice(0, 10)}.`,
+            "",
+            "TASK:",
+            task.prompt,
+          ].join("\n")
+        : task.prompt;
+
     const result = await adapter.run(
       {
         attemptId: attempt.id,
-        prompt: task.prompt,
+        prompt,
         workdir,
         model: attempt.model ?? executor?.defaultModel ?? null,
         timeoutMs,
         taskType: task.taskType,
         signal: controller.signal,
+        commandTemplate: executor?.commandTemplate ?? undefined,
+        parser: (executor?.parser as CliParser | null) ?? undefined,
+        env: {
+          OPENCODE_CONFIG: AIOS_OPENCODE_CONFIG,
+          OPENCODE_DISABLE_AUTOUPDATE: "1",
+          OLLAMA_HOST: "127.0.0.1:11434",
+        },
         onPid: (pid) => {
           db.update(taskAttempts)
             .set({ pid })
@@ -211,13 +352,24 @@ export async function runAttempt(attemptId: string): Promise<void> {
     }
 
     const timedOut = controller.signal.aborted;
-    const status = timedOut ? "timed_out" : result.ok ? "succeeded" : "failed";
+    // A repo task that changed nothing is a no-op, not a success: a local
+    // model was observed announcing "written successfully" while the file
+    // never appeared on disk. Calling that "done" would be a lie on the card.
+    const noOp = !timedOut && result.ok && branch !== null && changedFiles === 0;
+    const status = timedOut
+      ? "timed_out"
+      : result.ok && !noOp
+        ? "succeeded"
+        : "failed";
+    const noOpError =
+      "finished without changing any files — the executor reported success but the worktree is untouched";
+
     await db
       .update(taskAttempts)
       .set({
         status,
         result: result.result?.slice(0, 8000) ?? null,
-        error: result.error?.slice(0, 2000) ?? null,
+        error: (noOp ? noOpError : result.error)?.slice(0, 2000) ?? null,
         exitCode: result.exitCode ?? null,
         inputTokens: result.inputTokens ?? null,
         outputTokens: result.outputTokens ?? null,
@@ -226,11 +378,12 @@ export async function runAttempt(attemptId: string): Promise<void> {
       })
       .where(eq(taskAttempts.id, attempt.id));
 
-    // Work that touched files needs a human look; everything else is done.
     await setTask(task.id, {
       status:
         status !== "succeeded" ? "failed" : changedFiles > 0 ? "review" : "done",
-      summary: (result.result ?? result.error ?? "").slice(0, 1000) || null,
+      summary: noOp
+        ? `No files changed. The executor's last words: ${(result.result ?? "(nothing)").slice(0, 600)}`
+        : (result.result ?? result.error ?? "").slice(0, 1000) || null,
     });
     log(`attempt ${attempt.id.slice(0, 8)} → ${status} (${changedFiles} file(s))`);
   } catch (e) {
