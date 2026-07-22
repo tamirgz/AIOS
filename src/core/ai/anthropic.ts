@@ -10,6 +10,11 @@ import type {
   AIRunOptions,
 } from "./provider";
 import { fromWireName, toWireName } from "./provider";
+import { enforceSubscriptionAuth } from "./auth";
+
+// Runs once, before the SDK can spawn its runtime: a metered key present in
+// the environment would take precedence over the Max subscription.
+enforceSubscriptionAuth();
 
 const MCP_SERVER = "aios";
 const MCP_PREFIX = `mcp__${MCP_SERVER}__`;

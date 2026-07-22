@@ -10,6 +10,7 @@ import { IntegrationsEditor } from "../components/IntegrationsEditor";
 import { MemoryEditor } from "../components/MemoryEditor";
 import { UsagePanel } from "../components/UsagePanel";
 import { EmbeddingModelPicker } from "../components/EmbeddingModelPicker";
+import { AuthPanel } from "../components/AuthPanel";
 import { ExecutorsPanel } from "@/modules/workbench/components/ExecutorsPanel";
 import { listExecutors } from "@/modules/workbench/queries";
 import { ollamaProvider } from "@/core/ai/ollama";
@@ -66,6 +67,7 @@ export async function SettingsPage() {
   return (
     <div className="grid max-w-6xl grid-cols-1 gap-x-6 gap-y-5 xl:grid-cols-2">
       <div className="flex flex-col gap-5">
+        <AuthPanel />
         <RoutesEditor routes={routes} />
         <EmbeddingModelPicker
           initial={embeddingModel ?? DEFAULT_EMBEDDING_MODEL}

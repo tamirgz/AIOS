@@ -17,6 +17,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { subscriptionEnv } from "@/core/ai/auth";
 import type { Adapter, AdapterContext, AdapterEvent, AdapterResult } from "./types";
 
 export type CliParser = "jsonl" | "pi-json" | "text";
@@ -168,13 +169,13 @@ export const cliAdapter: Adapter = {
       cwd: ctx.workdir,
       detached: true, // own process group, so a timeout kills its children too
       stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        ...process.env,
+      // Subscription/local auth only, for every executor we spawn.
+      env: subscriptionEnv({
         ...ctx.env,
         PATH: childPath(),
         HOME: process.env.HOME ?? homedir(),
         CI: "1",
-      },
+      }),
     });
     if (child.pid) ctx.onPid?.(child.pid);
 
