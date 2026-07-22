@@ -90,18 +90,25 @@ export interface AuthStatus {
 }
 
 /**
- * Three ways the Max subscription can reach the runtime, in the order the
- * Claude tooling itself prefers them:
+ * Three ways the Max subscription can reach the runtime, checked in the order
+ * the Claude tooling itself prefers them:
  *
- * 1. `CLAUDE_CODE_OAUTH_TOKEN` in the environment (`claude setup-token`);
- * 2. the same variable in `.env.local`, which the runtime loads from the
- *    project directory when the SDK spawns it;
- * 3. the CLI's own logged-in session, stored in the macOS Keychain by
- *    `claude login` — which is what this machine is actually using: the
- *    `.env.local` entry here is present but *empty*, and an empty value is
- *    ignored rather than used.
+ * 1. `CLAUDE_CODE_OAUTH_TOKEN` in the environment — from `claude setup-token`.
+ *    Next loads `.env.local` into `process.env` at server start and the worker
+ *    loads it explicitly, so in practice this is the usual answer.
+ * 2. the same variable read straight from `.env.local`, for contexts that
+ *    didn't load it (a bare `tsx` script, say).
+ * 3. the CLI's own logged-in session in the macOS Keychain (`claude login`).
  *
- * None of these is a metered API key.
+ * All three are subscription auth; none is a metered API key. Both 1 and 3 can
+ * be present at once — measured on this machine, an *invalid* token still
+ * succeeds when a Keychain session exists, because the CLI falls back to it.
+ * In an isolated HOME the token alone authenticates (and a bogus one 401s),
+ * which is why the token matters for daemons that may not reach the Keychain.
+ *
+ * A subtlety worth keeping: `CLAUDE_CODE_OAUTH_TOKEN=` with an empty value is
+ * *not* configuration — it reads as absent, which is exactly what happened
+ * here before the token was filled in.
  */
 function tokenSource(): AuthStatus["tokenSource"] {
   if (process.env.CLAUDE_CODE_OAUTH_TOKEN) return "environment";
