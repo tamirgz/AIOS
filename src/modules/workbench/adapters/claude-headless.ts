@@ -152,9 +152,11 @@ export const claudeHeadlessAdapter: Adapter = {
       // (bash, git, node) — signalling only the parent leaves orphans.
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
-      // Subscription auth only — an inherited API key would silently
-      // switch this run from the Max plan to per-token billing.
-      env: subscriptionEnv({ CI: "1" }),
+      // Subscription auth only — an inherited API key would silently switch
+      // this run from the Max plan to per-token billing. PWD is pinned to the
+      // worktree so a tool that trusts $PWD over cwd can't resolve back to the
+      // AIOS project (the bug that made the CLI executors edit the wrong repo).
+      env: subscriptionEnv({ CI: "1", PWD: ctx.workdir }),
     });
     if (child.pid) ctx.onPid?.(child.pid);
 

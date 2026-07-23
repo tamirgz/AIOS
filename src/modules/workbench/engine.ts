@@ -23,7 +23,9 @@ import { nativeAdapter } from "./adapters/native";
 import type { Adapter, AdapterEvent } from "./adapters/types";
 import {
   commitCheckpoint,
+  createClone,
   createWorktree,
+  fetchBranchFromClone,
   diffSince,
   isGitRepo,
   SCRATCH_ROOT,
@@ -255,20 +257,28 @@ export async function runAttempt(attemptId: string): Promise<void> {
     if (!adapter) throw new Error(`no adapter for "${attempt.executorId}"`);
 
     // ── isolation ──────────────────────────────────────────────────────
+    // A CLI agent needs the workdir to BE the git root (a local clone), or it
+    // resolves its project to the main repo through the worktree link and edits
+    // the wrong tree. In-process executors (claude-headless) handle a linked
+    // worktree fine, and it's cheaper, so they keep using one.
     let workdir: string;
     let branch: string | null = null;
     let baseSha: string | null = null;
+    let isClone = false;
     if (executor?.gitMode === "worktree" && task.repoPath) {
       if (!(await isGitRepo(task.repoPath))) {
         throw new Error(`${task.repoPath} is not a git repository`);
       }
-      const wt = await createWorktree(task.repoPath, attempt.id);
-      workdir = wt.workdir;
-      branch = wt.branch;
-      baseSha = wt.baseSha;
+      isClone = executor.kind === "cli";
+      const iso = isClone
+        ? await createClone(task.repoPath, attempt.id)
+        : await createWorktree(task.repoPath, attempt.id);
+      workdir = iso.workdir;
+      branch = iso.branch;
+      baseSha = iso.baseSha;
       await emitEvent(attempt.id, {
         type: "status",
-        payload: { phase: "worktree", branch, workdir },
+        payload: { phase: isClone ? "clone" : "worktree", branch, workdir },
       });
     } else {
       workdir = join(SCRATCH_ROOT, attempt.id.slice(0, 8));
@@ -294,15 +304,17 @@ export async function runAttempt(attemptId: string): Promise<void> {
     // for opencode — the config file AIOS manages instead of the user's.
     if (executor?.kind === "cli") await writeOpencodeConfig(workdir);
 
-    // Local models need three things spelled out that Claude infers. Observed
-    // on the first real opencode run: it tried to read "/app.txt" (blocked by
-    // the external-directory rule, correctly) and then politely gave up.
+    // Local models need autonomy spelled out — Claude infers it. But do NOT
+    // hand them the absolute workdir path: given a clone whose project root is
+    // already correct, opencode surfaces the right paths itself, and a path
+    // hint just gets mangled (observed: the model turned the workdir into a
+    // bogus out-of-project path and got blocked). Keep the preamble about
+    // *behaviour*, not *location*.
     const prompt =
       executor?.kind === "cli"
         ? [
-            `You are working inside the git worktree at ${workdir}.`,
-            "Use paths RELATIVE to that directory — never absolute paths starting with /. Writing outside it is blocked.",
-            "You are running unattended: do not ask questions, do not offer alternatives, do not stop to confirm. Make the edits yourself, then stop.",
+            "You are running unattended in this project directory. Read and edit files here directly, using the paths the tools give you.",
+            "Do not ask questions, do not offer alternatives, do not stop to confirm — make the edits yourself, then stop.",
             `Today is ${new Date().toISOString().slice(0, 10)}.`,
             "",
             "TASK:",
@@ -343,6 +355,12 @@ export async function runAttempt(attemptId: string): Promise<void> {
     let changedFiles = 0;
     if (branch && baseSha) {
       await commitCheckpoint(workdir, `aios: ${task.title}`.slice(0, 200));
+      // A clone's branch lives in the clone; bring it into the user's repo so
+      // review and merge are identical to the worktree path. The diff is then
+      // read from the clone (still present), which has base..HEAD.
+      if (isClone && task.repoPath) {
+        await fetchBranchFromClone(task.repoPath, workdir, branch);
+      }
       const diff = await diffSince(workdir, baseSha);
       changedFiles = diff.files.length;
       await emitEvent(attempt.id, {

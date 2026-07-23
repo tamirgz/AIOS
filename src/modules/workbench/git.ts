@@ -6,8 +6,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { homedir } from "node:os";
-import { join } from "node:path";
-import { mkdir } from "node:fs/promises";
+import { basename, join } from "node:path";
+import { mkdir, rm } from "node:fs/promises";
 
 const exec = promisify(execFile);
 
@@ -49,6 +49,78 @@ export async function createWorktree(
   const baseSha = (await git(repoPath, ["rev-parse", "HEAD"])).trim();
   await git(repoPath, ["worktree", "add", "-b", branch, workdir, baseSha]);
   return { workdir, branch, baseSha };
+}
+
+/**
+ * Isolation for a CLI executor — a local clone, NOT a linked worktree.
+ *
+ * A linked worktree's `.git` is a *file* pointing back at the main repo, so
+ * external CLI agents (opencode, aider…) resolve their "project root" to the
+ * main repo and load ITS context/permissions — the model ends up editing the
+ * wrong tree entirely. Measured: the same opencode+model that fails in a
+ * worktree of a repo succeeds in a standalone clone of it. A clone has a real
+ * `.git` directory, so the workdir IS the project root, unambiguously.
+ *
+ * `git clone --local` hardlinks the object store, so this is near-instant and
+ * cheap even for large repos. The new branch is created in the clone; the
+ * engine fetches it back into the main repo at settle time so review and
+ * merge work exactly as they do for worktree executors.
+ */
+export async function createClone(
+  repoPath: string,
+  attemptId: string,
+): Promise<Worktree> {
+  await mkdir(WORKTREE_ROOT, { recursive: true });
+  const short = attemptId.slice(0, 8);
+  const branch = `aios/task-${short}`;
+  const workdir = join(WORKTREE_ROOT, `clone-${short}`);
+  const baseSha = (await git(repoPath, ["rev-parse", "HEAD"])).trim();
+  await git(repoPath, ["clone", "--local", "--no-hardlinks", repoPath, workdir]);
+  // Detach-free branch off the exact base commit, so the diff is base..HEAD.
+  await git(workdir, ["checkout", "-b", branch, baseSha]);
+  return { workdir, branch, baseSha };
+}
+
+/**
+ * Pull a clone's finished branch back into the main repo, so the review diff
+ * and the manual merge happen against the user's real repository — identical
+ * to the worktree path. No-op if the branch never got any commits.
+ */
+export async function fetchBranchFromClone(
+  repoPath: string,
+  clonePath: string,
+  branch: string,
+): Promise<void> {
+  await git(repoPath, [
+    "fetch",
+    "--no-tags",
+    clonePath,
+    `${branch}:${branch}`,
+  ]).catch(() => {
+    // The branch may not exist yet if the agent committed nothing — fine.
+  });
+}
+
+/** Remove a clone directory. Unlike a worktree it has no main-repo registration. */
+export async function removeClone(clonePath: string): Promise<void> {
+  await rm(clonePath, { recursive: true, force: true }).catch(() => {});
+}
+
+/**
+ * Tear down whatever isolation an attempt used. Clones live at
+ * `.../clone-<id>` and are just directories; worktrees are registered with the
+ * main repo and must be removed through git. The path tells them apart, so
+ * callers don't have to track which kind an attempt was.
+ */
+export async function removeIsolation(
+  repoPath: string,
+  workdir: string,
+): Promise<void> {
+  if (basename(workdir).startsWith("clone-")) {
+    await removeClone(workdir);
+  } else {
+    await removeWorktree(repoPath, workdir);
+  }
 }
 
 /**
