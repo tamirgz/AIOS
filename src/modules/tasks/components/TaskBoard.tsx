@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
   ArrowRight,
   Flame,
+  GripVertical,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -86,8 +87,19 @@ function QuickAdd() {
   );
 }
 
-function TaskCard({ task }: { task: Task }) {
+function TaskCard({
+  task,
+  dragging,
+  onDragStart,
+  onDragEnd,
+}: {
+  task: Task;
+  dragging: boolean;
+  onDragStart: (id: string) => void;
+  onDragEnd: () => void;
+}) {
   const [pending, startTransition] = useTransition();
+  const ref = useRef<HTMLDivElement>(null);
   const idx = COLUMNS.findIndex((c) => c.status === task.status);
   const move = (dir: -1 | 1) => {
     const next = COLUMNS[idx + dir]?.status;
@@ -97,20 +109,48 @@ function TaskCard({ task }: { task: Task }) {
     });
   };
 
+  // Wire native HTML5 drag imperatively: motion filters the `draggable` prop
+  // (and reserves onDragStart/onDragEnd for its own pan gestures) out of the
+  // DOM, so we set it on the element itself. This keeps motion.div as the
+  // animated node, preserving the layoutId fly-between-columns transition.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.draggable = true;
+    const onStart = (e: DragEvent) => {
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", task.id);
+      }
+      onDragStart(task.id);
+    };
+    el.addEventListener("dragstart", onStart);
+    el.addEventListener("dragend", onDragEnd);
+    return () => {
+      el.removeEventListener("dragstart", onStart);
+      el.removeEventListener("dragend", onDragEnd);
+    };
+  }, [task.id, onDragStart, onDragEnd]);
+
   return (
     <motion.div
+      ref={ref}
       layout
       layoutId={task.id}
       initial={{ opacity: 0, y: 10, scale: 0.98 }}
-      animate={{ opacity: pending ? 0.4 : 1, y: 0, scale: 1 }}
+      animate={{ opacity: dragging ? 0.3 : pending ? 0.4 : 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ type: "spring", stiffness: 420, damping: 34 }}
-      className="group glass rounded-xl p-3.5"
+      className={cn(
+        "group glass rounded-xl p-3.5",
+        "cursor-grab active:cursor-grabbing",
+      )}
     >
       <div className="flex items-start gap-2">
+        <GripVertical className="mt-0.5 size-3.5 shrink-0 text-ink-faint/50 transition group-hover:text-ink-faint" />
         <span
           className={cn(
-            "mt-1 font-mono text-[9px] uppercase",
+            "mt-0.5 font-mono text-[9px] uppercase",
             PRIORITY_STYLE[task.priority],
           )}
           title={`${task.priority} priority`}
@@ -166,14 +206,68 @@ function TaskCard({ task }: { task: Task }) {
 }
 
 export function TaskBoard({ tasks }: { tasks: Task[] }) {
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overStatus, setOverStatus] = useState<TaskStatus | null>(null);
+  const [, startMove] = useTransition();
+
+  const dragged = dragId ? tasks.find((t) => t.id === dragId) ?? null : null;
+
+  // Stable so TaskCard's drag-wiring effect doesn't re-run every render.
+  const onDragStart = useCallback((id: string) => setDragId(id), []);
+  const onDragEnd = useCallback(() => {
+    setDragId(null);
+    setOverStatus(null);
+  }, []);
+
+  const drop = (status: TaskStatus) => {
+    const id = dragId;
+    setDragId(null);
+    setOverStatus(null);
+    if (!id) return;
+    const task = tasks.find((t) => t.id === id);
+    if (!task || task.status === status) return;
+    startMove(async () => {
+      await setTaskStatus(id, status);
+    });
+  };
+
   return (
     <div>
       <QuickAdd />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {COLUMNS.map((col) => {
           const items = tasks.filter((t) => t.status === col.status);
+          // A column is a live drop target only when a card from *another*
+          // column is being dragged over it.
+          const isTarget = !!dragged && dragged.status !== col.status;
+          const active = overStatus === col.status && isTarget;
           return (
-            <section key={col.status} className="min-h-40">
+            <section
+              key={col.status}
+              onDragOver={(e) => {
+                if (!dragId) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = isTarget ? "move" : "none";
+                if (isTarget && overStatus !== col.status)
+                  setOverStatus(col.status);
+              }}
+              onDragLeave={(e) => {
+                // Ignore leaves that are really just entering a child element.
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+                  setOverStatus((s) => (s === col.status ? null : s));
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                drop(col.status);
+              }}
+              className={cn(
+                "min-h-40 rounded-2xl p-2 transition-colors",
+                active
+                  ? "bg-white/[0.03] outline outline-1 outline-dashed"
+                  : "outline-none",
+              )}
+              style={active ? { outlineColor: col.accent } : undefined}
+            >
               <header className="mb-3 flex items-center gap-2 px-1">
                 <span className="dot" style={{ color: col.accent }} />
                 <h2 className="font-display text-sm font-medium uppercase tracking-[0.2em] text-ink-dim">
@@ -186,12 +280,25 @@ export function TaskBoard({ tasks }: { tasks: Task[] }) {
               <div className="flex flex-col gap-2.5">
                 <AnimatePresence mode="popLayout">
                   {items.map((t) => (
-                    <TaskCard key={t.id} task={t} />
+                    <TaskCard
+                      key={t.id}
+                      task={t}
+                      dragging={dragId === t.id}
+                      onDragStart={onDragStart}
+                      onDragEnd={onDragEnd}
+                    />
                   ))}
                 </AnimatePresence>
                 {items.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-white/6 py-8 text-center font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-                    empty
+                  <div
+                    className={cn(
+                      "rounded-xl border border-dashed py-8 text-center font-mono text-[10px] uppercase tracking-widest transition-colors",
+                      active
+                        ? "border-white/20 text-ink-dim"
+                        : "border-white/6 text-ink-faint",
+                    )}
+                  >
+                    {active ? "drop here" : "empty"}
                   </div>
                 )}
               </div>
