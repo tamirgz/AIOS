@@ -13,7 +13,7 @@ import { EmbeddingModelPicker } from "../components/EmbeddingModelPicker";
 import { AuthPanel } from "../components/AuthPanel";
 import { ExecutorsPanel } from "@/modules/workbench/components/ExecutorsPanel";
 import { listExecutors } from "@/modules/workbench/queries";
-import { ollamaProvider } from "@/core/ai/ollama";
+import { listFreeModels } from "@/modules/workbench/models";
 
 export async function SettingsPage() {
   await ensureDefaultRoutes();
@@ -45,8 +45,9 @@ export async function SettingsPage() {
   ]);
   const [workbenchExecutors, ollamaModels] = await Promise.all([
     listExecutors(),
-    // Model names for the datalist; an unreachable Ollama just means no hints.
-    ollamaProvider.listModels().catch(() => [] as string[]),
+    // The free model library CLI executors may use — local Ollama, embeddings
+    // filtered out. Unreachable Ollama just means no hints.
+    listFreeModels(),
   ]);
 
   const { memoryEntries } = await import("@/core/db/schema/memory");

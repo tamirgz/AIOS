@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db, sql } from "@/core/db/client";
 import { deleteBranchIfMerged, removeIsolation } from "./git";
 import { TYPE_DEFAULT_EXECUTOR } from "./defaults";
+import { assertFreeModel } from "./models";
 import {
   attemptEvents,
   executors,
@@ -220,6 +221,17 @@ export async function updateExecutor(
     enabled?: string;
   },
 ) {
+  // A local (cli) executor may only be pointed at a free model — reject a
+  // metered one here so the user finds out at save time, not mid-run. Claude
+  // executors are exempt (their model name legitimately looks metered).
+  if (patch.defaultModel) {
+    const [row] = await db
+      .select({ kind: executors.kind })
+      .from(executors)
+      .where(eq(executors.id, id));
+    if (row?.kind === "cli") assertFreeModel(patch.defaultModel);
+  }
+
   await db
     .update(executors)
     .set({

@@ -56,9 +56,12 @@ const TYPES: {
 export function NewTaskBox({
   defaultRepo,
   executors,
+  freeModels,
 }: {
   defaultRepo: string;
   executors: { id: string; name: string; defaultModel: string | null }[];
+  /** The free local-model library CLI executors may use (see models.ts). */
+  freeModels: string[];
 }) {
   const [type, setType] = useState<TaskType>("research");
   const [repo, setRepo] = useState(defaultRepo);
@@ -176,13 +179,27 @@ export function NewTaskBox({
           ))}
         </select>
         {executorId && (
-          <input
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            spellCheck={false}
-            placeholder="model"
-            className="w-56 rounded-lg border border-white/8 bg-abyss/60 px-2 py-1 font-mono text-[10px] text-ink-dim outline-none focus:border-plasma/40"
-          />
+          <>
+            <input
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              spellCheck={false}
+              list="wb-free-models"
+              placeholder="model"
+              className="w-64 rounded-lg border border-white/8 bg-abyss/60 px-2 py-1 font-mono text-[10px] text-ink-dim outline-none focus:border-plasma/40"
+            />
+            {/* Local executors may pick any free model from the library. */}
+            <datalist id="wb-free-models">
+              {freeModels.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+            {freeModels.length > 0 && (
+              <span className="font-mono text-[9px] uppercase tracking-widest text-plasma/70">
+                {freeModels.length} free models
+              </span>
+            )}
+          </>
         )}
       </div>
     </section>

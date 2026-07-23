@@ -19,6 +19,7 @@ import {
   type CliParser,
 } from "./adapters/cli";
 import { TIMEOUTS } from "./defaults";
+import { assertFreeModel } from "./models";
 import { nativeAdapter } from "./adapters/native";
 import type { Adapter, AdapterEvent } from "./adapters/types";
 import {
@@ -302,7 +303,13 @@ export async function runAttempt(attemptId: string): Promise<void> {
     // ── execute ────────────────────────────────────────────────────────
     // A CLI executor is driven entirely by its row: template, parser, and —
     // for opencode — the config file AIOS manages instead of the user's.
-    if (executor?.kind === "cli") await writeOpencodeConfig(workdir);
+    if (executor?.kind === "cli") {
+      // Free-only guarantee: a local executor may use any model from its
+      // library so long as it's free. Refuse a metered spec here rather than
+      // let it reach a paid API. The model was already resolved above.
+      assertFreeModel(attempt.model ?? executor.defaultModel ?? null);
+      await writeOpencodeConfig(workdir);
+    }
 
     // Local models need autonomy spelled out — Claude infers it. But do NOT
     // hand them the absolute workdir path: given a clone whose project root is
