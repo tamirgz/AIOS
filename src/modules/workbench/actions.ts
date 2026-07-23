@@ -3,7 +3,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, sql } from "@/core/db/client";
-import { deleteBranchIfMerged, removeWorktree } from "./git";
+import { deleteBranchIfMerged, removeIsolation } from "./git";
 import { TYPE_DEFAULT_EXECUTOR } from "./defaults";
 import {
   attemptEvents,
@@ -131,7 +131,7 @@ export async function archiveTask(taskId: string) {
       .from(taskAttempts)
       .where(eq(taskAttempts.taskId, taskId));
     for (const a of attempts) {
-      if (a.workdir && a.branch) await removeWorktree(task.repoPath, a.workdir);
+      if (a.workdir && a.branch) await removeIsolation(task.repoPath, a.workdir);
     }
   }
 
@@ -187,7 +187,7 @@ export async function deleteTask(taskId: string): Promise<{
   const keptBranches: string[] = [];
   if (task.repoPath) {
     for (const a of attempts) {
-      if (a.workdir) await removeWorktree(task.repoPath, a.workdir);
+      if (a.workdir) await removeIsolation(task.repoPath, a.workdir);
       if (!a.branch) continue;
       if (await deleteBranchIfMerged(task.repoPath, a.branch)) {
         deletedBranches.push(a.branch);

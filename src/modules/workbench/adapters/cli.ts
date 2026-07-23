@@ -174,6 +174,12 @@ export const cliAdapter: Adapter = {
         ...ctx.env,
         PATH: childPath(),
         HOME: process.env.HOME ?? homedir(),
+        // THE root-cause fix for "opencode edits the wrong repo": the worker's
+        // PWD is the AIOS project, and opencode (like many tools) trusts $PWD
+        // over the actual cwd to find its project root. Inheriting the stale
+        // value made every run operate in the AIOS checkout — it even wrote a
+        // file there once. Pin PWD to the isolated workdir.
+        PWD: ctx.workdir,
         CI: "1",
       }),
     });
