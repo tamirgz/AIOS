@@ -1,6 +1,6 @@
 # AIOS — One-Stop Plan
 
-*Written 2026-07-20, after v0.1 (11 milestones, all shipped & verified); status refreshed 2026-07-21. This is the working plan for turning AIOS from "an impressive dashboard" into the single place work happens.*
+*Written 2026-07-20, after v0.1 (11 milestones, all shipped & verified); status refreshed 2026-07-23. This is the working plan for turning AIOS from "an impressive dashboard" into the single place work happens.*
 
 ---
 
@@ -10,7 +10,7 @@
 
 **Modules (11)** — each one is a folder + 2 registry lines: Inbox, Calendar, **Workbench**, Tasks, Projects, Notes, Ideas, Knowledge, Vault, Agents, Settings.
 
-**Workbench** *(new 2026-07-21, W1)* — the one-off task surface: one box + a type picker, the type resolves executor/model/permissions. Tasks → attempts → normalized events; git worktree and branch per attempt; live tail and per-file diff in-app; retry as a sibling attempt. Executors today: Claude Code headless and AIOS-native (module tools, can run fully local). Details and exit-test evidence in WORKBENCH-PLAN.md §6.
+**Workbench** *(W1 + W2, 2026-07-21 → 23)* — the one-off task surface: one box + a type picker; the type resolves executor/model/permissions. Tasks → attempts → normalized events; git isolation per attempt (worktree for in-process Claude, a local clone for CLI agents); live tail and per-file diff in-app; retry as a sibling attempt. **Executors: Claude Code (Max), AIOS-native (local), and opencode** — the last driving any **free** model: local Ollama plus free cloud (opencode-zen Big Pickle, free Nvidia via the user's key), cost-verified so paid models are refused. Verified live end-to-end on Claude, local Ollama, Big Pickle ($0) and a free Nvidia model ($0). pi and aider are seeded rows but not yet proven (pi parser mismatch; aider not installed). Details in WORKBENCH-PLAN.md §6–§8; W3 (delegation UX) is next.
 
 **The AI layer.**
 - Two providers, per-job routing (Settings): **Anthropic via Claude Max** (no API key — Agent SDK on host credentials) and **local Ollama** (any installed model, streaming, tool-calling).
@@ -29,7 +29,8 @@
 | Slack outbound | ✅ Built (bell → Slack) — **waiting on your webhook URL** |
 | Slack inbound (routine reports) | ✅ Built for #tldr + #my-today — **waiting on your bot token** |
 | Claude Desktop routines | ✅ Via the Slack intake above (they post to Slack; local jobs + drop-box also covered) |
-| Claude Code (headless) | ✅ **New:** a Workbench executor — delegated research and repo work, on its own branch |
+| Claude Code (headless) | ✅ Workbench executor — delegated research and repo work, on its own branch |
+| opencode + free models | ✅ Workbench executor — local Ollama and free cloud (opencode-zen Big Pickle, free Nvidia via your key), cost-verified so paid models are refused. Verified live at $0 |
 | Gmail | ❌ Not built (Phase 4) — the OAuth client is already there, it needs the `gmail.readonly` scope |
 | Notion | ❌ Not built (Phase 5) |
 | NotebookLM | ❌ **No public API exists.** Strategy: replace the use-case, not integrate (the "Ask" phase) |
@@ -71,7 +72,7 @@ Per-tool verdicts:
 
 ## 3 · Token policy — what runs free on Ollama
 
-**Auth rule (locked 2026-07-22): AIOS never uses a metered API key** — not Anthropic, not OpenAI or any provider added later. Subscription or local auth only. Enforced in `src/core/ai/auth.ts`: metered vars are deleted from AIOS's own process at startup and stripped from every spawned executor's environment, so a stray key cannot silently start billing. Settings → "AI authentication" shows the live state. On this machine Claude authenticates via the **CLI's logged-in Keychain session**; the `CLAUDE_CODE_OAUTH_TOKEN` line in `.env.local` is empty and unused. A "monthly spend limit" message is a Max-plan cap, not an API bill.
+**Auth rule (locked 2026-07-22): AIOS never uses a metered API key** — not Anthropic, not OpenAI or any provider added later. Subscription or local auth only. Enforced in `src/core/ai/auth.ts`: metered vars are deleted from AIOS's own process at startup and stripped from every spawned executor's environment, so a stray key cannot silently start billing. Settings → "AI authentication" shows the live state. Claude authenticates via **`CLAUDE_CODE_OAUTH_TOKEN` in `.env.local`** (`claude setup-token`, filled in 2026-07-23 — earlier it was empty and auth fell back to the Keychain session). A "monthly spend limit" message is a Max-plan cap, not an API bill.
 
 Claude Max is a quota, not a meter — the goal is spending it where judgment matters and never on volume. The routing table already supports this per key; these are the target defaults:
 
@@ -98,7 +99,7 @@ Rule of thumb: **volume & summarization → local; judgment & action → Claude.
 
 > **Re-sequenced 2026-07-20:** the Workbench (see WORKBENCH-PLAN.md, phases W1–W3) executes **before** Phase 1 below — the usability review found one-off task delegation to be the #1 gap, and every later integration feeds into that surface.
 >
-> **Progress 2026-07-22:** **W1 shipped and verified; W2 built and verified** (any coding agent is now a config row — opencode/pi/aider seeded, `code-local` type, executors editable in Settings). W2's comparison exit test is blocked from both sides: the Claude monthly spend limit is exhausted, and opencode+qwen3-coder runs but performs no file edits (WORKBENCH-PLAN §7). W3 (delegation UX) is next. EXECUTION-PLAN.md holds the live status table.
+> **Progress 2026-07-23:** **W1 and W2 shipped, verified, and the exit test passed.** Any coding agent is a config row; `code-local` type; per-task and Settings model override; free-model selection across local Ollama + free cloud (opencode-zen, Nvidia), cost-verified so nothing paid runs. Four executor·model combinations finished real edits through the Workbench (Claude, local Ollama, Big Pickle $0, Nvidia minimax $0). opencode's startup hang was root-caused and fixed. **W2 tails:** pi's JSON parser needs a real fixture; aider isn't installed; pi/aider cloud tiers deferred. **W3 (delegation UX) is next** and not yet started. EXECUTION-PLAN.md holds the live status table; WORKBENCH-PLAN §8 has the W2-remaining/W3 breakdown.
 
 ### Phase 1 — Close the loop (Gmail + activation + local rerouting)
 *Goal: the morning brief becomes complete enough that AIOS is the first thing you open.*
