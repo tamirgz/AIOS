@@ -188,7 +188,7 @@ Rule of thumb: **volume, summarization & the heartbeat → local (free); one-off
 ### Phase L2 — Living projects ✅ *shipped 2026-07-23*
 *Goal: "how are my projects doing?" answerable at a glance.*
 - Projects gain `goal` / `health` (derived) / `lastActivityAt`; the **project cockpit** rolls up tasks/notes/attention via existing `projectRef`.
-- **Project pulse** agent (`qwen3:8b`) derives health + next-action, raising `notify`/`do` items on stalls and blockers.
+- **Project pulse** agent (`qwen3-coder:30b` — winner of a 12-model bench of this task) derives health + next-action, raising `notify`/`do` items on stalls and blockers.
 - ✅ Built & verified live: `goal`/`health`/`healthReason`/`healthUpdatedAt` on projects; `getProjectCockpit` rollup (open/done/overdue tasks, notes, open attention, derived last-activity); the grid + detail **cockpit** (health chip, inline goal/next-action editors — persist confirmed, per-project "Needs you" cards); a pure `deriveHealth` heuristic so **health is never blank without an agent**; the Pulse agent ran on **free qwen3:8b** ($0/81s) and set health across all active projects, raising a card only for stalled/blocked. **Exit criterion met.** Caveat: an 8b model's *goal invention* is weak, so the Pulse agent ships **manual** (not auto-scheduled) until its prompt is tightened.
 
 ### Phase L3 — Chief-of-staff breadth
