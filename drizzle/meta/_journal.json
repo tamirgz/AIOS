@@ -120,6 +120,13 @@
       "when": 1784807668455,
       "tag": "0016_new_gideon",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1784817001860,
+      "tag": "0017_lying_sunspot",
+      "breakpoints": true
     }
   ]
 }
