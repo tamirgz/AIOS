@@ -1,6 +1,8 @@
 import { jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
-export const AI_PROVIDERS = ["anthropic", "ollama"] as const;
+// "nvidia" = free-tier NVIDIA cloud (OpenAI-compatible). Guarded so only $0
+// models can run — see src/core/ai/nvidia.ts. Text column, so no migration.
+export const AI_PROVIDERS = ["anthropic", "ollama", "nvidia"] as const;
 export type AIProviderId = (typeof AI_PROVIDERS)[number];
 
 /**

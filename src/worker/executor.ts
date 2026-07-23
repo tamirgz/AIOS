@@ -7,7 +7,7 @@ import {
   agents,
   type Agent,
 } from "@/core/db/schema/agents";
-import type { AIEvent } from "@/core/ai/provider";
+import type { AIEvent, AIProvider } from "@/core/ai/provider";
 import { providers, resolveRoute } from "@/core/ai/routing";
 import { getToolsByNames } from "@/core/ai/tool-registry";
 import type { AiToolDef } from "@/core/modules/types.server";
@@ -129,15 +129,6 @@ export async function executeRun(runId: string): Promise<void> {
     return;
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);
-  const heartbeat = setInterval(() => {
-    db.update(agentRuns)
-      .set({ heartbeatAt: new Date() })
-      .where(eq(agentRuns.id, runId))
-      .catch(() => {});
-  }, HEARTBEAT_MS);
-
   try {
     const { provider, model } = await routeFor(agent);
     const ledger = ledgerFor(agent.id, runId);
@@ -158,62 +149,101 @@ export async function executeRun(runId: string): Promise<void> {
       ...ledgerTools(ledger),
     ];
 
-    let finalText = "";
-    let tokensIn = 0;
-    let tokensOut = 0;
-    let errored: string | null = null;
-
     const { renderMemoryContext } = await import("@/core/memory");
-    for await (const event of provider.run({
-      system: [
-        `You are "${agent.name}", an autonomous background agent inside AIOS, the user's personal AI operating system.`,
-        "You run unattended — do the work with your tools, then produce a concise final report of what you did and found.",
-        "Idempotency: use ledger.has to check items before acting and ledger.mark after processing. Never redo work a previous run already did.",
-        `Current date-time: ${new Date().toISOString()}`,
-        "",
-        await renderMemoryContext(),
-      ].join("\n"),
-      messages: [{ role: "user", content: agent.prompt }],
-      tools,
-      toolCtx: { db, agentRunId: runId, ledger },
-      model,
-      signal: controller.signal,
-    })) {
-      await appendEvent(runId, event);
-      if (event.type === "done") finalText = event.text;
-      if (event.type === "error") errored = event.message;
-      if (event.type === "usage") {
-        tokensIn += event.inputTokens;
-        tokensOut += event.outputTokens;
+    const system = [
+      `You are "${agent.name}", an autonomous background agent inside AIOS, the user's personal AI operating system.`,
+      "You run unattended — do the work with your tools, then produce a concise final report of what you did and found.",
+      "Idempotency: use ledger.has to check items before acting and ledger.mark after processing. Never redo work a previous run already did.",
+      `Current date-time: ${new Date().toISOString()}`,
+      "",
+      await renderMemoryContext(),
+    ].join("\n");
+
+    // One provider attempt, with its own timeout + heartbeat so a fallback
+    // attempt gets a fresh clock (the primary's abort signal is already spent).
+    const attempt = async (prov: AIProvider, mdl: string) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);
+      const heartbeat = setInterval(() => {
+        db.update(agentRuns)
+          .set({ heartbeatAt: new Date() })
+          .where(eq(agentRuns.id, runId))
+          .catch(() => {});
+      }, HEARTBEAT_MS);
+      let finalText = "";
+      let tokensIn = 0;
+      let tokensOut = 0;
+      let errored: string | null = null;
+      try {
+        for await (const event of prov.run({
+          system,
+          messages: [{ role: "user", content: agent.prompt }],
+          tools,
+          toolCtx: { db, agentRunId: runId, ledger },
+          model: mdl,
+          signal: controller.signal,
+        })) {
+          await appendEvent(runId, event);
+          if (event.type === "done") finalText = event.text;
+          if (event.type === "error") errored = event.message;
+          if (event.type === "usage") {
+            tokensIn += event.inputTokens;
+            tokensOut += event.outputTokens;
+          }
+        }
+      } catch (e) {
+        errored = String(e);
+      } finally {
+        clearTimeout(timeout);
+        clearInterval(heartbeat);
       }
+      return { finalText, tokensIn, tokensOut, errored, aborted: controller.signal.aborted };
+    };
+
+    let res = await attempt(provider, model);
+
+    // Cloud → local fallback: if a CLOUD model fails (connectivity, timeout,
+    // rate-limit, any error) and the agent has a local fallback, retry once on
+    // Ollama so a periodic heartbeat survives an offline / flaky cloud.
+    if (res.errored && provider.id === "nvidia" && agent.fallbackModel) {
+      await appendEvent(runId, {
+        type: "text",
+        text: `⚠︎ Cloud model "${model}" failed (${res.errored.slice(0, 120)}). Falling back to local ollama/${agent.fallbackModel}.`,
+      });
+      const fb = await attempt(providers.ollama, agent.fallbackModel);
+      res = {
+        finalText: fb.finalText,
+        tokensIn: res.tokensIn + fb.tokensIn,
+        tokensOut: res.tokensOut + fb.tokensOut,
+        errored: fb.errored,
+        aborted: fb.aborted,
+      };
     }
 
-    if (errored) {
-      await patchRun(runId, {
-        status: controller.signal.aborted ? "timed_out" : "failed",
-        error: errored,
-        finishedAt: new Date(),
-        tokensIn,
-        tokensOut,
-      });
-    } else {
-      await patchRun(runId, {
-        status: "succeeded",
-        result: finalText,
-        finishedAt: new Date(),
-        tokensIn,
-        tokensOut,
-      });
-    }
+    await patchRun(
+      runId,
+      res.errored
+        ? {
+            status: res.aborted ? "timed_out" : "failed",
+            error: res.errored,
+            finishedAt: new Date(),
+            tokensIn: res.tokensIn,
+            tokensOut: res.tokensOut,
+          }
+        : {
+            status: "succeeded",
+            result: res.finalText,
+            finishedAt: new Date(),
+            tokensIn: res.tokensIn,
+            tokensOut: res.tokensOut,
+          },
+    );
   } catch (e) {
     await patchRun(runId, {
-      status: controller.signal.aborted ? "timed_out" : "failed",
+      status: "failed",
       error: String(e),
       finishedAt: new Date(),
     });
-  } finally {
-    clearTimeout(timeout);
-    clearInterval(heartbeat);
   }
 }
 

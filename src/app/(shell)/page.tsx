@@ -45,6 +45,8 @@ export default function DashboardPage() {
             index={i}
             accent={mod?.accent ?? "var(--color-ink-faint)"}
             title={w.title}
+            // Every card's header opens its module's page.
+            href={`/m/${w.moduleId}`}
             className={cn(SIZE_CLASS[w.size])}
           >
             <Widget />

@@ -35,6 +35,12 @@ export const agents = pgTable("agents", {
   /** Optional per-agent provider/model override (else agent.default route). */
   provider: text("provider", { enum: AI_PROVIDERS }),
   model: text("model"),
+  /**
+   * Local Ollama model to retry on when a CLOUD primary (e.g. nvidia) fails on
+   * connectivity — keeps a periodic agent's heartbeat alive offline / when the
+   * cloud is rate-limited or flaky. Null = no fallback (fail as normal).
+   */
+  fallbackModel: text("fallback_model"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
