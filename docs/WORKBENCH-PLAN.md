@@ -2,7 +2,7 @@
 
 *2026-07-20; status appended 2026-07-21. Deliverable of the "review usability + research best practices + plan the agentic task system" pass. Companion to ONE-STOP-PLAN.md (whose phases re-sequence behind this).*
 
-**Status: W1 shipped and verified (2026-07-21). W2 is next.** See §6 for what actually got built, what changed against this plan, and the evidence.
+**Status (2026-07-23): W1 and W2 shipped and verified; W3 is next.** §6 covers the W1 spine, §7 the W2 build + free-model / free-cloud work + the opencode reliability fix, and §8 the honest W2-remaining items (pi parser, aider not installed) and the full W3 scope. Verified live: Claude, local Ollama, opencode-zen Big Pickle ($0), and a free Nvidia model ($0) each finishing a real edit through the Workbench.
 
 ---
 
@@ -165,6 +165,36 @@ Both reviewed in-app as per-file diffs; both branches fetched into the test repo
 
 Also removed the absolute-path preamble that made local models mangle the workdir path. The no-op detector that surfaced all of this stays.
 
-**Free-model selection (2026-07-23), incl. free cloud (opencode-zen + Nvidia).** Local executors may use any model from their free library — chosen per task in the new-task box or per executor in Settings. "Free" is **cost-verified from opencode's own pricing DB** (`~/.cache/opencode/models.json`), not provider-based: local Ollama, opencode-zen's Big Pickle / `*-free`, and the free Nvidia models all qualify; the same Nvidia key's paid models (`deepseek-v4-flash`, big nemotrons) and opencode's paid GPT-5/Claude-Opus are excluded, because the naive "provider == free" rule would have billed. A non-$0 or unknown-priced cloud model is refused at save time and before spawn (`assertFreeModel`), failing closed on billing. opencode's command template passes a full `provider/model` spec so cloud models are addressable. Verified: 62 free models offered for opencode; a paid Nvidia model is blocked with a clear message; the cloud path reaches the model and uses tools at the correct clone path. Not yet shown end-to-end: a free cloud model *finishing* an edit — opencode's intermittent startup hang on this machine blocked live confirmation. pi/aider free cloud tiers are a later addition. Model *capability* is the user's call: a 35B coder edits correctly, a 7B often can't; the no-op detector catches the difference.
+**Free-model selection incl. free cloud (opencode-zen + Nvidia), verified live 2026-07-23.** Local executors may use any model from their free library — chosen per task in the new-task box or per executor in Settings. "Free" is **cost-verified from opencode's own pricing DB** (`~/.cache/opencode/models.json`), not provider-based: local Ollama, opencode-zen's Big Pickle / `*-free`, and the free Nvidia models all qualify; the same Nvidia key's paid models (`deepseek-v4-flash`, big nemotrons) and opencode's paid GPT-5/Claude-Opus are excluded, because the naive "provider == free" rule would have billed. A non-$0 or unknown-priced cloud model is refused at save time and before spawn (`assertFreeModel`), failing closed on billing. opencode's command template passes a full `provider/model` spec so cloud models are addressable, and the catalog is derived from opencode's pricing DB + `auth.json` by **file read, not a shell-out** — so a newly-connected key appears instantly and the Workbench/Settings pages stay at ~0.01s.
 
-**Still worth doing later:** `aider` (auto-commits every edit) and `pi` as seeded executors have not been run end-to-end — they're config rows against the same verified adapter. opencode also hangs at startup intermittently under high machine load; unrelated to AIOS, but it makes local runs occasionally slow.
+**Two free cloud models finished real edits through the Workbench, both $0:**
+- `opencode/big-pickle` (opencode-zen, keyless) — improved `slugify.js` in **24s**, diff passes the spec.
+- `nvidia/minimaxai/minimax-m2.7` (user's dedicated Nvidia key) — same task in **133s**, diff passes the spec.
+Paid models are refused before spawn (verified with `nvidia/deepseek-v4-flash`). Nvidia's free tier is functional but slower and rate-limited (two other free models returned `429`/`410` on the shared key before the dedicated one was created).
+
+**The opencode startup hang — root-caused and fixed.** A sampled hung process blocked at `init`. Cause: AIOS's opencode config declares the Ollama provider via `npm: @ai-sdk/openai-compatible`, which wasn't in opencode's package cache, so opencode ran a `bun install` on *every* run and blocked. Fixed by pre-installing that SDK (a one-time host step, in the setup notes), pointing `OPENCODE_MODELS_PATH` at the local model DB (no models.dev fetch at init), and disabling the user's global MCP servers for AIOS runs. opencode now starts in seconds.
+
+---
+
+## 8 · W2 remaining & the road to W3 (status 2026-07-23)
+
+**W2 is functionally complete for the primary path (opencode).** What is seeded but *not* verified end-to-end:
+
+- **pi** — its extension load errors are fixed (`pi-ollama` peer deps installed; the incompatible `pi-subagents` disabled) and pi runs and returns output, but it has **not** produced a reviewable diff through the Workbench. Its real `--mode json` stream (`session` / `agent_start` / `turn_start` / `message_start` events) does not match the `pi-json` parser, which was written from assumption — that parser needs to be rebuilt against a captured pi fixture.
+- **aider** — a seeded config row, but the binary is **not installed** on this machine. Untested; install `aider` (or point the row at a path) before it can run.
+- **pi/aider free *cloud* models** — deferred by agreement; their templates wrap local Ollama only. Only opencode carries the cloud catalog today.
+
+**W3 — Delegation UX (not started; this is the next phase).** Per §2–§3 research, essentially none of it is built yet:
+
+| W3 item | Where it stands |
+|---|---|
+| Plan-gate with countdown (show plan; auto-proceed for routine types, approve risky) | not built |
+| `needs_input` → Inbox as *notify / question / review* interrupts | the status exists in the enum; nothing emits it yet |
+| Steer a running attempt by message | not built |
+| Best-of-N (fan out N attempts, compare) | data model already supports sibling attempts; no fan-out UI |
+| Merge / PR button (real `git merge` or open a PR) | not built — `accept` only closes the card; merge is still manual on the branch |
+| Worktree sweeper (age-based cleanup of stale worktrees) | partial — `reconcile` recovers interrupted/queued attempts and archive/delete clean up on demand, but nothing sweeps *old* worktrees on a schedule |
+| Persistent ⌘K chat history | not built |
+| Discoverability hints / actionable empty states | not built |
+
+**W3 exit test:** a full week where every one-off task goes through the Workbench and the terminal stays untouched.
