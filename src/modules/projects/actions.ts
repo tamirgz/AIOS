@@ -66,3 +66,21 @@ export async function deleteProject(id: string) {
   await db.delete(projects).where(eq(projects.id, id));
   revalidateProjects(id);
 }
+
+/** L2: the project's north-star outcome (one line). Null clears it. */
+export async function setProjectGoal(id: string, goal: string | null) {
+  await db
+    .update(projects)
+    .set({ goal: goal?.trim() || null })
+    .where(eq(projects.id, id));
+  revalidateProjects(id);
+}
+
+/** L2: the single next physical step. Shared with the Plan-my-day surface. */
+export async function setProjectNextAction(id: string, nextAction: string | null) {
+  await db
+    .update(projects)
+    .set({ nextAction: nextAction?.trim() || null, updatedAt: new Date() })
+    .where(eq(projects.id, id));
+  revalidateProjects(id);
+}

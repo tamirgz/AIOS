@@ -4,11 +4,21 @@ import type { ModuleRouteProps } from "@/core/modules/types.server";
 import { GlassPanel } from "@/core/ui/GlassPanel";
 import { cn } from "@/core/ui/cn";
 import type { Task, TaskStatus } from "../../tasks/schema";
-import { getProject, getProjectTasks } from "../queries";
+import { getProjectCockpitById, getProjectTasks } from "../queries";
+import { setProjectGoal, setProjectNextAction } from "../actions";
+import { CockpitHeader } from "../components/CockpitHeader";
 import { DeleteProjectButton } from "../components/DeleteProjectButton";
 import { ProjectTaskQuickAdd } from "../components/ProjectTaskQuickAdd";
 import { ProjectNotes } from "../components/ProjectNotes";
 import { StatusCycleButton } from "../components/StatusCycleButton";
+
+function lastActiveLabel(d: Date | null): string {
+  if (!d) return "no activity";
+  const days = Math.floor((Date.now() - d.getTime()) / 86_400_000);
+  if (days <= 0) return "active today";
+  if (days === 1) return "active yesterday";
+  return `active ${days}d ago`;
+}
 
 const TASK_GROUPS: { status: TaskStatus; label: string; accent: string }[] = [
   { status: "todo", label: "Queue", accent: "var(--color-ion)" },
@@ -53,7 +63,7 @@ function TaskRow({ task }: { task: Task }) {
 
 export async function ProjectDetailPage({ params }: ModuleRouteProps) {
   const [id] = params;
-  const project = await getProject(id);
+  const project = await getProjectCockpitById(id);
 
   if (!project) {
     return (
@@ -75,11 +85,14 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
   }
 
   const { listNotesForProject } = await import("@/modules/notes/actions");
-  const [projectTasks, projectNotes] = await Promise.all([
+  const { listAttentionForProject } = await import("@/modules/today/queries");
+  const [projectTasks, projectNotes, attention] = await Promise.all([
     getProjectTasks(id),
     listNotesForProject(id).catch(() => []),
+    listAttentionForProject(id).catch(() => []),
   ]);
   const done = projectTasks.filter((t) => t.status === "done").length;
+  const openAttention = attention.filter((a) => a.status === "open");
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,6 +122,50 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
           </p>
         )}
       </header>
+
+      <CockpitHeader
+        id={project.id}
+        status={project.status}
+        goal={project.goal}
+        nextAction={project.nextAction}
+        health={project.resolvedHealth.health}
+        healthReason={project.resolvedHealth.reason}
+        healthSource={project.resolvedHealth.source}
+        stats={{
+          open: project.taskCounts.open,
+          done: project.taskCounts.done,
+          overdue: project.taskCounts.overdue,
+          notes: project.noteCount,
+          attention: openAttention.length,
+        }}
+        lastActive={lastActiveLabel(project.lastActivityAt)}
+        setGoal={setProjectGoal}
+        setNextAction={setProjectNextAction}
+      />
+
+      {openAttention.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-solar">
+            needs you
+          </h2>
+          {openAttention.map((a) => (
+            <div
+              key={a.id}
+              className="glass flex items-start gap-2.5 rounded-xl border-l-2 border-solar/50 p-3"
+            >
+              <div className="flex-1">
+                <p className="text-sm text-ink">{a.title}</p>
+                {a.body && (
+                  <p className="mt-0.5 text-xs leading-snug text-ink-dim">{a.body}</p>
+                )}
+              </div>
+              <span className="shrink-0 font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+                {a.type}
+              </span>
+            </div>
+          ))}
+        </section>
+      )}
 
       <ProjectTaskQuickAdd projectId={project.id} />
 

@@ -3,11 +3,20 @@
 import Link from "next/link";
 import { useRef, useTransition } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { FolderPlus } from "lucide-react";
+import { ArrowRight, FolderPlus } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { createProject } from "../actions";
-import type { ProjectWithTaskCounts } from "../queries";
+import type { ProjectCockpit } from "../queries";
+import { HealthChip } from "./HealthChip";
 import { STATUS_CHIP } from "./statusStyle";
+
+function lastActiveLabel(d: Date | null): string {
+  if (!d) return "no activity";
+  const days = Math.floor((Date.now() - d.getTime()) / 86_400_000);
+  if (days <= 0) return "active today";
+  if (days === 1) return "active yesterday";
+  return `active ${days}d ago`;
+}
 
 function NewProjectForm() {
   const [pending, startTransition] = useTransition();
@@ -49,8 +58,8 @@ function NewProjectForm() {
   );
 }
 
-function ProjectCard({ project }: { project: ProjectWithTaskCounts }) {
-  const { total, done } = project.taskCounts;
+function ProjectCard({ project }: { project: ProjectCockpit }) {
+  const { total, done, overdue } = project.taskCounts;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
@@ -70,20 +79,34 @@ function ProjectCard({ project }: { project: ProjectWithTaskCounts }) {
           <h2 className="font-display text-base font-medium text-ink">
             {project.name}
           </h2>
-          <span
-            className={cn(
-              "shrink-0 rounded-md border px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest",
-              STATUS_CHIP[project.status],
-            )}
-          >
-            {project.status}
-          </span>
+          {project.status === "active" ? (
+            <HealthChip
+              health={project.resolvedHealth.health}
+              reason={project.resolvedHealth.reason}
+            />
+          ) : (
+            <span
+              className={cn(
+                "shrink-0 rounded-md border px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest",
+                STATUS_CHIP[project.status],
+              )}
+            >
+              {project.status}
+            </span>
+          )}
         </div>
-        {project.description && (
+
+        {project.nextAction ? (
+          <p className="mt-2 flex items-start gap-1.5 text-sm leading-snug text-ink-dim">
+            <ArrowRight className="mt-0.5 size-3.5 shrink-0 text-solar" />
+            <span className="line-clamp-2">{project.nextAction}</span>
+          </p>
+        ) : project.description ? (
           <p className="mt-1.5 line-clamp-2 text-sm leading-snug text-ink-dim">
             {project.description}
           </p>
-        )}
+        ) : null}
+
         <div className="mt-4">
           <div className="h-1.5 overflow-hidden rounded-full bg-white/6">
             <motion.div
@@ -93,20 +116,20 @@ function ProjectCard({ project }: { project: ProjectWithTaskCounts }) {
               className="h-full rounded-full bg-gradient-to-r from-plasma-dim to-plasma"
             />
           </div>
-          <p className="mt-1.5 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-            {done}/{total} tasks
-          </p>
+          <div className="mt-1.5 flex items-center justify-between font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+            <span>{lastActiveLabel(project.lastActivityAt)}</span>
+            <span className="tabular-nums">
+              {overdue > 0 && <span className="text-flare">{overdue} overdue · </span>}
+              {done}/{total} tasks
+            </span>
+          </div>
         </div>
       </Link>
     </motion.div>
   );
 }
 
-export function ProjectGrid({
-  projects,
-}: {
-  projects: ProjectWithTaskCounts[];
-}) {
+export function ProjectGrid({ projects }: { projects: ProjectCockpit[] }) {
   return (
     <div>
       <NewProjectForm />
