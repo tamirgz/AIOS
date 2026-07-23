@@ -35,6 +35,8 @@ export async function createAgent(input: {
   prompt: string;
   tools?: string[];
   schedule?: string | null;
+  provider?: "anthropic" | "ollama" | null;
+  model?: string | null;
 }) {
   const [row] = await db
     .insert(agents)
@@ -44,6 +46,10 @@ export async function createAgent(input: {
       prompt: input.prompt,
       tools: input.tools ?? [],
       schedule: validateSchedule(input.schedule),
+      // A per-agent provider/model override pins periodic agents to a free
+      // local model; without both, the run falls back to the agent.default route.
+      provider: input.provider ?? null,
+      model: input.model ?? null,
     })
     .returning();
   await notifyChanged(row.id);
@@ -61,6 +67,8 @@ export async function createFromTemplate(templateId: string) {
     prompt: template.defaultPrompt,
     tools: template.defaultTools,
     schedule: template.defaultSchedule,
+    provider: template.defaultProvider ?? null,
+    model: template.defaultModel ?? null,
   });
 }
 

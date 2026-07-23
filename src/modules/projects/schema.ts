@@ -17,6 +17,13 @@ export const projects = pgTable("projects", {
   status: text("status", { enum: PROJECT_STATUSES })
     .notNull()
     .default("active"),
+  /**
+   * The single next physical step (GTD). Life-OS L1: this is what wires a
+   * project to the day — Plan-my-day pulls active projects' next-actions as
+   * "do" suggestions, and the chaser flags a missing or stale one. Derived by
+   * the Project-pulse agent (L2), settable by hand.
+   */
+  nextAction: text("next_action"),
   /** name + description embedding, for the relations/suggestions layer. */
   embedding: embeddingVector("embedding"),
   createdAt: timestamp("created_at", { withTimezone: true })

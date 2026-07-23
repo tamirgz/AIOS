@@ -12,8 +12,10 @@ import { calendarManifest } from "./calendar/manifest";
 import { inboxManifest } from "./inbox/manifest";
 import { obsidianManifest } from "./obsidian/manifest";
 import { workbenchManifest } from "./workbench/manifest";
+import { todayManifest } from "./today/manifest";
 
 export const modules: ModuleManifest[] = [
+  todayManifest,
   inboxManifest,
   calendarManifest,
   workbenchManifest,
