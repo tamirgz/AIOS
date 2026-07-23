@@ -7,6 +7,7 @@
  * translate their executor's output into normalized events.
  */
 import { mkdir, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { and, asc, eq, inArray, sql as dsql } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
@@ -80,6 +81,18 @@ async function writeOpencodeConfig(workdir: string): Promise<void> {
     JSON.stringify(
       {
         $schema: "https://opencode.ai/config.json",
+        // Turn off the user's global MCP servers for AIOS runs: a headless run
+        // must not block on a slow local `mgrep mcp` sync or a remote MCP
+        // handshake during init. AIOS's config merges over the global one, so
+        // these disables win.
+        mcp: {
+          mgrep: { type: "local", command: ["mgrep", "mcp"], enabled: false },
+          "n8n-mcp": {
+            type: "remote",
+            url: "https://n8ntg.vps.webdock.cloud/n8n-mcp/mcp",
+            enabled: false,
+          },
+        },
         provider: {
           ollama: {
             npm: "@ai-sdk/openai-compatible",
@@ -362,6 +375,17 @@ export async function runAttempt(attemptId: string): Promise<void> {
         env: {
           OPENCODE_CONFIG: AIOS_OPENCODE_CONFIG,
           OPENCODE_DISABLE_AUTOUPDATE: "1",
+          // Read the model DB from the local cache instead of fetching it from
+          // models.dev at init — a blocking network call that intermittently
+          // stalled startup. The provider SDK is pre-installed too, so opencode
+          // never does an on-init `bun install` (the actual cause of the hang).
+          OPENCODE_MODELS_PATH: join(
+            homedir(),
+            ".cache",
+            "opencode",
+            "models.json",
+          ),
+          OPENCODE_DISABLE_SHARE: "1",
           OLLAMA_HOST: "127.0.0.1:11434",
         },
         onPid: (pid) => {
