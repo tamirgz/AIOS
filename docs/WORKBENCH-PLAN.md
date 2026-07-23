@@ -149,8 +149,20 @@ Full findings in the session log; the load-bearing conclusions:
 - A repo attempt that changes **no files** is a no-op, not "done". `qwen3-coder:30b` announced *"I've successfully written HELLO.md"* when no such file existed anywhere on disk; AIOS now reports `failed — finished without changing any files` and quotes the claim.
 - CLI runs report tokens and cost in the same columns as Claude runs (local = $0).
 
-**The exit test did not fully pass, and this is why.** It asked for the same task run on Claude and on opencode+qwen as sibling attempts, compared by diff. Blocked from both sides on this machine:
-1. **Claude's monthly spend limit is exhausted** (`exit 143 · You've hit your monthly spend limit`), so the Claude half cannot run at all right now.
-2. **opencode + qwen3-coder:30b runs but does not perform edits.** It starts, streams events, proposes a `write`, reports success — and writes nothing. Verified by searching the entire filesystem for the file. That is an opencode/local-model failure, not an AIOS wiring failure: the same pipeline produces a correct branch and diff with a different CLI executor.
+**Exit test — PASSED 2026-07-23.** One card, the same task ("make slugify strip punctuation / collapse spaces / trim hyphens") run as two sibling attempts:
 
-**Next for W2, when either side unblocks:** re-run the comparison; try `qwen3.5:35b-a3b-coding-nvfp4` (the Apple-Silicon variant the skill prefers) and `aider`, whose auto-commit-per-edit sidesteps the write-tool problem entirely.
+| Attempt | Executor · model | Result | Time · cost |
+|---|---|---|---|
+| #1 | claude-headless · claude-sonnet-5 | correct diff, spec-verified | 14s · $0.15 |
+| #2 | opencode · qwen3.5:35b-a3b-coding-nvfp4 (local) | correct diff, spec-verified | 87s · **$0** |
+
+Both reviewed in-app as per-file diffs; both branches fetched into the test repo for manual merge. This is the Max-vs-local comparison the phase was built to make — and the local one is free.
+
+**It didn't pass until two real bugs were root-caused** (the earlier "opencode runs but performs no edits" was a symptom of both). Found by bisecting against a standalone-repo run that *did* work:
+
+1. **Stale `PWD` — the root cause.** The worker's `PWD` is the AIOS project; the adapter inherited it, and opencode (like many tools) trusts `$PWD` over the spawn `cwd` to locate its project root. So every CLI run operated in the **AIOS checkout**, not the isolated dir — one run wrote `slugify.js` straight into it. Fixed by pinning `PWD` to the workdir for every spawned executor.
+2. **Linked worktree confuses external agents.** A worktree's `.git` is a *file* pointing at the main repo, so opencode resolved the project there. CLI executors now use a `git clone --local` (real `.git` directory → workdir *is* the project root); the branch is fetched back into the user's repo at settle, so review/merge are unchanged. In-process claude-headless keeps the cheaper worktree.
+
+Also removed the absolute-path preamble that made local models mangle the workdir path. The no-op detector that surfaced all of this stays.
+
+**Still worth doing later:** `aider` (auto-commits every edit) and `pi` as seeded executors have not been run end-to-end — they're config rows against the same verified adapter. opencode also hangs at startup intermittently under high machine load; unrelated to AIOS, but it makes local runs occasionally slow.
