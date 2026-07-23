@@ -1,14 +1,11 @@
 // No `server-only` import: this module is reached by the agent worker (via
 // engine.ts), which runs under plain tsx where that package throws. Server-
 // only by convention, like the rest of the module's server code.
-import { execFile } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { ollamaProvider } from "@/core/ai/ollama";
 
-const exec = promisify(execFile);
 
 /**
  * The free-model catalog for CLI executors.
@@ -104,29 +101,52 @@ async function localOllamaModels(): Promise<string[]> {
   }
 }
 
-function opencodeBin(): string {
-  const p = join(homedir(), ".opencode", "bin", "opencode");
-  return existsSync(p) ? p : "opencode";
-}
+const OPENCODE_AUTH = join(
+  homedir(),
+  ".local",
+  "share",
+  "opencode",
+  "auth.json",
+);
 
 /**
- * The FREE cloud models opencode can currently reach: every model it lists
- * (reflecting the user's connected keys) that opencode prices at $0 and that
- * is a chat/coding model. Big Pickle and the free Nvidia coders qualify; the
- * paid deepseek-v4 / GPT-5 / Claude ones do not.
+ * The FREE cloud models opencode can reach, derived from files only — no
+ * `opencode models` shell-out, which added ~0.6s+ to every Workbench/Settings
+ * render and could spawn a process that hangs.
+ *
+ * A provider is reachable if the user is authenticated for it (`auth.json`)
+ * plus `opencode` itself (its zen free tier needs no login). From opencode's
+ * pricing DB we then take that provider's $0 chat/coding models. Reflects the
+ * user's connected keys and the real prices, instantly.
  */
-async function opencodeCloudFreeModels(): Promise<string[]> {
+function opencodeCloudFreeModels(): string[] {
   try {
-    const { stdout } = await exec(opencodeBin(), ["models"], {
-      timeout: 15_000,
-      maxBuffer: 4 * 1024 * 1024,
-    });
-    return stdout
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .filter((m) => !NON_CHAT.test(m) && pricedFree(m) === true)
-      .sort();
+    const db = JSON.parse(readFileSync(OPENCODE_PRICES, "utf8")) as Record<
+      string,
+      { models?: Record<string, { cost?: { input?: number; output?: number } }> }
+    >;
+    const authed = new Set<string>(["opencode"]);
+    try {
+      const auth = JSON.parse(readFileSync(OPENCODE_AUTH, "utf8")) as Record<
+        string,
+        unknown
+      >;
+      for (const p of Object.keys(auth)) authed.add(p.toLowerCase());
+    } catch {
+      // no auth file — just the built-in opencode free tier
+    }
+
+    const out: string[] = [];
+    for (const provider of authed) {
+      const models = db[provider]?.models ?? {};
+      for (const [key, m] of Object.entries(models)) {
+        const c = m.cost ?? {};
+        if ((c.input ?? 0) !== 0 || (c.output ?? 0) !== 0) continue;
+        const full = `${provider}/${key}`;
+        if (!NON_CHAT.test(full)) out.push(full);
+      }
+    }
+    return out.sort();
   } catch {
     return [];
   }
@@ -141,26 +161,39 @@ async function opencodeCloudFreeModels(): Promise<string[]> {
 export async function listFreeModelsFor(executorId: string): Promise<string[]> {
   const local = await localOllamaModels();
   if (executorId === "opencode") {
-    const cloud = await opencodeCloudFreeModels();
-    return [...local.map((t) => `ollama/${t}`), ...cloud];
+    return [...local.map((t) => `ollama/${t}`), ...opencodeCloudFreeModels()];
   }
   return local;
 }
+
+/**
+ * Short-lived cache: the pickers render on every Workbench/Settings load, but
+ * the free catalog changes only when the user pulls a model or connects a key.
+ * A 60s TTL keeps those pages instant without going stale in practice.
+ */
+let cache: { at: number; ids: string; value: Record<string, string[]> } | null =
+  null;
+const CACHE_TTL_MS = 60_000;
 
 /** Free models keyed by executor id — for the pickers, built in one pass. */
 export async function listFreeModelsByExecutor(
   executorIds: string[],
 ): Promise<Record<string, string[]>> {
+  const ids = [...executorIds].sort().join(",");
+  if (cache && cache.ids === ids && Date.now() - cache.at < CACHE_TTL_MS) {
+    return cache.value;
+  }
+
   const local = await localOllamaModels();
-  const wantsOpencode = executorIds.includes("opencode");
-  const cloud = wantsOpencode ? await opencodeCloudFreeModels() : [];
+  const cloud = executorIds.includes("opencode")
+    ? opencodeCloudFreeModels()
+    : [];
 
   const out: Record<string, string[]> = {};
   for (const id of executorIds) {
     out[id] =
-      id === "opencode"
-        ? [...local.map((t) => `ollama/${t}`), ...cloud]
-        : local;
+      id === "opencode" ? [...local.map((t) => `ollama/${t}`), ...cloud] : local;
   }
+  cache = { at: Date.now(), ids, value: out };
   return out;
 }
