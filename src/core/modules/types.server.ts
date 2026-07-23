@@ -42,6 +42,13 @@ export interface AgentTemplate {
   defaultTools: string[];
   /** Cron pattern, or null for manual-only. */
   defaultSchedule: string | null;
+  /**
+   * Optional provider/model this template must run on. Life-OS periodic agents
+   * set these to a FREE local model (e.g. ollama / qwen3:8b) so the heartbeat
+   * never bills — see ONE-STOP-PLAN §4. Omit to use the agent.default route.
+   */
+  defaultProvider?: "anthropic" | "ollama";
+  defaultModel?: string;
 }
 
 export interface ModuleWidget {

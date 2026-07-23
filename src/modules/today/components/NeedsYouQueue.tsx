@@ -1,0 +1,156 @@
+"use client";
+
+import { useTransition } from "react";
+import Link from "next/link";
+import { AnimatePresence, motion } from "motion/react";
+import {
+  Bell,
+  Check,
+  CircleHelp,
+  Clock,
+  Eye,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from "lucide-react";
+import { useLiveEvents } from "@/core/ui/useLiveEvents";
+import { doneAttention, dismissAttention, snoozeAttention } from "../actions";
+import type { NeedsYouItem } from "../queries";
+import type { AttentionType } from "../schema";
+
+const TYPE_META: Record<
+  AttentionType,
+  { icon: typeof Bell; color: string; label: string }
+> = {
+  notify: { icon: Bell, color: "var(--color-ink-dim)", label: "fyi" },
+  question: { icon: CircleHelp, color: "var(--color-gold)", label: "decide" },
+  review: { icon: Eye, color: "var(--color-ion)", label: "review" },
+  approve: { icon: ShieldCheck, color: "var(--color-flare)", label: "approve" },
+  do: { icon: Sparkles, color: "var(--color-solar)", label: "do" },
+};
+
+function Row({ item }: { item: NeedsYouItem }) {
+  const [pending, start] = useTransition();
+  const meta = TYPE_META[item.type];
+  const Icon = meta.icon;
+  // Only native attention items can be resolved inline; approvals and
+  // workbench tasks are acted on where they live (linked via href).
+  const inline = item.kind === "attention";
+
+  const body = (
+    <div className="flex items-start gap-3">
+      <Icon className="mt-0.5 size-4 shrink-0" style={{ color: meta.color }} />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm leading-snug text-ink">{item.title}</p>
+        {item.body && (
+          <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-ink-dim">
+            {item.body}
+          </p>
+        )}
+        <div className="mt-1.5 flex items-center gap-2 font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+          <span style={{ color: meta.color }}>{meta.label}</span>
+          <span>·</span>
+          <span>{item.source}</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, x: 8 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+      className="group glass rounded-xl p-3 transition hover:glass-edge"
+    >
+      <div className="flex items-start gap-2">
+        {item.href ? (
+          <Link href={item.href} className="min-w-0 flex-1">
+            {body}
+          </Link>
+        ) : (
+          <div className="min-w-0 flex-1">{body}</div>
+        )}
+
+        {inline && (
+          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+            <button
+              type="button"
+              title="Done"
+              disabled={pending}
+              onClick={() => start(async () => void (await doneAttention(item.id)))}
+              className="rounded-md p-1.5 text-ink-faint transition hover:text-plasma"
+            >
+              <Check className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              title="Snooze 3h"
+              disabled={pending}
+              onClick={() =>
+                start(async () => {
+                  await snoozeAttention(item.id, new Date(Date.now() + 3 * 3600_000));
+                })
+              }
+              className="rounded-md p-1.5 text-ink-faint transition hover:text-ion"
+            >
+              <Clock className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              title="Dismiss"
+              disabled={pending}
+              onClick={() =>
+                start(async () => void (await dismissAttention(item.id)))
+              }
+              className="rounded-md p-1.5 text-ink-faint transition hover:text-flare"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+/**
+ * The "Needs you" queue — the unified attention surface. One list of typed,
+ * urgency-sorted cards drawn from attention items + pending approvals +
+ * Workbench needs_input. Refreshes live as agents raise or the user resolves.
+ */
+export function NeedsYouQueue({ items }: { items: NeedsYouItem[] }) {
+  useLiveEvents(["attention_changed", "approvals_changed", "workbench_changed"]);
+
+  return (
+    <section>
+      <div className="mb-2.5 flex items-center gap-2 px-1">
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
+          needs you
+        </p>
+        {items.length > 0 && (
+          <span className="font-mono text-[10px] text-solar">{items.length}</span>
+        )}
+      </div>
+
+      {items.length === 0 ? (
+        <div className="glass rounded-xl p-6 text-center">
+          <Check className="mx-auto size-5 text-plasma" />
+          <p className="mt-2 text-sm text-ink-dim">Nothing needs you right now.</p>
+          <p className="mt-1 text-xs text-ink-faint">
+            Agents surface what slips here — you don&apos;t have to go looking.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <AnimatePresence initial={false}>
+            {items.map((it) => (
+              <Row key={`${it.kind}:${it.id}`} item={it} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
+    </section>
+  );
+}
