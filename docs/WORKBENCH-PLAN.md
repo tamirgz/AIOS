@@ -165,4 +165,6 @@ Both reviewed in-app as per-file diffs; both branches fetched into the test repo
 
 Also removed the absolute-path preamble that made local models mangle the workdir path. The no-op detector that surfaced all of this stays.
 
+**Free-model selection (2026-07-23).** Local executors (opencode/pi/aider) may use any model from the free library — the installed Ollama models, embeddings filtered — chosen per task in the new-task box or per executor in Settings. Only free models are allowed: a metered spec (`gpt-*`, `openai/*`, `anthropic/*`, `nvidia/*`…) is refused at save time and again before spawn (`models.ts` · `assertFreeModel`). Cloud free tiers (opencode-zen `*-free`) are excluded — they need an external login and a provider can redefine "free"; local is the only free AIOS can guarantee. Model *capability* is the user's call: a 35B coder edits correctly, a 7B often can't, and the no-op detector catches the difference.
+
 **Still worth doing later:** `aider` (auto-commits every edit) and `pi` as seeded executors have not been run end-to-end — they're config rows against the same verified adapter. opencode also hangs at startup intermittently under high machine load; unrelated to AIOS, but it makes local runs occasionally slow.
