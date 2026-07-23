@@ -44,9 +44,12 @@ export const todayServerManifest: ModuleServerManifest = {
         "search.everything",
       ],
       defaultSchedule: "30 7 * * 1-5", // 07:30 on weekdays
-      // FREE local model — the heartbeat never bills (ONE-STOP §4).
+      // FREE local model — the heartbeat never bills (ONE-STOP §4). Benched
+      // 2026-07-23: qwen3-coder:30b matches qwen3:8b on quality but runs ~4-5×
+      // faster (16-25s vs 77-110s), and unifies both morning agents on one warm
+      // model. Free NVIDIA cloud models lost badly (slow / timed out).
       defaultProvider: "ollama",
-      defaultModel: "qwen3:8b",
+      defaultModel: "qwen3-coder:30b",
     },
   ],
   jobs: todayJobs,

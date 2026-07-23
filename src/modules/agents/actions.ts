@@ -35,8 +35,9 @@ export async function createAgent(input: {
   prompt: string;
   tools?: string[];
   schedule?: string | null;
-  provider?: "anthropic" | "ollama" | null;
+  provider?: AIProviderId | null;
   model?: string | null;
+  fallbackModel?: string | null;
 }) {
   const [row] = await db
     .insert(agents)
@@ -50,6 +51,8 @@ export async function createAgent(input: {
       // local model; without both, the run falls back to the agent.default route.
       provider: input.provider ?? null,
       model: input.model ?? null,
+      // Local Ollama model to retry on if a cloud primary fails on connectivity.
+      fallbackModel: input.fallbackModel ?? null,
     })
     .returning();
   await notifyChanged(row.id);
@@ -69,6 +72,7 @@ export async function createFromTemplate(templateId: string) {
     schedule: template.defaultSchedule,
     provider: template.defaultProvider ?? null,
     model: template.defaultModel ?? null,
+    fallbackModel: template.defaultFallbackModel ?? null,
   });
 }
 
@@ -83,6 +87,7 @@ export async function updateAgent(
     enabled: boolean;
     provider: AIProviderId | null;
     model: string | null;
+    fallbackModel: string | null;
   }>,
 ) {
   if ("schedule" in patch) patch.schedule = validateSchedule(patch.schedule);

@@ -12,7 +12,7 @@ export const calendarServerManifest: ModuleServerManifest = {
     "": CalendarPage,
   },
   widgets: [
-    { id: "today", title: "Today", size: "sm", component: TodayWidget },
+    { id: "today", title: "Agenda", size: "sm", component: TodayWidget },
   ],
   schema: { calendarEvents },
   aiTools: calendarTools,

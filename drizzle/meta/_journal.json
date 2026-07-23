@@ -127,6 +127,13 @@
       "when": 1784817001860,
       "tag": "0017_lying_sunspot",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1784826854945,
+      "tag": "0018_high_micromacro",
+      "breakpoints": true
     }
   ]
 }

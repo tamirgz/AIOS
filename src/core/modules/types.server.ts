@@ -44,11 +44,17 @@ export interface AgentTemplate {
   defaultSchedule: string | null;
   /**
    * Optional provider/model this template must run on. Life-OS periodic agents
-   * set these to a FREE local model (e.g. ollama / qwen3:8b) so the heartbeat
-   * never bills — see ONE-STOP-PLAN §4. Omit to use the agent.default route.
+   * pin these to a FREE model (local ollama, or free-tier nvidia cloud) so the
+   * heartbeat never bills — see ONE-STOP-PLAN §4. Omit to use agent.default.
    */
-  defaultProvider?: "anthropic" | "ollama";
+  defaultProvider?: "anthropic" | "ollama" | "nvidia";
   defaultModel?: string;
+  /**
+   * Local Ollama model to retry on if `defaultProvider` is a cloud provider and
+   * it fails on connectivity — keeps the heartbeat alive offline / when the
+   * cloud is rate-limited. Only meaningful with a cloud `defaultProvider`.
+   */
+  defaultFallbackModel?: string;
 }
 
 export interface ModuleWidget {
