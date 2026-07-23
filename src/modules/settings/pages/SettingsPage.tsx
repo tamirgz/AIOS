@@ -13,7 +13,7 @@ import { EmbeddingModelPicker } from "../components/EmbeddingModelPicker";
 import { AuthPanel } from "../components/AuthPanel";
 import { ExecutorsPanel } from "@/modules/workbench/components/ExecutorsPanel";
 import { listExecutors } from "@/modules/workbench/queries";
-import { listFreeModels } from "@/modules/workbench/models";
+import { listFreeModelsByExecutor } from "@/modules/workbench/models";
 
 export async function SettingsPage() {
   await ensureDefaultRoutes();
@@ -43,12 +43,11 @@ export async function SettingsPage() {
     // Memory being unavailable must not take the whole page down.
     listMemoryBlocks().catch(() => []),
   ]);
-  const [workbenchExecutors, ollamaModels] = await Promise.all([
-    listExecutors(),
-    // The free model library CLI executors may use — local Ollama, embeddings
-    // filtered out. Unreachable Ollama just means no hints.
-    listFreeModels(),
-  ]);
+  const workbenchExecutors = await listExecutors();
+  // Free models per executor — opencode also gets its free cloud tiers.
+  const freeModelsByExecutor = await listFreeModelsByExecutor(
+    workbenchExecutors.map((x) => x.id),
+  );
 
   const { memoryEntries } = await import("@/core/db/schema/memory");
   const { desc: descOrder, sql: dsql } = await import("drizzle-orm");
@@ -83,7 +82,10 @@ export async function SettingsPage() {
           slackBotToken={slackBotToken ?? ""}
           slackReportChannels={slackReportChannels ?? ""}
         />
-        <ExecutorsPanel executors={workbenchExecutors} models={ollamaModels} />
+        <ExecutorsPanel
+          executors={workbenchExecutors}
+          modelsByExecutor={freeModelsByExecutor}
+        />
       </div>
       <div className="flex flex-col gap-5">
         <MemoryEditor

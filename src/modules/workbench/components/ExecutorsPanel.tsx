@@ -22,11 +22,14 @@ export interface ExecutorRow {
  */
 export function ExecutorsPanel({
   executors,
-  models,
+  modelsByExecutor,
 }: {
   executors: ExecutorRow[];
-  models: string[];
+  /** Free models each executor may use — local + its free cloud tiers. */
+  modelsByExecutor: Record<string, string[]>;
 }) {
+  // Total distinct free models offered — for the intro copy.
+  const totalFree = new Set(Object.values(modelsByExecutor).flat()).size;
   const [pending, start] = useTransition();
   const [saved, setSaved] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, Partial<ExecutorRow>>>({});
@@ -41,10 +44,11 @@ export function ExecutorsPanel({
       </p>
       <p className="mb-4 text-xs text-ink-faint">
         Who does the work when you delegate. Local executors (opencode, pi,
-        aider) cost nothing and keep the code on this machine — the model field
-        offers the {models.length} free models in your Ollama library, and only
-        free models are allowed to run on them. Claude costs Max quota but
-        handles the hard ones. Placeholders:{" "}
+        aider) are free — the model field offers each one&apos;s free library
+        ({totalFree} across all of them: local Ollama, plus opencode-zen&apos;s
+        free tier and your Nvidia free models for opencode), and only free
+        models are allowed to run on them. Claude costs Max quota but handles
+        the hard ones. Placeholders:{" "}
         <code className="text-ion">{"{{prompt}}"}</code>{" "}
         <code className="text-ion">{"{{workdir}}"}</code>{" "}
         <code className="text-ion">{"{{model}}"}</code>
@@ -96,7 +100,7 @@ export function ExecutorsPanel({
                   className="w-64 rounded-lg border border-white/8 bg-void/60 px-2 py-1 font-mono text-[11px] text-ink-dim outline-none focus:border-plasma/40"
                 />
                 <datalist id={`models-${x.id}`}>
-                  {models.map((m) => (
+                  {(modelsByExecutor[x.id] ?? []).map((m) => (
                     <option key={m} value={m} />
                   ))}
                 </datalist>
