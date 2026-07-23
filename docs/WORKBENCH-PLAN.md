@@ -184,7 +184,7 @@ Paid models are refused before spawn (verified with `nvidia/deepseek-v4-flash`).
 - **aider** — a seeded config row, but the binary is **not installed** on this machine. Untested; install `aider` (or point the row at a path) before it can run.
 - **pi/aider free *cloud* models** — deferred by agreement; their templates wrap local Ollama only. Only opencode carries the cloud catalog today.
 
-**W3 — Delegation UX (not started; this is the next phase).** Per §2–§3 research, essentially none of it is built yet:
+**W3 — Delegation UX — reframed 2026-07-23: it dissolves into the Life-OS attention loop (ONE-STOP §3).** The keystone item below — `needs_input → Inbox` — *is* the "Needs you" spine built in phase L1, scoped up to carry every agent's cards, not just the Workbench's. The merge/PR button remains a standalone Workbench task. The rest is superseded by L1–L3. For reference, the original W3 scope and its true (unbuilt) state:
 
 | W3 item | Where it stands |
 |---|---|
