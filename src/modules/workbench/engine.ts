@@ -142,17 +142,17 @@ export async function ensureExecutors() {
       // ── W2: local coding agents, as configuration rather than code ──────
       {
         id: "opencode",
-        name: "opencode + local model",
+        name: "opencode (local + free cloud)",
         kind: "cli" as const,
-        // --dangerously-skip-permissions auto-approves anything not *explicitly*
-        // denied, so the external_directory: "deny" rule in the config still
-        // holds. Without it a headless run silently skips its own write calls:
-        // "write" has no permission key, so it falls through to "ask", and
-        // nothing is there to answer.
+        // {{model}} carries the full provider/model spec (ollama/…, opencode/…,
+        // nvidia/…) so any free model in opencode's library works, not just
+        // local. --dangerously-skip-permissions auto-approves anything not
+        // *explicitly* denied, so the external_directory deny rule still holds;
+        // without it a headless "write" falls through to "ask" and is dropped.
         commandTemplate:
-          "opencode run --format json --dangerously-skip-permissions --model ollama/{{model}} {{prompt}}",
+          "opencode run --format json --dangerously-skip-permissions --model {{model}} {{prompt}}",
         parser: "jsonl" as const,
-        defaultModel: "qwen3-coder:30b",
+        defaultModel: "ollama/qwen3.5:35b-a3b-coding-nvfp4",
         gitMode: "worktree" as const,
         timeoutMs: TIMEOUTS["code-local"],
       },
@@ -182,6 +182,25 @@ export async function ensureExecutors() {
       },
     ])
     .onConflictDoNothing();
+
+  // Migrate an opencode row seeded before full-spec models: the old template
+  // hardcoded `ollama/{{model}}` and stored a bare tag, which can't reach the
+  // free cloud models. onConflictDoNothing above never touches an existing
+  // row, so fix it explicitly and idempotently.
+  await db
+    .update(executors)
+    .set({
+      name: "opencode (local + free cloud)",
+      commandTemplate:
+        "opencode run --format json --dangerously-skip-permissions --model {{model}} {{prompt}}",
+      defaultModel: "ollama/qwen3.5:35b-a3b-coding-nvfp4",
+    })
+    .where(
+      and(
+        eq(executors.id, "opencode"),
+        dsql`${executors.commandTemplate} like '%--model ollama/{{model}}%'`,
+      ),
+    );
 }
 
 async function emitEvent(attemptId: string, e: AdapterEvent) {
