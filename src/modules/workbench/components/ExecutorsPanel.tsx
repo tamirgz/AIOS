@@ -40,9 +40,12 @@ export function ExecutorsPanel({
         workbench executors
       </p>
       <p className="mb-4 text-xs text-ink-faint">
-        Who does the work when you delegate. Local executors cost nothing and
-        keep the code on this machine; Claude costs quota but handles the hard
-        ones. Placeholders: <code className="text-ion">{"{{prompt}}"}</code>{" "}
+        Who does the work when you delegate. Local executors (opencode, pi,
+        aider) cost nothing and keep the code on this machine — the model field
+        offers the {models.length} free models in your Ollama library, and only
+        free models are allowed to run on them. Claude costs Max quota but
+        handles the hard ones. Placeholders:{" "}
+        <code className="text-ion">{"{{prompt}}"}</code>{" "}
         <code className="text-ion">{"{{workdir}}"}</code>{" "}
         <code className="text-ion">{"{{model}}"}</code>
       </p>
