@@ -15,9 +15,12 @@ import { workbenchManifest } from "./workbench/manifest";
 import { todayManifest } from "./today/manifest";
 import { peopleManifest } from "./people/manifest";
 import { gmailManifest } from "./gmail/manifest";
+import { askManifest } from "./ask/manifest";
+import { notionManifest } from "./notion/manifest";
 
 export const modules: ModuleManifest[] = [
   todayManifest,
+  askManifest,
   inboxManifest,
   calendarManifest,
   gmailManifest,
@@ -29,6 +32,7 @@ export const modules: ModuleManifest[] = [
   ideasManifest,
   knowledgeManifest,
   obsidianManifest,
+  notionManifest,
   agentsManifest,
   settingsManifest,
 ];
