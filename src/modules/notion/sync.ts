@@ -161,19 +161,25 @@ async function syncOne(token: string, workspace: string): Promise<number> {
 
   let n = 0;
   for (const p of results) {
-    const title = extractTitle(p);
-    const content = await pageText(p.id, headers);
-    const lastEdited = p.last_edited_time ? new Date(p.last_edited_time) : null;
-    await db
-      .insert(notionPages)
-      .values({ id: p.id, workspace, title, url: p.url ?? null, content, lastEdited, embedding: null })
-      .onConflictDoUpdate({
-        target: notionPages.id,
-        set: { workspace, title, url: p.url ?? null, content, lastEdited, embedding: null },
-        // Re-embed only changed pages; always keep workspace attribution correct.
-        setWhere: dsql`${notionPages.lastEdited} is distinct from ${lastEdited} or ${notionPages.workspace} is distinct from ${workspace}`,
-      });
-    n++;
+    try {
+      const title = extractTitle(p);
+      // Content is best-effort: if Notion is degraded and the block fetch fails,
+      // still persist the page (title/url from search) — don't lose the batch.
+      const content = await pageText(p.id, headers).catch(() => "");
+      const lastEdited = p.last_edited_time ? new Date(p.last_edited_time) : null;
+      await db
+        .insert(notionPages)
+        .values({ id: p.id, workspace, title, url: p.url ?? null, content, lastEdited, embedding: null })
+        .onConflictDoUpdate({
+          target: notionPages.id,
+          set: { workspace, title, url: p.url ?? null, content, lastEdited, embedding: null },
+          // Re-embed only changed pages; always keep workspace attribution correct.
+          setWhere: dsql`${notionPages.lastEdited} is distinct from ${lastEdited} or ${notionPages.workspace} is distinct from ${workspace}`,
+        });
+      n++;
+    } catch {
+      // One bad page shouldn't abort the whole workspace — skip and continue.
+    }
   }
   return n;
 }
