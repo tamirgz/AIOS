@@ -12,7 +12,11 @@ export const GOOGLE_KEYS = {
 } as const;
 
 export const GOOGLE_REDIRECT_PATH = "/api/google/callback";
-const SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+// Calendar + Gmail, both read-only. Adding gmail here means the next Connect
+// Google re-consent grants Gmail too (existing tokens keep working for
+// calendar; the Gmail sync degrades gracefully until re-consent).
+const SCOPE =
+  "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/gmail.readonly";
 const WINDOW_PAST_DAYS = 30;
 const WINDOW_FUTURE_DAYS = 180;
 
@@ -81,7 +85,8 @@ export async function exchangeCode(
   await sql.notify("google_sync", "connected");
 }
 
-async function accessToken(): Promise<string> {
+/** Fresh Google access token from the stored refresh token — reused by Gmail. */
+export async function accessToken(): Promise<string> {
   const [clientId, clientSecret, refreshToken] = await Promise.all([
     getSetting(GOOGLE_KEYS.clientId),
     getSetting(GOOGLE_KEYS.clientSecret),

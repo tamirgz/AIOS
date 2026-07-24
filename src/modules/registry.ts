@@ -14,11 +14,13 @@ import { obsidianManifest } from "./obsidian/manifest";
 import { workbenchManifest } from "./workbench/manifest";
 import { todayManifest } from "./today/manifest";
 import { peopleManifest } from "./people/manifest";
+import { gmailManifest } from "./gmail/manifest";
 
 export const modules: ModuleManifest[] = [
   todayManifest,
   inboxManifest,
   calendarManifest,
+  gmailManifest,
   workbenchManifest,
   tasksManifest,
   projectsManifest,

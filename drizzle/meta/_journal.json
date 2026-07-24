@@ -141,6 +141,13 @@
       "when": 1784885486005,
       "tag": "0019_mysterious_clint_barton",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1784886439274,
+      "tag": "0020_deep_shotgun",
+      "breakpoints": true
     }
   ]
 }
