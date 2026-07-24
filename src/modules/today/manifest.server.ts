@@ -41,6 +41,7 @@ export const todayServerManifest: ModuleServerManifest = {
         "projects.setNextAction",
         "projects.withoutNextAction",
         "tasks.list",
+        "gmail.recent",
         "search.everything",
       ],
       defaultSchedule: "30 7 * * 1-5", // 07:30 on weekdays

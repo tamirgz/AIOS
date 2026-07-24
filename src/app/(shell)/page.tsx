@@ -2,16 +2,9 @@ import { serverModules } from "@/modules/registry.server";
 import { modules } from "@/modules/registry";
 import { GlassPanel } from "@/core/ui/GlassPanel";
 import { WidgetFrame } from "@/core/ui/WidgetFrame";
-import { cn } from "@/core/ui/cn";
 
 // Widgets render live DB data — never prerender this page at build time.
 export const dynamic = "force-dynamic";
-
-const SIZE_CLASS = {
-  sm: "col-span-12 md:col-span-4",
-  md: "col-span-12 md:col-span-6 xl:col-span-4",
-  lg: "col-span-12",
-} as const;
 
 export default function DashboardPage() {
   const widgets = serverModules.flatMap((m) =>
@@ -19,9 +12,11 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="grid grid-cols-12 gap-3">
+    // Uniform deck: equal columns, equal row heights. Every card fills its cell
+    // and scrolls internally, so the grid stays clean regardless of content.
+    <div className="grid auto-rows-[13rem] grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {widgets.length === 0 && (
-        <GlassPanel className="col-span-12 flex flex-col items-center gap-3 px-8 py-20 text-center">
+        <GlassPanel className="col-span-full flex flex-col items-center gap-3 px-8 py-20 text-center">
           <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-plasma text-glow">
             systems online
           </p>
@@ -47,7 +42,6 @@ export default function DashboardPage() {
             title={w.title}
             // Every card's header opens its module's page.
             href={`/m/${w.moduleId}`}
-            className={cn(SIZE_CLASS[w.size])}
           >
             <Widget />
           </WidgetFrame>

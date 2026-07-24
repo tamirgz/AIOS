@@ -37,6 +37,7 @@ export const peopleServerManifest: ModuleServerManifest = {
         "followup.raise",
         "attention.list",
         "people.setNotes",
+        "gmail.recent",
       ],
       defaultSchedule: "0 18 * * 1-5", // 18:00 weekdays, after the day's meetings
       defaultProvider: "ollama",

@@ -13,11 +13,13 @@ import { obsidianServerManifest } from "./obsidian/manifest.server";
 import { workbenchServerManifest } from "./workbench/manifest.server";
 import { todayServerManifest } from "./today/manifest.server";
 import { peopleServerManifest } from "./people/manifest.server";
+import { gmailServerManifest } from "./gmail/manifest.server";
 
 export const serverModules: ModuleServerManifest[] = [
   todayServerManifest,
   inboxServerManifest,
   calendarServerManifest,
+  gmailServerManifest,
   workbenchServerManifest,
   tasksServerManifest,
   projectsServerManifest,
