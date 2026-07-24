@@ -7,6 +7,7 @@ import type { Task, TaskStatus } from "../../tasks/schema";
 import { getProjectCockpitById, getProjectTasks } from "../queries";
 import { setProjectGoal, setProjectNextAction } from "../actions";
 import { CockpitHeader } from "../components/CockpitHeader";
+import { ProjectAttention } from "../components/ProjectAttention";
 import { DeleteProjectButton } from "../components/DeleteProjectButton";
 import { ProjectTaskQuickAdd } from "../components/ProjectTaskQuickAdd";
 import { ProjectNotes } from "../components/ProjectNotes";
@@ -143,29 +144,14 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
         setNextAction={setProjectNextAction}
       />
 
-      {openAttention.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <h2 className="px-1 font-mono text-[10px] uppercase tracking-[0.2em] text-solar">
-            needs you
-          </h2>
-          {openAttention.map((a) => (
-            <div
-              key={a.id}
-              className="glass flex items-start gap-2.5 rounded-xl border-l-2 border-solar/50 p-3"
-            >
-              <div className="flex-1">
-                <p className="text-sm text-ink">{a.title}</p>
-                {a.body && (
-                  <p className="mt-0.5 text-xs leading-snug text-ink-dim">{a.body}</p>
-                )}
-              </div>
-              <span className="shrink-0 font-mono text-[9px] uppercase tracking-widest text-ink-faint">
-                {a.type}
-              </span>
-            </div>
-          ))}
-        </section>
-      )}
+      <ProjectAttention
+        items={openAttention.map((a) => ({
+          id: a.id,
+          type: a.type,
+          title: a.title,
+          body: a.body,
+        }))}
+      />
 
       <ProjectTaskQuickAdd projectId={project.id} />
 
