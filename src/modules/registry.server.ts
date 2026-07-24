@@ -14,9 +14,12 @@ import { workbenchServerManifest } from "./workbench/manifest.server";
 import { todayServerManifest } from "./today/manifest.server";
 import { peopleServerManifest } from "./people/manifest.server";
 import { gmailServerManifest } from "./gmail/manifest.server";
+import { askServerManifest } from "./ask/manifest.server";
+import { notionServerManifest } from "./notion/manifest.server";
 
 export const serverModules: ModuleServerManifest[] = [
   todayServerManifest,
+  askServerManifest,
   inboxServerManifest,
   calendarServerManifest,
   gmailServerManifest,
@@ -28,6 +31,7 @@ export const serverModules: ModuleServerManifest[] = [
   ideasServerManifest,
   knowledgeServerManifest,
   obsidianServerManifest,
+  notionServerManifest,
   agentsServerManifest,
   settingsServerManifest,
 ];

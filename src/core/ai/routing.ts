@@ -37,6 +37,9 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
     provider: "anthropic",
     model: "claude-sonnet-5",
   },
+  // Ask (cited Q&A over the user's corpus) — Ollama-first, free by default.
+  // Editable in Settings; escalate to Claude there if you want deeper synthesis.
+  { taskKey: "ask", provider: "ollama", model: "qwen3-coder:30b" },
 ];
 
 /** Insert default rows once so the Settings UI always has something to edit.

@@ -6,6 +6,7 @@ import { tasks } from "@/modules/tasks/schema";
 import { obsidianNotes } from "@/modules/obsidian/schema";
 import { ideas } from "@/modules/ideas/schema";
 import { projects } from "@/modules/projects/schema";
+import { notionPages } from "@/modules/notion/schema";
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 export const DEFAULT_EMBEDDING_MODEL = "nomic-embed-text";
@@ -60,6 +61,7 @@ async function handleModelSwitch(log: (m: string) => void): Promise<void> {
   await db.update(tasks).set({ embedding: null });
   await db.update(obsidianNotes).set({ embedding: null });
   await db.update(ideas).set({ embedding: null });
+  await db.update(notionPages).set({ embedding: null });
   await setSetting(ACTIVE_MODEL_KEY, configured);
 }
 
@@ -191,6 +193,21 @@ export async function sweepEmbeddings(
     done++;
   }
 
+  // Notion pages (present only when connected).
+  const notionRows = await db
+    .select({ id: notionPages.id, title: notionPages.title, content: notionPages.content })
+    .from(notionPages)
+    .where(isNull(notionPages.embedding))
+    .limit(30);
+  for (const p of notionRows) {
+    const e = await embedText(`${p.title}\n${p.content ?? ""}`);
+    await db
+      .update(notionPages)
+      .set({ embedding: dsql`${toVec(e)}::vector` })
+      .where(dsql`${notionPages.id} = ${p.id}`);
+    done++;
+  }
+
   // Tell open pages that search/connections just got fresher data, so a note
   // you just typed shows its connections without a manual reload.
   if (done > 0) await sql.notify("embeddings_updated", String(done));
@@ -198,7 +215,7 @@ export async function sweepEmbeddings(
 }
 
 export interface SemanticHit {
-  kind: "note" | "knowledge" | "task" | "vault" | "idea";
+  kind: "note" | "knowledge" | "task" | "vault" | "idea" | "notion";
   id: string;
   title: string;
   snippet: string | null;
@@ -217,6 +234,8 @@ function hitHref(kind: string, id: string): string {
     // vault rows carry the file path in `id` — deep-link into Obsidian.
     case "vault":
       return `obsidian://open?path=${encodeURIComponent(id)}`;
+    case "notion":
+      return "/m/notion";
     default:
       return "/m/tasks";
   }
@@ -254,6 +273,10 @@ export async function searchEverything(
     (select 'idea', id::text, title, left(coalesce(notes, ''), 160),
             (embedding <=> ${vec}::vector)
        from ideas where embedding is not null)
+    union all
+    (select 'notion', id, title, left(coalesce(content, ''), 160),
+            (embedding <=> ${vec}::vector)
+       from notion_pages where embedding is not null)
     order by distance asc
     limit ${limit}
   `);
