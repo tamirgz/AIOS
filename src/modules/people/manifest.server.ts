@@ -4,7 +4,6 @@ import { peopleTools } from "./tools";
 import { peopleJobs } from "./jobs";
 import { PeoplePage } from "./pages/PeoplePage";
 import { PersonDetailPage } from "./pages/PersonDetailPage";
-import { PeopleWidget } from "./widgets/PeopleWidget";
 
 export const peopleServerManifest: ModuleServerManifest = {
   id: "people",
@@ -12,9 +11,8 @@ export const peopleServerManifest: ModuleServerManifest = {
     "": PeoplePage,
     "[id]": PersonDetailPage,
   },
-  widgets: [
-    { id: "people", title: "People", size: "sm", component: PeopleWidget },
-  ],
+  // No dashboard widget — People lives on its own page (keeps the deck uncluttered).
+  widgets: [],
   schema: { people },
   aiTools: peopleTools,
   jobs: peopleJobs,

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, lt, sql as dsql } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
 import type { ModuleJob } from "@/core/modules/types.server";
 import { enrichItem } from "./enrich";
@@ -60,5 +60,25 @@ export const knowledgeJobs: ModuleJob[] = [
   {
     channel: "knowledge_ingest",
     handle: (payload) => processKnowledgeItem(payload),
+  },
+  {
+    // Recovery: an item interrupted mid-pipeline (e.g. a worker restart during
+    // enrichment) is left in a non-terminal state with no re-delivery. Re-queue
+    // anything stuck for >10 min. Idempotent — the pipeline resumes from the
+    // stage that already persisted (raw is kept), and `ready` items are skipped.
+    channel: "knowledge_reconcile",
+    schedule: "*/10 * * * *",
+    handle: async () => {
+      const stuck = await db
+        .select({ id: knowledgeItems.id })
+        .from(knowledgeItems)
+        .where(
+          and(
+            inArray(knowledgeItems.status, ["captured", "fetching", "enriching"]),
+            lt(knowledgeItems.updatedAt, dsql`now() - interval '10 minutes'`),
+          ),
+        );
+      for (const s of stuck) await sql.notify("knowledge_ingest", s.id);
+    },
   },
 ];

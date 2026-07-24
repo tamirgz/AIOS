@@ -84,6 +84,10 @@ export async function enrichItem(
     toolCtx: { db },
     model: route.model,
     maxTurns: 10,
+    // Bound the call — without this a hung/looping model leaves the item stuck
+    // in "enriching" forever. On timeout the provider aborts → the item errors
+    // (visible + retryable) rather than hanging.
+    signal: AbortSignal.timeout(120_000),
   })) {
     if (event.type === "done") finalText = event.text;
     if (event.type === "error") throw new Error(event.message);
