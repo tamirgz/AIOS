@@ -127,6 +127,14 @@ interface GoogleEvent {
   };
   /** The event in Google Calendar's web UI. */
   htmlLink?: string;
+  /** Who's invited — feeds the L3 people table. */
+  attendees?: {
+    email?: string;
+    displayName?: string;
+    self?: boolean;
+    resource?: boolean;
+    responseStatus?: string;
+  }[];
 }
 
 /**
@@ -231,6 +239,14 @@ export async function syncGoogle(
             : null,
         allDay: !ev.start?.dateTime,
         color: ev.colorId ? (palette[ev.colorId] ?? null) : null,
+        attendees: (ev.attendees ?? [])
+          .filter((a) => a.email && !a.resource)
+          .map((a) => ({
+            email: a.email!.toLowerCase(),
+            name: a.displayName,
+            self: a.self,
+            responseStatus: a.responseStatus,
+          })),
       };
       await db
         .insert(calendarEvents)
