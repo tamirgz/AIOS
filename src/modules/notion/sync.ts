@@ -1,18 +1,115 @@
 import { sql as dsql } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
-import { getSetting } from "@/core/app-settings";
+import { getSetting, setSetting } from "@/core/app-settings";
 import { notionPages } from "./schema";
 
 const NOTION = "https://api.notion.com/v1";
 const VERSION = "2022-06-28";
-export const NOTION_TOKEN_KEY = "notion_token";
+/** JSON array of {token, workspace} — supports multiple Notion workspaces. */
+export const NOTION_TOKENS_KEY = "notion_tokens";
+const LEGACY_TOKEN_KEY = "notion_token"; // single-token setting from v1
 
-async function token(): Promise<string | null> {
-  return (await getSetting(NOTION_TOKEN_KEY)) || null;
+export interface NotionConnection {
+  token: string;
+  workspace: string;
+}
+
+function headersFor(token: string) {
+  return {
+    Authorization: `Bearer ${token}`,
+    "Notion-Version": VERSION,
+    "Content-Type": "application/json",
+  };
+}
+
+/** All connected workspaces. Migrates a legacy single token on first read. */
+export async function getConnections(): Promise<NotionConnection[]> {
+  const raw = await getSetting(NOTION_TOKENS_KEY);
+  let conns: NotionConnection[] = [];
+  if (raw) {
+    try {
+      conns = (JSON.parse(raw) as NotionConnection[]).filter((c) => c?.token);
+    } catch {
+      conns = [];
+    }
+  }
+  const legacy = (await getSetting(LEGACY_TOKEN_KEY))?.trim();
+  if (legacy && !conns.some((c) => c.token === legacy)) {
+    const probe = await probeWorkspace(legacy);
+    conns.push({ token: legacy, workspace: "bad" in probe ? "Notion" : probe.name });
+    await setSetting(NOTION_TOKENS_KEY, JSON.stringify(conns));
+    await setSetting(LEGACY_TOKEN_KEY, "");
+  }
+  return conns;
+}
+
+async function saveConnections(conns: NotionConnection[]) {
+  await setSetting(NOTION_TOKENS_KEY, JSON.stringify(conns));
 }
 
 export async function notionConnected(): Promise<boolean> {
-  return !!(await token());
+  return (await getConnections()).length > 0;
+}
+
+/** Public view (no tokens): workspace names for the UI. */
+export async function connectedWorkspaces(): Promise<string[]> {
+  return (await getConnections()).map((c) => c.workspace);
+}
+
+/**
+ * Probe a token via /users/me. Rejects ONLY on an explicit 401 (a genuinely bad
+ * token); a network hiccup or other error accepts optimistically with a fallback
+ * name (the sync will surface real problems later). Never throws.
+ */
+async function probeWorkspace(
+  token: string,
+): Promise<{ bad: true } | { name: string }> {
+  try {
+    const res = await fetch(`${NOTION}/users/me`, {
+      headers: headersFor(token),
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (res.status === 401) return { bad: true };
+    if (!res.ok) return { name: "Notion" };
+    const d = (await res.json()) as {
+      name?: string;
+      bot?: { workspace_name?: string };
+    };
+    return { name: d.bot?.workspace_name || d.name || "Notion" };
+  } catch {
+    return { name: "Notion" };
+  }
+}
+
+/**
+ * Add a workspace by token. Validates it, dedupes by token, stores it, and does
+ * a first sync. Distinct workspaces sharing a name get suffixed so removal and
+ * page-attribution stay unambiguous.
+ */
+export async function addConnection(
+  token: string,
+): Promise<{ workspace: string } | { badToken: true }> {
+  const t = token.trim();
+  const probe = await probeWorkspace(t);
+  if ("bad" in probe) return { badToken: true };
+
+  const conns = (await getConnections()).filter((c) => c.token !== t);
+  let name = probe.name;
+  for (let i = 2; conns.some((c) => c.workspace === name); i++)
+    name = `${probe.name} (${i})`;
+  conns.push({ token: t, workspace: name });
+  await saveConnections(conns);
+  await syncOne(t, name);
+  await sql.notify("notion_changed", "");
+  return { workspace: name };
+}
+
+/** Disconnect one workspace and drop its indexed pages. */
+export async function removeConnection(workspace: string): Promise<void> {
+  const conns = await getConnections();
+  await saveConnections(conns.filter((c) => c.workspace !== workspace));
+  await db.delete(notionPages).where(dsql`${notionPages.workspace} = ${workspace}`);
+  await sql.notify("notion_changed", "");
 }
 
 interface NotionPageObj {
@@ -31,7 +128,6 @@ function extractTitle(p: NotionPageObj): string {
   return "(untitled)";
 }
 
-/** Concatenate a page's block text (first ~50 blocks), capped. */
 async function pageText(id: string, headers: HeadersInit): Promise<string> {
   const res = await fetch(`${NOTION}/blocks/${id}/children?page_size=50`, {
     headers,
@@ -51,62 +147,52 @@ async function pageText(id: string, headers: HeadersInit): Promise<string> {
   return parts.join("\n").slice(0, 4000);
 }
 
-/**
- * Sync Notion pages (title + text snippet). Returns null-ish signals instead of
- * throwing for the "not set up" cases so the UI can prompt. Content changes null
- * the embedding so the sweep re-embeds → Ask/search pick it up.
- */
-export async function syncNotion(
-  log: (m: string) => void = () => {},
-): Promise<{ synced: number } | { needsToken: true } | { badToken: true }> {
-  const tok = await token();
-  if (!tok) return { needsToken: true };
-  const headers = {
-    Authorization: `Bearer ${tok}`,
-    "Notion-Version": VERSION,
-    "Content-Type": "application/json",
-  };
-
+/** Sync one workspace's pages, tagging each with its workspace name. */
+async function syncOne(token: string, workspace: string): Promise<number> {
+  const headers = headersFor(token);
   const searchRes = await fetch(`${NOTION}/search`, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      filter: { value: "page", property: "object" },
-      page_size: 50,
-    }),
+    body: JSON.stringify({ filter: { value: "page", property: "object" }, page_size: 50 }),
     signal: AbortSignal.timeout(20_000),
   });
-  if (searchRes.status === 401) {
-    log("notion: invalid token");
-    return { badToken: true };
-  }
   if (!searchRes.ok) throw new Error(`notion search → ${searchRes.status}`);
   const { results = [] } = (await searchRes.json()) as { results?: NotionPageObj[] };
 
-  let synced = 0;
+  let n = 0;
   for (const p of results) {
     const title = extractTitle(p);
     const content = await pageText(p.id, headers);
     const lastEdited = p.last_edited_time ? new Date(p.last_edited_time) : null;
     await db
       .insert(notionPages)
-      .values({
-        id: p.id,
-        title,
-        url: p.url ?? null,
-        content,
-        lastEdited,
-        embedding: null,
-      })
+      .values({ id: p.id, workspace, title, url: p.url ?? null, content, lastEdited, embedding: null })
       .onConflictDoUpdate({
         target: notionPages.id,
-        set: { title, url: p.url ?? null, content, lastEdited, embedding: null },
-        // Only touch (and re-embed) pages that actually changed.
-        setWhere: dsql`${notionPages.lastEdited} is distinct from ${lastEdited}`,
+        set: { workspace, title, url: p.url ?? null, content, lastEdited, embedding: null },
+        // Re-embed only changed pages; always keep workspace attribution correct.
+        setWhere: dsql`${notionPages.lastEdited} is distinct from ${lastEdited} or ${notionPages.workspace} is distinct from ${workspace}`,
       });
-    synced++;
+    n++;
+  }
+  return n;
+}
+
+/** Sync every connected workspace. Returns totals; never throws for "not set up". */
+export async function syncNotion(
+  log: (m: string) => void = () => {},
+): Promise<{ synced: number; workspaces: number } | { needsToken: true }> {
+  const conns = await getConnections();
+  if (conns.length === 0) return { needsToken: true };
+  let synced = 0;
+  for (const c of conns) {
+    try {
+      synced += await syncOne(c.token, c.workspace);
+    } catch (e) {
+      log(`notion "${c.workspace}" failed: ${String(e).slice(0, 140)}`);
+    }
   }
   await sql.notify("notion_changed", "");
-  log(`notion: synced ${synced}`);
-  return { synced };
+  log(`notion: synced ${synced} pages across ${conns.length} workspace(s)`);
+  return { synced, workspaces: conns.length };
 }

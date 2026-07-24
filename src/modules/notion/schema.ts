@@ -7,7 +7,9 @@ import { embeddingVector } from "@/core/db/vector";
  * Token-gated: nothing syncs until a Notion integration token is set.
  */
 export const notionPages = pgTable("notion_pages", {
-  id: text("id").primaryKey(), // Notion page id
+  id: text("id").primaryKey(), // Notion page id (globally unique across workspaces)
+  /** Which connected workspace this page came from — its display name. */
+  workspace: text("workspace"),
   title: text("title").notNull().default("(untitled)"),
   url: text("url"),
   content: text("content"),

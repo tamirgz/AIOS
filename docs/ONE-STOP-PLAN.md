@@ -32,7 +32,7 @@
 | Claude Code (headless) | ✅ Workbench executor — delegated research and repo work, on its own branch |
 | opencode + free models | ✅ Workbench executor — local Ollama and free cloud (opencode-zen Big Pickle, free Nvidia via your key), cost-verified so paid models are refused. Verified live at $0 |
 | Gmail | ✅ **Built (read-only `mail` module)** — same Google OAuth, scope now includes `gmail.readonly`. Mirrors 7 days of message metadata; `gmail.recent` feeds the Daily-planner + Follow-up tracker. **Awaiting one Connect-Google re-consent** to grant the scope (calendar keeps working; UI shows a reconnect prompt meanwhile) |
-| Notion | ✅ **Built (read-only, token-gated)** — paste a Notion integration token; pages are mirrored + embedded and folded into Ask/search. Awaiting a token to activate |
+| Notion | ✅ **Built (read-only, token-gated, multi-workspace)** — add one integration token per workspace; pages are mirrored + embedded (attributed to their workspace) and folded into Ask/search. Awaiting tokens to activate |
 | NotebookLM | ✅ **Replaced by the Ask module** — cited Q&A over your own corpus (notes/knowledge/vault/ideas/tasks/Notion), Ollama-first. Honest limit: no audio overviews |
 
 **Awaiting you (2 five-minute setups).** ~~GCP OAuth client~~ ✅ **done — Google is connected.** ① Slack bot token + channel IDs `C0B7TLBJ4LU, C0B7VNRPQSV`. ② Slack incoming webhook.
