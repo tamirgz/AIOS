@@ -13,6 +13,7 @@ export interface RaiseInput {
   title: string;
   body?: string | null;
   projectRef?: string | null;
+  personRef?: string | null;
   source?: string;
   urgency?: number;
   dueAt?: Date | null;
@@ -47,6 +48,7 @@ export async function insertAttentionItem(input: RaiseInput) {
       title: input.title.trim(),
       body: input.body?.trim() || null,
       projectRef: input.projectRef ?? null,
+      personRef: input.personRef ?? null,
       source: input.source ?? "system",
       urgency: input.urgency ?? 0,
       dueAt: input.dueAt ?? null,

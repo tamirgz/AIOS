@@ -13,6 +13,7 @@ import { inboxManifest } from "./inbox/manifest";
 import { obsidianManifest } from "./obsidian/manifest";
 import { workbenchManifest } from "./workbench/manifest";
 import { todayManifest } from "./today/manifest";
+import { peopleManifest } from "./people/manifest";
 
 export const modules: ModuleManifest[] = [
   todayManifest,
@@ -21,6 +22,7 @@ export const modules: ModuleManifest[] = [
   workbenchManifest,
   tasksManifest,
   projectsManifest,
+  peopleManifest,
   notesManifest,
   ideasManifest,
   knowledgeManifest,

@@ -44,6 +44,8 @@ export const attentionItems = pgTable(
     body: text("body"),
     /** Anchored to a project ("projects:<uuid>") or null = personal. */
     projectRef: text("project_ref"),
+    /** Anchored to a person ("people:<uuid>") — L3 follow-ups. */
+    personRef: text("person_ref"),
     /** Who raised it: "agent:Daily planner", "system", "connector"… */
     source: text("source").notNull().default("system"),
     status: text("status", { enum: ATTENTION_STATUSES })
@@ -72,6 +74,7 @@ export const attentionItems = pgTable(
   (t) => [
     index("attention_status").on(t.status, t.urgency),
     index("attention_project").on(t.projectRef),
+    index("attention_person").on(t.personRef),
     // One open card per dedupe key — the agent idempotency guarantee.
     index("attention_dedupe").on(t.dedupeKey),
   ],

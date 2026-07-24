@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -9,6 +10,15 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const EVENT_SOURCES = ["local", "ics", "google"] as const;
+
+/** One attendee as captured from the Google API (L3 people derivation). */
+export interface EventAttendee {
+  email: string;
+  name?: string;
+  /** true for the calendar owner's own entry — excluded from the people table. */
+  self?: boolean;
+  responseStatus?: string;
+}
 
 export const calendarEvents = pgTable(
   "calendar_events",
@@ -30,6 +40,8 @@ export const calendarEvents = pgTable(
     meetingUrl: text("meeting_url"),
     /** The event in its origin app (Google `htmlLink`) — "open in Google Calendar". */
     sourceUrl: text("source_url"),
+    /** Attendees from the Google API — feeds the L3 people table. */
+    attendees: jsonb("attendees").$type<EventAttendee[]>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

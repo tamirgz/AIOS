@@ -8,7 +8,7 @@
 
 **Platform.** Next.js 16 + Postgres 17/pgvector (Docker :5544) + a launchd worker daemon. One-liner start (`aios` / AIOS.command, prod default — stops the running server, wipes `.next`, rebuilds, restarts the worker). Nightly `pg_dump` backups with boot catch-up. Private GitHub repo. 21 tables. Every claim below was verified in the running system, not assumed.
 
-**Modules (12)** — each one is a folder + 2 registry lines: **Today**, Inbox, Calendar, **Workbench**, Tasks, Projects, Notes, Ideas, Knowledge, Vault, Agents, Settings.
+**Modules (13)** — each one is a folder + 2 registry lines: **Today**, Inbox, Calendar, **Workbench**, Tasks, Projects, **People**, Notes, Ideas, Knowledge, Vault, Agents, Settings.
 
 **Workbench** *(W1 + W2, 2026-07-21 → 23)* — the one-off task surface: one box + a type picker; the type resolves executor/model/permissions. Tasks → attempts → normalized events; git isolation per attempt (worktree for in-process Claude, a local clone for CLI agents); live tail and per-file diff in-app; retry as a sibling attempt. **Executors: Claude Code (Max), AIOS-native (local), and opencode** — the last driving any **free** model: local Ollama plus free cloud (opencode-zen Big Pickle, free Nvidia via the user's key), cost-verified so paid models are refused. Verified live end-to-end on Claude, local Ollama, Big Pickle ($0) and a free Nvidia model ($0). pi and aider are seeded rows but not yet proven (pi parser mismatch; aider not installed). Details in WORKBENCH-PLAN.md §6–§8. **Next is the Life-OS attention loop (§3) — phases L1–L3 —** which absorbs the old "W3 delegation UX."
 
@@ -191,11 +191,11 @@ Rule of thumb: **volume, summarization & the heartbeat → local (free); one-off
 - **Project pulse** agent (`qwen3-coder:30b` — winner of a 12-model bench of this task) derives health + next-action, raising `notify`/`do` items on stalls and blockers.
 - ✅ Built & verified live: `goal`/`health`/`healthReason`/`healthUpdatedAt` on projects; `getProjectCockpit` rollup (open/done/overdue tasks, notes, open attention, derived last-activity); the grid + detail **cockpit** (health chip, inline goal/next-action editors — persist confirmed, per-project "Needs you" cards); a pure `deriveHealth` heuristic so **health is never blank without an agent**; the Pulse agent ran on **free qwen3:8b** ($0/81s) and set health across all active projects, raising a card only for stalled/blocked. **Exit criterion met.** Caveat: an 8b model's *goal invention* is weak, so the Pulse agent ships **manual** (not auto-scheduled) until its prompt is tightened.
 
-### Phase L3 — Chief-of-staff breadth
+### Phase L3 — Chief-of-staff breadth ✅ *shipped 2026-07-23*
 *Goal: agents that manage, not just execute.*
-- **People/follow-ups** (CRM-lite): a light `people` table tied to calendar attendees; **Follow-up tracker** agent → `approve`-draft / `do` items after meetings.
-- **Loose-ends chaser** + **Connector** agents (proactive relations). **Weekly reviewer** (`gemma4:31b-it-qat`) → Friday synthesis + proposed next week.
-- Exit: a week where AIOS chased the loose ends and prepped the follow-ups before you noticed them.
+- **People/follow-ups** (CRM-lite): a `people` table derived from calendar attendees; **Follow-up tracker** agent → `do`/`approve` items after meetings, anchored to a person via `attention_items.personRef`.
+- **Loose-ends chaser** (`qwen3-coder:30b`) + **Weekly reviewer** (`gemma4:31b-it-qat`).
+- ✅ Built & verified live: the Google sync now captures **attendees**; the new `people` module derives a CRM-lite (12 people from the real calendar, 117 events), with a People page (meeting history + editable notes), a `people_sync` job and a dashboard widget. `attention_items` gained `personRef` so follow-ups flow into the "Needs you" queue. All **three agents installed, enabled, on free models** with schedules (follow-ups 18:00 weekdays, chaser Mon/Thu, review Fri). Verified: the Follow-up tracker ran on `qwen3-coder:30b` (free, 32s) and raised a person-anchored follow-up that appeared in the queue *and* on the person's card. **Connector** deferred (optional). **Exit criterion is now a usage question.**
 
 *(Small W2 tails ride alongside L1: rebuild pi's JSON parser against a real fixture; install/verify aider. Workbench merge/PR button lands whenever convenient.)*
 

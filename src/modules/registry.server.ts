@@ -12,6 +12,7 @@ import { inboxServerManifest } from "./inbox/manifest.server";
 import { obsidianServerManifest } from "./obsidian/manifest.server";
 import { workbenchServerManifest } from "./workbench/manifest.server";
 import { todayServerManifest } from "./today/manifest.server";
+import { peopleServerManifest } from "./people/manifest.server";
 
 export const serverModules: ModuleServerManifest[] = [
   todayServerManifest,
@@ -20,6 +21,7 @@ export const serverModules: ModuleServerManifest[] = [
   workbenchServerManifest,
   tasksServerManifest,
   projectsServerManifest,
+  peopleServerManifest,
   notesServerManifest,
   ideasServerManifest,
   knowledgeServerManifest,
