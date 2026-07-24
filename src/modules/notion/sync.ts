@@ -167,6 +167,10 @@ async function syncOne(token: string, workspace: string): Promise<number> {
       // still persist the page (title/url from search) — don't lose the batch.
       const content = await pageText(p.id, headers).catch(() => "");
       const lastEdited = p.last_edited_time ? new Date(p.last_edited_time) : null;
+      // NOTE: a raw JS Date can't be bound inside a sql`` template (postgres.js
+      // rejects it) — pass an ISO string + ::timestamptz. Only the setWhere is
+      // affected; typed .values()/.set() bind the Date fine.
+      const leIso = lastEdited ? lastEdited.toISOString() : null;
       await db
         .insert(notionPages)
         .values({ id: p.id, workspace, title, url: p.url ?? null, content, lastEdited, embedding: null })
@@ -174,7 +178,7 @@ async function syncOne(token: string, workspace: string): Promise<number> {
           target: notionPages.id,
           set: { workspace, title, url: p.url ?? null, content, lastEdited, embedding: null },
           // Re-embed only changed pages; always keep workspace attribution correct.
-          setWhere: dsql`${notionPages.lastEdited} is distinct from ${lastEdited} or ${notionPages.workspace} is distinct from ${workspace}`,
+          setWhere: dsql`${notionPages.lastEdited} is distinct from ${leIso}::timestamptz or ${notionPages.workspace} is distinct from ${workspace}`,
         });
       n++;
     } catch {
