@@ -12,6 +12,7 @@ import { DeleteProjectButton } from "../components/DeleteProjectButton";
 import { ProjectTaskQuickAdd } from "../components/ProjectTaskQuickAdd";
 import { ProjectNotes } from "../components/ProjectNotes";
 import { StatusCycleButton } from "../components/StatusCycleButton";
+import { ProjectTitle } from "../components/ProjectTitle";
 
 function lastActiveLabel(d: Date | null): string {
   if (!d) return "no activity";
@@ -106,9 +107,7 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
           projects
         </Link>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-3xl font-semibold text-ink">
-            {project.name}
-          </h1>
+          <ProjectTitle id={project.id} name={project.name} />
           <StatusCycleButton id={project.id} status={project.status} />
           <span className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
             {done}/{projectTasks.length} tasks
