@@ -12,6 +12,33 @@ const TRIAGE_TOOLS = [
   "calendar.createEvent",
 ];
 
+/** Map the tool the triage used → a destination label + link to the new item. */
+function routeFor(
+  tool: string,
+  result: unknown,
+): { kind: string; label: string; href: string } | null {
+  const r = (result ?? {}) as {
+    created?: { id?: string };
+    captured?: { id?: string };
+    id?: string;
+  };
+  const id = r.created?.id ?? r.captured?.id ?? r.id;
+  switch (tool) {
+    case "tasks.create":
+      return { kind: "task", label: "Task", href: "/m/tasks" };
+    case "notes.create":
+      return { kind: "note", label: "Note", href: id ? `/m/notes/${id}` : "/m/notes" };
+    case "knowledge.capture":
+      return { kind: "knowledge", label: "Knowledge", href: id ? `/m/knowledge/${id}` : "/m/knowledge" };
+    case "ideas.capture":
+      return { kind: "idea", label: "Idea", href: id ? `/m/ideas/${id}` : "/m/ideas" };
+    case "calendar.createEvent":
+      return { kind: "event", label: "Event", href: "/m/calendar" };
+    default:
+      return null;
+  }
+}
+
 export async function triageInboxItem(itemId: string): Promise<void> {
   const [item] = await db
     .select()
@@ -33,6 +60,8 @@ export async function triageInboxItem(itemId: string): Promise<void> {
     const { getToolsByNames } = await import("@/core/ai/tool-registry");
 
     let finalText = "";
+    let usedTool: string | null = null;
+    let toolResult: unknown = null;
     for await (const event of route.provider.run({
       system: [
         "You are the inbox triage of AIOS, the user's personal AI operating system.",
@@ -55,11 +84,18 @@ export async function triageInboxItem(itemId: string): Promise<void> {
     })) {
       if (event.type === "done") finalText = event.text;
       if (event.type === "error") throw new Error(event.message);
+      // Remember the routing tool + its result (id of the created item).
+      if (event.type === "tool_call") usedTool = event.name;
+      if (event.type === "tool_result") toolResult = event.result;
     }
 
+    const dest = usedTool ? routeFor(usedTool, toolResult) : null;
     await set({
       status: "triaged",
-      triage: { summary: finalText.slice(0, 500) || "routed" },
+      triage: {
+        summary: finalText.slice(0, 500) || "routed",
+        ...(dest ? { route: dest } : {}),
+      },
     });
   } catch (e) {
     await set({ status: "error", error: String(e).slice(0, 400) });

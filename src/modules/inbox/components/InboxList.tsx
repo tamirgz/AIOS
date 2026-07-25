@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useTransition } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Inbox, RefreshCw, Trash2, Zap } from "lucide-react";
+import { ArrowUpRight, Inbox, RefreshCw, Trash2, Zap } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { useLiveEvents } from "@/core/ui/useLiveEvents";
 import { captureToInbox, deleteInboxItem, retryTriage } from "../actions";
@@ -100,6 +101,15 @@ export function InboxList({ items }: { items: InboxItem[] }) {
                         <p className="mt-1 text-xs text-plasma/80">
                           → {item.triage.summary}
                         </p>
+                      )}
+                      {item.triage?.route && (
+                        <Link
+                          href={item.triage.route.href}
+                          className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-plasma/30 bg-plasma/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-plasma transition hover:bg-plasma/20"
+                        >
+                          open in {item.triage.route.label}
+                          <ArrowUpRight className="size-3" />
+                        </Link>
                       )}
                       {item.error && (
                         <p className="mt-1 font-mono text-[10px] text-flare">

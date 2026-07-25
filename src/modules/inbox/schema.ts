@@ -12,8 +12,15 @@ export const inboxItems = pgTable("inbox_items", {
   id: uuid("id").defaultRandom().primaryKey(),
   input: text("input").notNull(),
   status: text("status", { enum: INBOX_STATUSES }).notNull().default("new"),
-  /** { summary, actions: string[] } written by the triage job. */
-  triage: jsonb("triage").$type<{ summary: string }>(),
+  /**
+   * Written by the triage job: a one-line summary and where it routed (the
+   * destination module + a link to the created item, so the inbox shows and
+   * links to exactly where each capture landed).
+   */
+  triage: jsonb("triage").$type<{
+    summary: string;
+    route?: { kind: string; label: string; href: string };
+  }>(),
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
