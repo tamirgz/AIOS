@@ -1,5 +1,6 @@
 import type { ModuleRouteProps } from "@/core/modules/types.server";
 import { getAllTools } from "@/core/ai/tool-registry";
+import { resolveRoute } from "@/core/ai/routing";
 import { GlassPanel } from "@/core/ui/GlassPanel";
 import { AgentDetail } from "../components/AgentDetail";
 import { getAgent, listRuns } from "../queries";
@@ -21,7 +22,18 @@ export async function AgentDetailPage({ params }: ModuleRouteProps) {
     );
   }
 
-  const runs = await listRuns(agent.id);
+  const [runs, defaultRoute] = await Promise.all([
+    listRuns(agent.id),
+    // What this agent falls back to when it has no provider/model override.
+    resolveRoute("agent.default"),
+  ]);
   const allTools = getAllTools().map((t) => t.name);
-  return <AgentDetail agent={agent} runs={runs} allTools={allTools} />;
+  return (
+    <AgentDetail
+      agent={agent}
+      runs={runs}
+      allTools={allTools}
+      defaultRoute={{ providerId: defaultRoute.providerId, model: defaultRoute.model }}
+    />
+  );
 }
