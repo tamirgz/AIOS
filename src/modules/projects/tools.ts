@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import type { AiToolDef } from "@/core/modules/types.server";
 import { getProjectCockpit } from "./queries";
-import { projects, PROJECT_HEALTHS, PROJECT_STATUSES } from "./schema";
+import { projectFiles, projects, PROJECT_HEALTHS, PROJECT_STATUSES } from "./schema";
 
 const DAY = 24 * 60 * 60 * 1000;
 const daysAgo = (d: Date | null) =>
@@ -123,6 +123,24 @@ export const projectTools: AiToolDef[] = [
       return row
         ? { updated: { id: row.id, goal: row.goal } }
         : { error: "project not found" };
+    },
+  },
+  {
+    name: "projects.listFiles",
+    description:
+      "List the files attached to a project (filename, size, and whether their text was extracted). Use before answering questions about a project's specs/docs — search.everything already covers their content by meaning, this is for a direct inventory.",
+    input: z.object({ projectId: z.string().uuid() }),
+    async execute(input, { db }) {
+      const rows = await db
+        .select({
+          id: projectFiles.id,
+          filename: projectFiles.filename,
+          sizeBytes: projectFiles.sizeBytes,
+          status: projectFiles.status,
+        })
+        .from(projectFiles)
+        .where(eq(projectFiles.projectId, input.projectId));
+      return rows;
     },
   },
 ];

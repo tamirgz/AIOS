@@ -1,10 +1,13 @@
 import { sql } from "drizzle-orm";
 import {
+  index,
+  integer,
   pgTable,
   text,
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import { bytea } from "@/core/db/bytea";
 import { embeddingVector } from "@/core/db/vector";
 
 export const PROJECT_STATUSES = ["active", "paused", "done", "archived"] as const;
@@ -71,3 +74,49 @@ export const statusRank = sql`case ${projects.status} when 'active' then 0 when 
 export function projectRefOf(id: string) {
   return `projects:${id}`;
 }
+
+export const PROJECT_FILE_STATUSES = [
+  "processing",
+  "ready",
+  "error",
+  "unsupported",
+] as const;
+export type ProjectFileStatus = (typeof PROJECT_FILE_STATUSES)[number];
+
+/**
+ * Files attached to a project. The raw bytes live in Postgres (`content`,
+ * bytea) rather than a separate storage layer — there is no filesystem/S3
+ * convention anywhere else in AIOS, and this way attachments are covered by
+ * the existing nightly `pg_dump` backup for free. `extractedText` is what
+ * gets embedded and what search/Ask/agents actually read; `content` is only
+ * served back on download.
+ */
+export const projectFiles = pgTable(
+  "project_files",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    /** Owning project's id — same-module ownership, not a droppable cross-ref. */
+    projectId: uuid("project_id").notNull(),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type"),
+    sizeBytes: integer("size_bytes").notNull(),
+    content: bytea("content").notNull(),
+    /** Plain text pulled from the file (pdf/docx parsed, else read as-is). */
+    extractedText: text("extracted_text"),
+    status: text("status", { enum: PROJECT_FILE_STATUSES })
+      .notNull()
+      .default("processing"),
+    statusDetail: text("status_detail"),
+    /** Embedding of filename + extractedText, filled by the worker's sweep. */
+    embedding: embeddingVector("embedding"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("project_files_project").on(t.projectId)],
+);
+
+export type ProjectFile = typeof projectFiles.$inferSelect;

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { motion } from "motion/react";
-import { ArrowUp, FileText, Lightbulb, Sparkles, BookOpen, CheckSquare } from "lucide-react";
+import { ArrowUp, FileText, Lightbulb, Paperclip, Sparkles, BookOpen, CheckSquare } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { ask } from "../actions";
 import type { AskAnswer, AskSource } from "../answer";
@@ -15,6 +15,7 @@ const KIND_ICON: Record<string, typeof FileText> = {
   idea: Lightbulb,
   task: CheckSquare,
   notion: FileText,
+  file: Paperclip,
 };
 
 /** Render answer text with [n] turned into clickable citation chips. */

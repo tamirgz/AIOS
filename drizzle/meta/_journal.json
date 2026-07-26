@@ -162,6 +162,13 @@
       "when": 1784890791763,
       "tag": "0022_mute_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1785066650010,
+      "tag": "0023_abnormal_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }
