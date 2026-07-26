@@ -9,6 +9,7 @@ import {
   CheckSquare,
   BookOpen,
   ChevronDown,
+  Download,
   FileText,
   FolderKanban,
   History,
@@ -235,10 +236,22 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
             >
               <div className="glass rounded-2xl p-5">
                 <CitedAnswer text={result.answer} sources={result.sources} />
-                {result.model && (
-                  <p className="mt-3 border-t border-white/6 pt-2 font-mono text-[9px] uppercase tracking-widest text-ink-faint">
-                    {result.model}
-                  </p>
+                {(result.model || activeId) && (
+                  <div className="mt-3 flex items-center justify-between border-t border-white/6 pt-2">
+                    <p className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+                      {result.model}
+                    </p>
+                    {activeId && (
+                      <a
+                        href={`/api/ask/${activeId}/pdf`}
+                        title="Download this answer as a structured PDF report"
+                        className="flex items-center gap-1.5 rounded-lg bg-plasma/10 px-2.5 py-1 font-mono text-[9px] uppercase tracking-widest text-plasma transition hover:bg-plasma/20"
+                      >
+                        <Download className="size-3" />
+                        export pdf
+                      </a>
+                    )}
+                  </div>
                 )}
               </div>
 
