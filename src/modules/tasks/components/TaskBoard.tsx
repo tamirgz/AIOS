@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
   ArrowRight,
   Flame,
+  FolderKanban,
   GripVertical,
   Plus,
   Trash2,
@@ -17,6 +20,7 @@ import {
   setTaskStatus,
 } from "../actions";
 import type { Task, TaskPriority, TaskStatus } from "../schema";
+import { TaskEditModal } from "./TaskEditModal";
 
 const COLUMNS: { status: TaskStatus; label: string; accent: string }[] = [
   { status: "todo", label: "Queue", accent: "var(--color-ion)" },
@@ -30,7 +34,7 @@ const PRIORITY_STYLE: Record<TaskPriority, string> = {
   low: "text-ink-faint",
 };
 
-function QuickAdd() {
+function QuickAdd({ projectRef }: { projectRef?: string }) {
   const [pending, startTransition] = useTransition();
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -39,7 +43,7 @@ function QuickAdd() {
     const title = inputRef.current?.value.trim();
     if (!title) return;
     startTransition(async () => {
-      await createTask({ title, priority });
+      await createTask({ title, priority, projectRef });
       if (inputRef.current) inputRef.current.value = "";
     });
   };
@@ -90,13 +94,19 @@ function QuickAdd() {
 function TaskCard({
   task,
   dragging,
+  projectName,
   onDragStart,
   onDragEnd,
+  onEdit,
+  onMoved,
 }: {
   task: Task;
   dragging: boolean;
+  projectName?: string | null;
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
+  onEdit: (task: Task) => void;
+  onMoved: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
@@ -106,6 +116,7 @@ function TaskCard({
     if (!next) return;
     startTransition(async () => {
       await setTaskStatus(task.id, next);
+      onMoved();
     });
   };
 
@@ -157,14 +168,28 @@ function TaskCard({
         >
           ▲
         </span>
-        <p
-          className={cn(
-            "flex-1 text-sm leading-snug",
-            task.status === "done" && "text-ink-faint line-through",
+        <div className="min-w-0 flex-1">
+          <p
+            onClick={() => onEdit(task)}
+            title="Click to edit"
+            className={cn(
+              "cursor-pointer text-sm leading-snug transition hover:text-ink",
+              task.status === "done" ? "text-ink-faint line-through" : "text-ink-dim",
+            )}
+          >
+            {task.title}
+          </p>
+          {projectName && (
+            <Link
+              href={`/m/projects/${task.projectRef!.split(":")[1]}`}
+              onClick={(e) => e.stopPropagation()}
+              className="mt-1.5 inline-flex w-fit items-center gap-1 rounded-md border border-white/8 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-ink-faint transition hover:border-ion/30 hover:text-ion"
+            >
+              <FolderKanban className="size-2.5" />
+              {projectName}
+            </Link>
           )}
-        >
-          {task.title}
-        </p>
+        </div>
       </div>
       <div className="mt-2.5 flex items-center justify-between opacity-0 transition-opacity group-hover:opacity-100">
         <div className="flex gap-1">
@@ -192,6 +217,7 @@ function TaskCard({
           onClick={() =>
             startTransition(async () => {
               await deleteTask(task.id);
+              onMoved();
             })
           }
           disabled={pending}
@@ -205,10 +231,32 @@ function TaskCard({
   );
 }
 
-export function TaskBoard({ tasks }: { tasks: Task[] }) {
+export function TaskBoard({
+  tasks,
+  projectOptions = [],
+  /** Preset for this board's own QuickAdd — e.g. "projects:<id>" when embedded on a project page. */
+  quickAddProjectRef,
+  /** Hide the internal QuickAdd — set when the host page already has its own (e.g. ProjectTaskQuickAdd). */
+  hideQuickAdd = false,
+  /** Hide the per-card project badge — set when every task shown is obviously already in this project. */
+  hideProjectBadge = false,
+}: {
+  tasks: Task[];
+  projectOptions?: { id: string; name: string }[];
+  quickAddProjectRef?: string;
+  hideQuickAdd?: boolean;
+  hideProjectBadge?: boolean;
+}) {
+  const router = useRouter();
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStatus, setOverStatus] = useState<TaskStatus | null>(null);
+  const [editing, setEditing] = useState<Task | null>(null);
   const [, startMove] = useTransition();
+
+  const projectNames = useMemo(
+    () => Object.fromEntries(projectOptions.map((p) => [p.id, p.name])),
+    [projectOptions],
+  );
 
   const dragged = dragId ? tasks.find((t) => t.id === dragId) ?? null : null;
 
@@ -218,6 +266,10 @@ export function TaskBoard({ tasks }: { tasks: Task[] }) {
     setDragId(null);
     setOverStatus(null);
   }, []);
+  // Any move/delete/edit can change which board(s) a task belongs to (a
+  // different project's page, /m/tasks, the project cockpit) — refresh so
+  // every host page re-syncs regardless of which route revalidatePath hit.
+  const onMoved = useCallback(() => router.refresh(), [router]);
 
   const drop = (status: TaskStatus) => {
     const id = dragId;
@@ -228,12 +280,13 @@ export function TaskBoard({ tasks }: { tasks: Task[] }) {
     if (!task || task.status === status) return;
     startMove(async () => {
       await setTaskStatus(id, status);
+      onMoved();
     });
   };
 
   return (
     <div>
-      <QuickAdd />
+      {!hideQuickAdd && <QuickAdd projectRef={quickAddProjectRef} />}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {COLUMNS.map((col) => {
           const items = tasks.filter((t) => t.status === col.status);
@@ -284,8 +337,15 @@ export function TaskBoard({ tasks }: { tasks: Task[] }) {
                       key={t.id}
                       task={t}
                       dragging={dragId === t.id}
+                      projectName={
+                        hideProjectBadge || !t.projectRef
+                          ? null
+                          : (projectNames[t.projectRef.split(":")[1]] ?? null)
+                      }
                       onDragStart={onDragStart}
                       onDragEnd={onDragEnd}
+                      onEdit={setEditing}
+                      onMoved={onMoved}
                     />
                   ))}
                 </AnimatePresence>
@@ -306,6 +366,14 @@ export function TaskBoard({ tasks }: { tasks: Task[] }) {
           );
         })}
       </div>
+
+      {editing && (
+        <TaskEditModal
+          task={editing}
+          projectOptions={projectOptions}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }

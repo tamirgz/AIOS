@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { ArrowRight, Check, Pencil, Target, X } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { HealthChip } from "./HealthChip";
-import type { ProjectHealth } from "../schema";
+import type { ProjectHealth, ProjectStatus } from "../schema";
 
 /** One inline-editable line (goal / next action). Enter or ✓ saves; Esc cancels. */
 function EditableLine({
@@ -119,7 +119,7 @@ export function CockpitHeader({
   setNextAction,
 }: {
   id: string;
-  status: "active" | "paused" | "done";
+  status: ProjectStatus;
   goal: string | null;
   nextAction: string | null;
   health: ProjectHealth;
