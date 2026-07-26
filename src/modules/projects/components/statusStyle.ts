@@ -1,8 +1,13 @@
 import type { ProjectStatus } from "../schema";
 
-/** Chip styling per project status — mono uppercase micro-chips. */
+/**
+ * Chip styling per project status — mono uppercase micro-chips.
+ * "paused" uses violet, distinct from the health chip's "at_risk" (solar) —
+ * they used to collide since both were amber.
+ */
 export const STATUS_CHIP: Record<ProjectStatus, string> = {
   active: "border-plasma/30 bg-plasma/10 text-plasma",
-  paused: "border-solar/30 bg-solar/10 text-solar",
+  paused: "border-violet/30 bg-violet/10 text-violet",
   done: "border-white/8 bg-white/4 text-ink-faint",
+  archived: "border-dashed border-white/8 bg-white/2 text-ink-faint/70",
 };

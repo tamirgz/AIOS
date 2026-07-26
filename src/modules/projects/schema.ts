@@ -7,7 +7,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { embeddingVector } from "@/core/db/vector";
 
-export const PROJECT_STATUSES = ["active", "paused", "done"] as const;
+export const PROJECT_STATUSES = ["active", "paused", "done", "archived"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
 /**
@@ -65,7 +65,7 @@ export const projects = pgTable("projects", {
 export type Project = typeof projects.$inferSelect;
 
 /** Sort helper: active → paused → done (text enum, so plain asc would be wrong). */
-export const statusRank = sql`case ${projects.status} when 'active' then 0 when 'paused' then 1 else 2 end`;
+export const statusRank = sql`case ${projects.status} when 'active' then 0 when 'paused' then 1 when 'done' then 2 else 3 end`;
 
 /** The entity ref stored in tasks.projectRef for a given project row. */
 export function projectRefOf(id: string) {
