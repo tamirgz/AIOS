@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowRight, FolderPlus } from "lucide-react";
+import { ArrowRight, ChevronDown, FolderPlus } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { createProject } from "../actions";
 import type { ProjectCockpit } from "../queries";
@@ -58,7 +58,13 @@ function NewProjectForm() {
   );
 }
 
-function ProjectCard({ project }: { project: ProjectCockpit }) {
+function ProjectCard({
+  project,
+  muted,
+}: {
+  project: ProjectCockpit;
+  muted?: boolean;
+}) {
   const { total, done, overdue } = project.taskCounts;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
@@ -67,13 +73,13 @@ function ProjectCard({ project }: { project: ProjectCockpit }) {
       layout
       layoutId={project.id}
       initial={{ opacity: 0, y: 10, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      animate={{ opacity: muted ? 0.72 : 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ type: "spring", stiffness: 420, damping: 34 }}
     >
       <Link
         href={`/m/projects/${project.id}`}
-        className="glass block rounded-xl p-4 transition hover:bg-white/4"
+        className="glass block rounded-xl p-4 transition hover:bg-white/4 hover:opacity-100"
       >
         <div className="flex items-start justify-between gap-3">
           <h2 className="font-display text-base font-medium text-ink">
@@ -129,22 +135,92 @@ function ProjectCard({ project }: { project: ProjectCockpit }) {
   );
 }
 
+function ProjectSection({
+  title,
+  projects,
+  muted,
+}: {
+  title: string;
+  projects: ProjectCockpit[];
+  muted?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <AnimatePresence mode="popLayout">
+        {projects.map((p) => (
+          <ProjectCard key={p.id} project={p} muted={muted} />
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/** Paused/done/archived aren't day-to-day — collapsed by default so they don't crowd out what's active. */
+function InactiveProjects({ projects }: { projects: ProjectCockpit[] }) {
+  const [open, setOpen] = useState(false);
+  if (projects.length === 0) return null;
+
+  return (
+    <div className="mt-8">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="mb-3 flex w-full items-center gap-2 border-t border-white/6 pt-5 text-left"
+      >
+        <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">
+          paused · done · archived
+        </span>
+        <span className="font-mono text-xs tabular-nums text-ink-faint">
+          {projects.length}
+        </span>
+        <ChevronDown
+          className={cn(
+            "ml-auto size-3.5 text-ink-faint transition-transform",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      {open && <ProjectSection title="" projects={projects} muted />}
+    </div>
+  );
+}
+
 export function ProjectGrid({ projects }: { projects: ProjectCockpit[] }) {
+  const { active, inactive } = useMemo(() => {
+    const active: ProjectCockpit[] = [];
+    const inactive: ProjectCockpit[] = [];
+    for (const p of projects) (p.status === "active" ? active : inactive).push(p);
+    return { active, inactive };
+  }, [projects]);
+
   return (
     <div>
       <NewProjectForm />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <AnimatePresence mode="popLayout">
-          {projects.map((p) => (
-            <ProjectCard key={p.id} project={p} />
-          ))}
-        </AnimatePresence>
-      </div>
+
+      {active.length > 0 && (
+        <div className="mb-3 flex items-center gap-2 px-1">
+          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">
+            active
+          </span>
+          <span className="font-mono text-xs tabular-nums text-ink-faint">
+            {active.length}
+          </span>
+        </div>
+      )}
+      <ProjectSection title="Active" projects={active} />
+
       {projects.length === 0 && (
         <div className="rounded-xl border border-dashed border-white/6 py-12 text-center font-mono text-[10px] uppercase tracking-widest text-ink-faint">
           no projects yet — start one above
         </div>
       )}
+      {projects.length > 0 && active.length === 0 && (
+        <div className="rounded-xl border border-dashed border-white/6 py-8 text-center font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+          no active projects — see paused/done/archived below
+        </div>
+      )}
+
+      <InactiveProjects projects={inactive} />
     </div>
   );
 }
