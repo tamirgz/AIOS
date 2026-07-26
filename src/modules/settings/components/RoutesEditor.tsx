@@ -1,44 +1,28 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/core/ui/cn";
+import { useProviderModels } from "@/core/ui/useProviderModels";
 import type { AiRoute, AIProviderId } from "@/core/db/schema/ai-routes";
 import { AI_PROVIDERS } from "@/core/db/schema/ai-routes";
 import { saveRoute } from "../actions";
 
 const KEY_LABELS: Record<string, string> = {
   chat: "⌘K chat & commands",
-  "agent.default": "Agents (default)",
+  "agent.default": "Agents (default, no per-agent override)",
   "knowledge.enrich": "Knowledge enrichment",
   "inbox.triage": "Inbox triage",
   "ideas.analyze": "Idea reality-check",
+  ask: "Ask (cited Q&A)",
 };
 
 function RouteRow({ route }: { route: AiRoute }) {
   const [provider, setProvider] = useState<AIProviderId>(route.provider);
   const [model, setModel] = useState(route.model);
-  const [models, setModels] = useState<string[]>([]);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [savedTick, setSavedTick] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setModels([]);
-    setLoadError(null);
-    fetch(`/api/ai/models?provider=${provider}`)
-      .then((r) => r.json())
-      .then((d: { models: string[]; error?: string }) => {
-        if (cancelled) return;
-        setModels(d.models);
-        if (d.error) setLoadError(d.error);
-      })
-      .catch((e) => !cancelled && setLoadError(String(e)));
-    return () => {
-      cancelled = true;
-    };
-  }, [provider]);
+  const { models, error: loadError } = useProviderModels(provider);
 
   const dirty = provider !== route.provider || model !== route.model;
 

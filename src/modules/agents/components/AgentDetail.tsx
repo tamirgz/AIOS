@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronDown, Play, Trash2, Wrench } from "lucide-react";
 import type { Agent, AgentRun } from "@/core/db/schema/agents";
+import { AI_PROVIDERS, isCloudProvider, type AIProviderId } from "@/core/db/schema/ai-routes";
 import { cn } from "@/core/ui/cn";
 import { useLiveEvents } from "@/core/ui/useLiveEvents";
+import { useProviderModels } from "@/core/ui/useProviderModels";
 import { deleteAgent, requestRun, updateAgent } from "../actions";
 import { RUN_STATUS_META, runDuration } from "./runMeta";
 
@@ -132,10 +134,13 @@ export function AgentDetail({
   agent,
   runs,
   allTools,
+  defaultRoute,
 }: {
   agent: Agent;
   runs: AgentRun[];
   allTools: string[];
+  /** What this agent falls back to when it has no provider/model override. */
+  defaultRoute: { providerId: AIProviderId; model: string };
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -147,15 +152,27 @@ export function AgentDetail({
   const [prompt, setPrompt] = useState(agent.prompt);
   const [schedule, setSchedule] = useState(agent.schedule ?? "");
   const [tools, setTools] = useState<string[]>(agent.tools);
+  const [provider, setProvider] = useState<AIProviderId | "">(agent.provider ?? "");
+  const [model, setModel] = useState(agent.model ?? "");
+  const [fallbackModel, setFallbackModel] = useState(agent.fallbackModel ?? "");
 
   useLiveEvents(["agent_runs"]);
+
+  const { models } = useProviderModels(provider);
+  // The fallback is always a LOCAL retry target, regardless of the primary
+  // provider — only relevant (and only shown) when the primary is cloud.
+  const { models: ollamaModels } = useProviderModels(provider ? "ollama" : "");
+  const showFallback = provider !== "" && isCloudProvider(provider);
 
   const dirty =
     name !== agent.name ||
     description !== (agent.description ?? "") ||
     prompt !== agent.prompt ||
     schedule !== (agent.schedule ?? "") ||
-    JSON.stringify(tools) !== JSON.stringify(agent.tools);
+    JSON.stringify(tools) !== JSON.stringify(agent.tools) ||
+    provider !== (agent.provider ?? "") ||
+    model !== (agent.model ?? "") ||
+    fallbackModel !== (agent.fallbackModel ?? "");
 
   const grouped = allTools.reduce<Record<string, string[]>>((acc, t) => {
     const mod = t.split(".")[0];
@@ -246,6 +263,74 @@ export function AgentDetail({
           )}
         </div>
         <div>
+          <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">
+            model
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={provider}
+              onChange={(e) => {
+                setProvider(e.target.value as AIProviderId | "");
+                setModel("");
+              }}
+              className="h-9 rounded-lg border border-white/8 bg-abyss/50 px-3 font-mono text-xs text-ink outline-none focus:border-flare/30"
+            >
+              <option value="">use default route</option>
+              {AI_PROVIDERS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            {provider && (
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className="h-9 min-w-56 flex-1 rounded-lg border border-white/8 bg-abyss/50 px-3 font-mono text-xs text-ink outline-none focus:border-flare/30"
+              >
+                {model && !models.includes(model) && (
+                  <option value={model}>{model}</option>
+                )}
+                <option value="" disabled>
+                  {models.length ? "select model…" : "loading models…"}
+                </option>
+                {models.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          {!provider && (
+            <p className="mt-1.5 font-mono text-[10px] text-ink-faint">
+              no override — currently uses the default route:{" "}
+              <span className="text-ink-dim">
+                {defaultRoute.providerId} / {defaultRoute.model}
+              </span>
+            </p>
+          )}
+          {showFallback && (
+            <div className="mt-2.5">
+              <p className="mb-1.5 font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+                fallback (local) — retried automatically if the cloud call fails
+              </p>
+              <select
+                value={fallbackModel}
+                onChange={(e) => setFallbackModel(e.target.value)}
+                className="h-9 w-64 rounded-lg border border-white/8 bg-abyss/50 px-3 font-mono text-xs text-ink outline-none focus:border-flare/30"
+              >
+                <option value="">no fallback</option>
+                {ollamaModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+        <div>
           <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">
             allowed tools{" "}
             <span className="normal-case tracking-normal">
@@ -286,7 +371,7 @@ export function AgentDetail({
         </div>
         <button
           type="button"
-          disabled={!dirty || pending}
+          disabled={!dirty || pending || (provider !== "" && !model)}
           onClick={() =>
             startTransition(async () => {
               try {
@@ -296,6 +381,10 @@ export function AgentDetail({
                   prompt,
                   schedule: schedule || null,
                   tools,
+                  provider: provider || null,
+                  model: provider ? model : null,
+                  // Only meaningful with a cloud primary — clear it otherwise.
+                  fallbackModel: showFallback ? fallbackModel || null : null,
                 });
                 setScheduleError(null);
               } catch (e) {

@@ -12,6 +12,11 @@ export const providers: Record<AIProviderId, AIProvider> = {
   nvidia: nvidiaProvider,
 };
 
+// Re-exported for server-side callers that already import this module —
+// the actual definition lives in the schema file so client components can
+// use it without pulling in the provider SDKs above (see that file's comment).
+export { CLOUD_PROVIDERS, isCloudProvider } from "@/core/db/schema/ai-routes";
+
 export interface ResolvedRoute {
   taskKey: string;
   provider: AIProvider;
