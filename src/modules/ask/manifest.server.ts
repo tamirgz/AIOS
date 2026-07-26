@@ -1,4 +1,5 @@
 import type { ModuleServerManifest } from "@/core/modules/types.server";
+import { askHistory } from "./schema";
 import { AskPage } from "./pages/AskPage";
 
 export const askServerManifest: ModuleServerManifest = {
@@ -7,7 +8,7 @@ export const askServerManifest: ModuleServerManifest = {
     "": AskPage,
   },
   widgets: [],
-  schema: {},
+  schema: { askHistory },
   aiTools: [],
   agentTemplates: [],
 };
