@@ -3,10 +3,24 @@
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { motion } from "motion/react";
-import { ArrowUp, FileText, Lightbulb, Paperclip, Sparkles, BookOpen, CheckSquare } from "lucide-react";
+import {
+  ArrowUp,
+  Bell,
+  CheckSquare,
+  BookOpen,
+  ChevronDown,
+  FileText,
+  FolderKanban,
+  History,
+  Lightbulb,
+  Paperclip,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { cn } from "@/core/ui/cn";
-import { ask } from "../actions";
+import { ask, deleteAskHistoryEntry } from "../actions";
 import type { AskAnswer, AskSource } from "../answer";
+import type { AskHistoryEntry } from "../schema";
 
 const KIND_ICON: Record<string, typeof FileText> = {
   note: FileText,
@@ -16,6 +30,8 @@ const KIND_ICON: Record<string, typeof FileText> = {
   task: CheckSquare,
   notion: FileText,
   file: Paperclip,
+  project: FolderKanban,
+  attention: Bell,
 };
 
 /** Render answer text with [n] turned into clickable citation chips. */
@@ -46,10 +62,18 @@ function CitedAnswer({ text, sources }: { text: string; sources: AskSource[] }) 
   );
 }
 
-export function AskConsole() {
+function formatWhen(d: Date | string): string {
+  return new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry[] }) {
   const [pending, start] = useTransition();
+  const [, startDelete] = useTransition();
   const [result, setResult] = useState<AskAnswer | null>(null);
   const [asked, setAsked] = useState("");
+  const [history, setHistory] = useState<AskHistoryEntry[]>(initialHistory);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const submit = () => {
@@ -57,7 +81,47 @@ export function AskConsole() {
     if (!q || pending) return;
     setAsked(q);
     setResult(null);
-    start(async () => setResult(await ask(q)));
+    setActiveId(null);
+    start(async () => {
+      const r = await ask(q);
+      setResult(r);
+      if (r.historyId) {
+        setActiveId(r.historyId);
+        setHistory((prev) => [
+          {
+            id: r.historyId!,
+            query: q,
+            answer: r.answer,
+            sources: r.sources,
+            model: r.model || null,
+            createdAt: new Date(),
+          },
+          ...prev,
+        ]);
+      }
+      if (inputRef.current) inputRef.current.value = "";
+    });
+  };
+
+  // Instant — no retrieval, no LLM call, just the already-computed answer.
+  const loadFromHistory = (entry: AskHistoryEntry) => {
+    setAsked(entry.query);
+    setResult({ answer: entry.answer, sources: entry.sources, model: entry.model ?? "" });
+    setActiveId(entry.id);
+  };
+
+  const deleteEntry = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setHistory((prev) => prev.filter((h) => h.id !== id));
+    if (activeId === id) {
+      setActiveId(null);
+      setAsked("");
+      setResult(null);
+    }
+    startDelete(async () => {
+      await deleteAskHistoryEntry(id);
+    });
   };
 
   return (
@@ -66,7 +130,7 @@ export function AskConsole() {
         <Sparkles className="mx-auto mb-2 size-6 text-plasma" />
         <h1 className="font-display text-2xl font-semibold text-ink">Ask your knowledge</h1>
         <p className="mt-1 text-sm text-ink-dim">
-          Cited answers from your notes, knowledge, vault, ideas and tasks — nothing from outside.
+          Cited answers from your notes, knowledge, vault, ideas, tasks and files — nothing from outside.
         </p>
       </div>
 
@@ -98,6 +162,57 @@ export function AskConsole() {
           <ArrowUp className="size-4" />
         </button>
       </form>
+
+      <div>
+        <button
+          type="button"
+          onClick={() => setHistoryOpen((o) => !o)}
+          className="flex items-center gap-2 rounded-lg px-1 py-1 font-mono text-[10px] uppercase tracking-widest text-ink-faint transition hover:text-ink-dim"
+        >
+          <History className="size-3.5" />
+          recent questions
+          <span className="tabular-nums text-ink-faint">{history.length}</span>
+          <ChevronDown className={cn("size-3 transition-transform", historyOpen && "rotate-180")} />
+        </button>
+        {historyOpen && (
+          <div className="mt-2 flex flex-col gap-1.5">
+            {history.length === 0 && (
+              <p className="py-3 text-center font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+                no questions yet
+              </p>
+            )}
+            {history.map((h) => (
+              <div
+                key={h.id}
+                className={cn(
+                  "group glass flex items-center gap-2 rounded-xl px-3 py-2 transition",
+                  activeId === h.id ? "bg-plasma/8" : "hover:bg-white/4",
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => loadFromHistory(h)}
+                  title="Show this answer — already computed, no re-query"
+                  className="min-w-0 flex-1 truncate text-left text-sm text-ink-dim transition hover:text-ink"
+                >
+                  {h.query}
+                </button>
+                <span className="shrink-0 font-mono text-[9px] text-ink-faint">
+                  {formatWhen(h.createdAt)}
+                </span>
+                <button
+                  type="button"
+                  title="Delete this question"
+                  onClick={(e) => deleteEntry(h.id, e)}
+                  className="shrink-0 rounded-md p-1 text-ink-faint opacity-0 transition group-hover:opacity-100 hover:bg-flare/10 hover:text-flare"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {asked && (
         <div className="flex flex-col gap-4">
