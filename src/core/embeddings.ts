@@ -5,7 +5,7 @@ import { knowledgeItems } from "@/modules/knowledge/schema";
 import { tasks } from "@/modules/tasks/schema";
 import { obsidianNotes } from "@/modules/obsidian/schema";
 import { ideas } from "@/modules/ideas/schema";
-import { projects } from "@/modules/projects/schema";
+import { projectFiles, projects } from "@/modules/projects/schema";
 import { notionPages } from "@/modules/notion/schema";
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
@@ -62,6 +62,7 @@ async function handleModelSwitch(log: (m: string) => void): Promise<void> {
   await db.update(obsidianNotes).set({ embedding: null });
   await db.update(ideas).set({ embedding: null });
   await db.update(notionPages).set({ embedding: null });
+  await db.update(projectFiles).set({ embedding: null });
   await setSetting(ACTIVE_MODEL_KEY, configured);
 }
 
@@ -208,6 +209,28 @@ export async function sweepEmbeddings(
     done++;
   }
 
+  // Project files whose text extraction finished (status='ready') — skips
+  // rows still processing or that came back unsupported/error.
+  const fileRows = await db
+    .select({
+      id: projectFiles.id,
+      filename: projectFiles.filename,
+      extractedText: projectFiles.extractedText,
+    })
+    .from(projectFiles)
+    .where(
+      dsql`${projectFiles.embedding} is null and ${projectFiles.status} = 'ready'`,
+    )
+    .limit(20);
+  for (const f of fileRows) {
+    const e = await embedText(`${f.filename}\n${f.extractedText ?? ""}`);
+    await db
+      .update(projectFiles)
+      .set({ embedding: dsql`${toVec(e)}::vector` })
+      .where(dsql`${projectFiles.id} = ${f.id}`);
+    done++;
+  }
+
   // Tell open pages that search/connections just got fresher data, so a note
   // you just typed shows its connections without a manual reload.
   if (done > 0) await sql.notify("embeddings_updated", String(done));
@@ -215,7 +238,7 @@ export async function sweepEmbeddings(
 }
 
 export interface SemanticHit {
-  kind: "note" | "knowledge" | "task" | "vault" | "idea" | "notion";
+  kind: "note" | "knowledge" | "task" | "vault" | "idea" | "notion" | "file";
   id: string;
   title: string;
   snippet: string | null;
@@ -236,6 +259,9 @@ function hitHref(kind: string, id: string): string {
       return `obsidian://open?path=${encodeURIComponent(id)}`;
     case "notion":
       return "/m/notion";
+    // Opens/downloads the actual attached file.
+    case "file":
+      return `/api/projects/files/${id}`;
     default:
       return "/m/tasks";
   }
@@ -277,6 +303,10 @@ export async function searchEverything(
     (select 'notion', id, title, left(coalesce(content, ''), 160),
             (embedding <=> ${vec}::vector)
        from notion_pages where embedding is not null)
+    union all
+    (select 'file', id::text, filename, left(coalesce(extracted_text, ''), 160),
+            (embedding <=> ${vec}::vector)
+       from project_files where embedding is not null)
     order by distance asc
     limit ${limit}
   `);

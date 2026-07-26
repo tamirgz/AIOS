@@ -63,6 +63,8 @@ export async function updateProject(
 }
 
 export async function deleteProject(id: string) {
+  const { deleteProjectFilesFor } = await import("./files-actions");
+  await deleteProjectFilesFor(id); // app-level cascade — files have no DB FK
   await db.delete(projects).where(eq(projects.id, id));
   revalidateProjects(id);
 }

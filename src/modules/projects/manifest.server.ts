@@ -1,6 +1,7 @@
 import type { ModuleServerManifest } from "@/core/modules/types.server";
-import { projects } from "./schema";
+import { projectFiles, projects } from "./schema";
 import { projectTools } from "./tools";
+import { projectFilesJobs } from "./files-pipeline";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { ActiveProjectsWidget } from "./widgets/ActiveProjectsWidget";
@@ -19,8 +20,9 @@ export const projectsServerManifest: ModuleServerManifest = {
       component: ActiveProjectsWidget,
     },
   ],
-  schema: { projects },
+  schema: { projects, projectFiles },
   aiTools: projectTools,
+  jobs: projectFilesJobs,
   agentTemplates: [
     {
       id: "project-pulse",

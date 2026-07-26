@@ -9,9 +9,11 @@ import { ProjectAttention } from "../components/ProjectAttention";
 import { DeleteProjectButton } from "../components/DeleteProjectButton";
 import { ProjectTaskQuickAdd } from "../components/ProjectTaskQuickAdd";
 import { ProjectNotes } from "../components/ProjectNotes";
+import { ProjectFiles } from "../components/ProjectFiles";
 import { StatusCycleButton } from "../components/StatusCycleButton";
 import { ProjectTitle } from "../components/ProjectTitle";
 import { TaskBoard } from "../../tasks/components/TaskBoard";
+import { listProjectFiles } from "../files-actions";
 
 function lastActiveLabel(d: Date | null): string {
   if (!d) return "no activity";
@@ -46,12 +48,14 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
 
   const { listNotesForProject } = await import("@/modules/notes/actions");
   const { listAttentionForProject } = await import("@/modules/today/queries");
-  const [projectTasks, projectNotes, attention, allProjects] = await Promise.all([
-    getProjectTasks(id),
-    listNotesForProject(id).catch(() => []),
-    listAttentionForProject(id).catch(() => []),
-    listProjects(),
-  ]);
+  const [projectTasks, projectNotes, attention, allProjects, projectFiles] =
+    await Promise.all([
+      getProjectTasks(id),
+      listNotesForProject(id).catch(() => []),
+      listAttentionForProject(id).catch(() => []),
+      listProjects(),
+      listProjectFiles(id),
+    ]);
   const projectOptions = allProjects.map((p) => ({ id: p.id, name: p.name }));
   const done = projectTasks.filter((t) => t.status === "done").length;
   const openAttention = attention.filter((a) => a.status === "open");
@@ -123,6 +127,8 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
       />
 
       <ProjectNotes projectId={project.id} notes={projectNotes} />
+
+      <ProjectFiles projectId={project.id} files={projectFiles} />
     </div>
   );
 }
