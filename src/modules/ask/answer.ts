@@ -12,7 +12,7 @@
  */
 import { and, eq } from "drizzle-orm";
 import { resolveRoute } from "@/core/ai/routing";
-import { searchEverything } from "@/core/embeddings";
+import { searchEverything, RELATED_MAX_DISTANCE } from "@/core/embeddings";
 import { db } from "@/core/db/client";
 import { projectFiles, projects } from "@/modules/projects/schema";
 import { tasks } from "@/modules/tasks/schema";
@@ -44,7 +44,7 @@ const MAX_ATTENTION = 15;
  */
 async function buildProjectDossier(
   query: string,
-): Promise<{ sources: AskSource[]; seen: Set<string> }> {
+): Promise<{ sources: AskSource[]; seen: Set<string>; matchedNames: string[] }> {
   const allProjects = await db
     .select({
       id: projects.id,
@@ -146,21 +146,34 @@ async function buildProjectDossier(
     }
   }
 
-  return { sources, seen };
+  return { sources, seen, matchedNames: matched.map((p) => p.name) };
 }
 
 export async function answerQuestion(query: string): Promise<AskAnswer> {
   const q = query.trim();
   if (!q) return { answer: "", sources: [], model: "" };
 
-  const { sources: dossier, seen } = await buildProjectDossier(q);
+  const { sources: dossier, seen, matchedNames } = await buildProjectDossier(q);
 
   // The dossier already carries the bulk for an entity-specific question;
-  // fewer semantic slots are needed alongside it, and dossier-covered rows
-  // are excluded so nothing shows up twice.
-  const hits = (await searchEverything(q, dossier.length > 0 ? 6 : 10)).filter(
-    (h) => !seen.has(`${h.kind}:${h.id}`),
-  );
+  // fewer semantic slots are needed alongside it.
+  const raw = await searchEverything(q, dossier.length > 0 ? 6 : 10);
+  const names = matchedNames.map((n) => n.toLowerCase());
+  const hits = raw.filter((h) => {
+    if (seen.has(`${h.kind}:${h.id}`)) return false; // already in the dossier
+    // Drop weak-similarity noise everywhere (codebase-calibrated: >0.55 is
+    // vocabulary overlap, not real relevance).
+    if (h.distance > RELATED_MAX_DISTANCE) return false;
+    // When answering about specific project(s), a semantic extra only earns a
+    // slot if it actually mentions one of them — otherwise it's just
+    // topically-adjacent clutter (e.g. a generic "Websites" vault note that
+    // shares words with the project but says nothing about it).
+    if (names.length > 0) {
+      const hay = `${h.title} ${h.snippet ?? ""}`.toLowerCase();
+      return names.some((n) => hay.includes(n));
+    }
+    return true;
+  });
 
   const combined = [...dossier, ...hits];
   if (combined.length === 0) {

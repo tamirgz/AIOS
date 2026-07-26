@@ -325,7 +325,7 @@ export async function searchEverything(
 //  cross-type relations engine used by every detail page.)
 // Quality gates. Cosine distance: 0 = identical, 1 = orthogonal. In a personal
 // corpus, < ~0.55 is a genuine thematic match; looser than that is noise.
-const RELATED_MAX_DISTANCE = 0.55;
+export const RELATED_MAX_DISTANCE = 0.55;
 const PROJECT_STRONG = 0.45;
 const PROJECT_POSSIBLE = 0.58;
 
