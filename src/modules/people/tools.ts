@@ -48,7 +48,7 @@ export const peopleTools: AiToolDef[] = [
   {
     name: "followup.raise",
     description:
-      "Raise a follow-up as a card in the 'Needs you' queue, anchored to a person. Use type 'do' for a concrete step you should take, 'approve' only when a real side-effect (e.g. sending a message) needs sign-off, 'notify' for an FYI. Give a stable dedupeKey like 'followup:<email>:<YYYY-MM-DD>' so re-running doesn't duplicate.",
+      "Raise a follow-up as a card in the 'Needs you' queue, anchored to a person. Use type 'do' for a concrete step you should take, 'approve' only when a real side-effect (e.g. sending a message) needs sign-off, 'notify' for an FYI. Deduplication is automatic — at most one open card per (person + title), so re-running never duplicates; you don't need to manage a key.",
     input: z.object({
       personId: z.string().uuid(),
       type: z.enum(ATTENTION_TYPES).default("do"),

@@ -16,7 +16,7 @@ export const todayTools: AiToolDef[] = [
   {
     name: "attention.raise",
     description:
-      "Surface something that needs the user's attention as a card in the 'Needs you' queue. Use a stable dedupeKey (e.g. 'stall:blokbox:2026-W30') so re-running does not create duplicates. Prefer 'notify' for FYIs, 'do' for a suggested next action, 'question' for a decision, 'approve' only when a real side-effect needs sign-off.",
+      "Surface something that needs the user's attention as a card in the 'Needs you' queue. Deduplication is automatic — at most one open card per (project + title), so re-running, or another agent raising the same thing, never creates a duplicate; you don't need to manage a key. Prefer 'notify' for FYIs, 'do' for a suggested next action, 'question' for a decision, 'approve' only when a real side-effect needs sign-off.",
     input: z.object({
       type: z.enum(ATTENTION_TYPES),
       title: z.string().min(3),
