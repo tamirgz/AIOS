@@ -19,8 +19,9 @@ async function ping() {
 
 /**
  * Raise an attention item — the one write path agents and the system use.
- * Idempotent on `dedupeKey`: if an OPEN card with the same key exists, this is
- * a no-op, so a re-running agent never stacks duplicate nudges.
+ * Idempotent on a content key (project + person + title): if an OPEN card for
+ * the same thing exists, this is a no-op, so a re-running agent — or a
+ * different agent raising the same item — never stacks a duplicate nudge.
  */
 export async function raiseAttention(input: RaiseInput) {
   const row = await insertAttentionItem(input);

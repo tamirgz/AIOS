@@ -1,0 +1,2 @@
+DROP INDEX "attention_dedupe";--> statement-breakpoint
+CREATE UNIQUE INDEX "attention_dedupe_open" ON "attention_items" USING btree ("dedupe_key") WHERE "attention_items"."status" = 'open' and "attention_items"."dedupe_key" is not null;

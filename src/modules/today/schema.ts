@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   index,
   integer,
@@ -5,6 +6,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -75,8 +77,13 @@ export const attentionItems = pgTable(
     index("attention_status").on(t.status, t.urgency),
     index("attention_project").on(t.projectRef),
     index("attention_person").on(t.personRef),
-    // One open card per dedupe key — the agent idempotency guarantee.
-    index("attention_dedupe").on(t.dedupeKey),
+    // DB-level idempotency guard: at most one OPEN card per dedupe key, so a
+    // re-running agent can never stack a duplicate nudge (mirrors the
+    // agent_ledger / agent_runs_one_live partial-unique convention). NULL keys
+    // are exempt, but insertAttentionItem always derives one.
+    uniqueIndex("attention_dedupe_open")
+      .on(t.dedupeKey)
+      .where(sql`${t.status} = 'open' and ${t.dedupeKey} is not null`),
   ],
 );
 
