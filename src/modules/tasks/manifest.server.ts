@@ -4,6 +4,7 @@ import { taskTools } from "./tools";
 import { TasksPage } from "./pages/TasksPage";
 import { OpenTasksWidget } from "./widgets/OpenTasksWidget";
 import { UpNextWidget } from "./widgets/UpNextWidget";
+import { TaskLoadStat } from "./widgets/TaskLoadStat";
 
 export const tasksServerManifest: ModuleServerManifest = {
   id: "tasks",
@@ -16,8 +17,17 @@ export const tasksServerManifest: ModuleServerManifest = {
       title: "Task load",
       size: "sm",
       component: OpenTasksWidget,
+      priority: 3,
+      stat: TaskLoadStat,
     },
-    { id: "up-next", title: "Up next", size: "md", component: UpNextWidget },
+    {
+      id: "up-next",
+      title: "Up next",
+      size: "md",
+      component: UpNextWidget,
+      priority: 1,
+      span: 4,
+    },
   ],
   schema: { tasks },
   aiTools: taskTools,

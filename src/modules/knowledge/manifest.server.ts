@@ -5,6 +5,7 @@ import { knowledgeJobs } from "./pipeline";
 import { KnowledgePage } from "./pages/KnowledgePage";
 import { KnowledgeDetailPage } from "./pages/KnowledgeDetailPage";
 import { RecentKnowledgeWidget } from "./widgets/RecentKnowledgeWidget";
+import { KnowledgeStat } from "./widgets/KnowledgeStat";
 
 export const knowledgeServerManifest: ModuleServerManifest = {
   id: "knowledge",
@@ -18,6 +19,8 @@ export const knowledgeServerManifest: ModuleServerManifest = {
       title: "Knowledge intake",
       size: "md",
       component: RecentKnowledgeWidget,
+      priority: 3,
+      stat: KnowledgeStat,
     },
   ],
   schema: { knowledgeItems },

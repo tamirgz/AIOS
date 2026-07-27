@@ -4,6 +4,7 @@ import { noteTools } from "./tools";
 import { NotesPage } from "./pages/NotesPage";
 import { NoteDetailPage } from "./pages/NoteDetailPage";
 import { RecentNotesWidget } from "./widgets/RecentNotesWidget";
+import { NotesStat } from "./widgets/NotesStat";
 
 export const notesServerManifest: ModuleServerManifest = {
   id: "notes",
@@ -17,6 +18,8 @@ export const notesServerManifest: ModuleServerManifest = {
       title: "Recent notes",
       size: "md",
       component: RecentNotesWidget,
+      priority: 3,
+      stat: NotesStat,
     },
   ],
   schema: { notes },

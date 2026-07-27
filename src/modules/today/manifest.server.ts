@@ -3,7 +3,7 @@ import { attentionItems } from "./schema";
 import { todayTools } from "./tools";
 import { todayJobs } from "./jobs";
 import { TodayPage } from "./pages/TodayPage";
-import { TodayWidget } from "./widgets/TodayWidget";
+import { NeedsYouWidget } from "./widgets/NeedsYouWidget";
 
 export const todayServerManifest: ModuleServerManifest = {
   id: "today",
@@ -13,9 +13,11 @@ export const todayServerManifest: ModuleServerManifest = {
   widgets: [
     {
       id: "today-focus",
-      title: "Today",
-      size: "sm",
-      component: TodayWidget,
+      title: "Needs you",
+      size: "md",
+      component: NeedsYouWidget,
+      priority: 1,
+      span: 2,
     },
   ],
   schema: { attentionItems },
