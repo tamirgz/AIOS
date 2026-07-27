@@ -26,31 +26,29 @@ export async function UpNextWidget() {
     );
   }
 
+  // Horizontal cells: reads as a "work queue" strip across the full-width
+  // tier-1 slot (one column per next task), instead of a tall vertical list.
   return (
-    <ul className="flex flex-col gap-2">
+    <div className="grid h-full grid-cols-1 gap-px overflow-hidden rounded-lg bg-white/5 sm:grid-cols-2 lg:grid-cols-5">
       {rows.map((t) => (
-        <li key={t.id}>
-          <Link
-            href="/m/tasks"
-            className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition hover:bg-white/4"
+        <Link
+          key={t.id}
+          href="/m/tasks"
+          className="group flex flex-col gap-1.5 bg-abyss/60 p-3 transition hover:bg-white/4"
+        >
+          <span
+            className={cn(
+              "font-mono text-[9px] uppercase tracking-widest",
+              PRIORITY_COLOR[t.priority],
+            )}
           >
-            <span
-              className={cn(
-                "font-mono text-[9px]",
-                PRIORITY_COLOR[t.priority],
-              )}
-            >
-              ▲
-            </span>
-            <span className="flex-1 truncate text-sm text-ink-dim transition group-hover:text-ink">
-              {t.title}
-            </span>
-            <span className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
-              {t.status}
-            </span>
-          </Link>
-        </li>
+            ▲ {t.status}
+          </span>
+          <span className="line-clamp-2 text-[13px] leading-snug text-ink-dim transition group-hover:text-ink">
+            {t.title}
+          </span>
+        </Link>
       ))}
-    </ul>
+    </div>
   );
 }

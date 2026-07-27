@@ -63,6 +63,22 @@ export interface ModuleWidget {
   size: "sm" | "md" | "lg";
   /** May be an async server component — rendered by the dashboard grid. */
   component: ComponentType;
+  /**
+   * Dashboard value tier, controlling prominence:
+   *   1 = "Now" — what needs the user + today's agenda + what to work on next
+   *   2 = "In motion" — active work & automation state (default)
+   *   3 = "Ambient" — passive counts, rendered as a compact stat in the pulse
+   *       strip rather than a full card (requires `stat`).
+   */
+  priority?: 1 | 2 | 3;
+  /** Column span within its tier's grid (tier 1 emphasis). Default 1. */
+  span?: number;
+  /**
+   * Compact single-stat form for the tier-3 pulse strip. When a priority-3
+   * widget provides this, the dashboard renders it in the strip instead of
+   * the full `component`.
+   */
+  stat?: ComponentType;
 }
 
 export interface ModuleRouteProps {
