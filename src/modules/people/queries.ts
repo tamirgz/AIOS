@@ -61,6 +61,7 @@ export async function recentMeetings(days = 3, db: Db = defaultDb) {
     .select({
       id: calendarEvents.id,
       title: calendarEvents.title,
+      notes: calendarEvents.notes,
       startAt: calendarEvents.startAt,
       attendees: calendarEvents.attendees,
     })
