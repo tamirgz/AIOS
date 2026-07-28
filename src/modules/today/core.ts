@@ -6,7 +6,31 @@
  */
 import { and, eq, sql as dsql } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
+import { embedText } from "@/core/embeddings";
 import { attentionItems, type AttentionType } from "./schema";
+
+// Below this cosine distance, two attention titles are treated as the same
+// real item. Calibrated against live data: reworded duplicates measured
+// 0.16–0.23, genuinely-distinct tasks 0.49+, so 0.35 separates them with a
+// wide margin (well under the codebase's 0.55 "related" gate).
+const ATTENTION_DUP_DISTANCE = 0.35;
+
+const toVec = (e: number[]) => `[${e.join(",")}]`;
+
+/**
+ * Canonicalize an entity ref to "<kind>:<uuid>". Agents pass the anchor
+ * inconsistently — sometimes "projects:<uuid>", sometimes a bare "<uuid>" —
+ * which both breaks the content dedupe key (same task, two keys) and leaves
+ * the card unlinked in the UI. Normalizing fixes both.
+ */
+export function normalizeRef(
+  ref: string | null | undefined,
+  kind: "projects" | "people",
+): string | null {
+  if (!ref) return null;
+  const bare = ref.startsWith(`${kind}:`) ? ref.slice(kind.length + 1) : ref;
+  return `${kind}:${bare}`;
+}
 
 export interface RaiseInput {
   type: AttentionType;
@@ -67,15 +91,13 @@ function isUniqueViolation(e: unknown): boolean {
  */
 export async function insertAttentionItem(input: RaiseInput) {
   const source = input.source ?? "system";
-  // Always a content key — see deriveDedupeKey on why the caller's own
-  // dedupeKey is not used for matching (it can't dedupe across agents).
-  const dedupeKey = deriveDedupeKey({
-    projectRef: input.projectRef,
-    personRef: input.personRef,
-    title: input.title,
-  });
+  const projectRef = normalizeRef(input.projectRef, "projects");
+  const personRef = normalizeRef(input.personRef, "people");
+  // Content key off the NORMALIZED refs — so "projects:<id>" and a bare "<id>"
+  // from an inconsistent agent collapse to one key.
+  const dedupeKey = deriveDedupeKey({ projectRef, personRef, title: input.title });
 
-  const findOpen = async () => {
+  const findOpenByKey = async () => {
     const [existing] = await db
       .select()
       .from(attentionItems)
@@ -89,8 +111,35 @@ export async function insertAttentionItem(input: RaiseInput) {
     return existing;
   };
 
-  const existing = await findOpen();
-  if (existing) return existing;
+  // 1. Exact content match (cheap) — a re-run of the identical card.
+  const exact = await findOpenByKey();
+  if (exact) return exact;
+
+  // 2. Semantic match — the same task reworded, or raised under a different
+  // anchor by another agent, which the content key can't catch. Best-effort:
+  // if embedding is unavailable (Ollama down), fall through to a plain insert
+  // rather than blocking the raise.
+  let embedding: number[] | null = null;
+  try {
+    embedding = await embedText(input.title.trim());
+    const [near] = await db.execute<{ id: string; distance: number }>(dsql`
+      select id, (embedding <=> ${toVec(embedding)}::vector) as distance
+      from attention_items
+      where status = 'open' and embedding is not null
+      order by distance asc
+      limit 1
+    `);
+    if (near && Number(near.distance) < ATTENTION_DUP_DISTANCE) {
+      const [dup] = await db
+        .select()
+        .from(attentionItems)
+        .where(eq(attentionItems.id, near.id))
+        .limit(1);
+      if (dup) return dup;
+    }
+  } catch {
+    embedding = null; // degrade gracefully to content-hash-only dedup
+  }
 
   try {
     const [row] = await db
@@ -99,14 +148,15 @@ export async function insertAttentionItem(input: RaiseInput) {
         type: input.type,
         title: input.title.trim(),
         body: input.body?.trim() || null,
-        projectRef: input.projectRef ?? null,
-        personRef: input.personRef ?? null,
+        projectRef,
+        personRef,
         source,
         urgency: input.urgency ?? 0,
         dueAt: input.dueAt ?? null,
         href: input.href ?? null,
         payload: input.payload ?? {},
         dedupeKey,
+        embedding: embedding ? dsql`${toVec(embedding)}::vector` : null,
       })
       .returning();
     await sql.notify("attention_changed", "");
@@ -115,7 +165,7 @@ export async function insertAttentionItem(input: RaiseInput) {
     // Lost the race against a concurrent raise of the same key — the winner's
     // OPEN row is what the caller wanted anyway.
     if (isUniqueViolation(e)) {
-      const winner = await findOpen();
+      const winner = await findOpenByKey();
       if (winner) return winner;
     }
     throw e;

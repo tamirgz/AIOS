@@ -7,6 +7,7 @@ import { obsidianNotes } from "@/modules/obsidian/schema";
 import { ideas } from "@/modules/ideas/schema";
 import { projectFiles, projects } from "@/modules/projects/schema";
 import { notionPages } from "@/modules/notion/schema";
+import { attentionItems } from "@/modules/today/schema";
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 export const DEFAULT_EMBEDDING_MODEL = "nomic-embed-text";
@@ -63,6 +64,7 @@ async function handleModelSwitch(log: (m: string) => void): Promise<void> {
   await db.update(ideas).set({ embedding: null });
   await db.update(notionPages).set({ embedding: null });
   await db.update(projectFiles).set({ embedding: null });
+  await db.update(attentionItems).set({ embedding: null });
   await setSetting(ACTIVE_MODEL_KEY, configured);
 }
 
@@ -155,6 +157,23 @@ export async function sweepEmbeddings(
       .update(projects)
       .set({ embedding: dsql`${toVec(e)}::vector` })
       .where(dsql`${projects.id} = ${p.id}`);
+    done++;
+  }
+
+  // Open attention items — powers raise-time semantic dedup. Only OPEN rows
+  // matter (dedup only compares against open cards); backfills anything that
+  // missed embedding at insert (e.g. Ollama was briefly down).
+  const attnRows = await db
+    .select({ id: attentionItems.id, title: attentionItems.title })
+    .from(attentionItems)
+    .where(dsql`${attentionItems.embedding} is null and ${attentionItems.status} = 'open'`)
+    .limit(30);
+  for (const a of attnRows) {
+    const e = await embedText(a.title);
+    await db
+      .update(attentionItems)
+      .set({ embedding: dsql`${toVec(e)}::vector` })
+      .where(dsql`${attentionItems.id} = ${a.id}`);
     done++;
   }
 

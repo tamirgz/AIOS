@@ -1,0 +1,1 @@
+ALTER TABLE "attention_items" ADD COLUMN "embedding" vector;
