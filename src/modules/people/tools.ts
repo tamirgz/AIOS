@@ -32,17 +32,17 @@ export const peopleTools: AiToolDef[] = [
   {
     name: "people.recentMeetings",
     description:
-      "List meetings that already happened in the last N days (default 3), with their attendees — the basis for deciding who needs a follow-up.",
+      "List meetings that already happened in the last N days (default 3), with attendees and the meeting's actual notes/agenda. A follow-up MUST be grounded in `notes`: when `hasNotes` is false the meeting has no agenda at all (its title is often just participant names), so there is nothing real to follow up on — SKIP it and never invent a topic.",
     input: z.object({ days: z.number().int().min(1).max(30).optional() }),
     async execute(i: { days?: number }) {
       const rows = await recentMeetings(i.days ?? 3, db);
-      return rows.map((m) => ({
-        title: m.title,
-        at: m.startAt,
-        attendees: (m.attendees ?? [])
+      return rows.map((m) => {
+        const attendees = (m.attendees ?? [])
           .filter((a) => !a.self)
-          .map((a) => ({ name: a.name ?? a.email, email: a.email })),
-      }));
+          .map((a) => ({ name: a.name ?? a.email, email: a.email }));
+        const notes = (m.notes ?? "").trim();
+        return { title: m.title, at: m.startAt, notes: notes || null, hasNotes: notes.length > 0, attendees };
+      });
     },
   },
   {
