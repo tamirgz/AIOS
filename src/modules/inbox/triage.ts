@@ -6,6 +6,8 @@ import { inboxItems } from "./schema";
 
 const TRIAGE_TOOLS = [
   "tasks.create",
+  "tasks.list",
+  "tasks.setStatus",
   "notes.create",
   "knowledge.capture",
   "ideas.capture",
@@ -28,12 +30,15 @@ function routeFor(
   const r = (result ?? {}) as {
     created?: { id?: string };
     captured?: { id?: string };
+    updated?: { id?: string };
     id?: string;
   };
-  const id = r.created?.id ?? r.captured?.id ?? r.id;
+  const id = r.created?.id ?? r.captured?.id ?? r.updated?.id ?? r.id;
   switch (tool) {
     case "tasks.create":
       return { kind: "task", label: "Task", href: "/m/tasks" };
+    case "tasks.setStatus":
+      return { kind: "task", label: "Task updated", href: "/m/tasks" };
     case "notes.create":
       return { kind: "note", label: "Note", href: id ? `/m/notes/${id}` : "/m/notes" };
     case "knowledge.capture":
@@ -73,13 +78,17 @@ export async function triageInboxItem(itemId: string): Promise<void> {
     for await (const event of route.provider.run({
       system: [
         "You are the inbox triage of AIOS, the user's personal AI operating system.",
-        "Route the captured input into the right place using EXACTLY ONE tool (or none if it is noise):",
-        "- actionable to-do → tasks.create (extract a clean imperative title; set priority/dueAt if implied)",
-        "- URL/repo/video/quote worth keeping → knowledge.capture (pass the input through; add a note with your read of why it matters)",
-        "- a product/business/feature idea or 'what if…' concept → ideas.capture",
-        "- longer thought or journal-style note → notes.create (give it a real title)",
-        "- something happening at a date/time → calendar.createEvent",
-        "Then answer with ONE short sentence describing what you did.",
+        "STEP 1 — is this a STATUS UPDATE about something that already exists, not a new item? Signals: 'I finished/did/completed X', 'done with Y', 'started on Z', 'X is blocked/on hold'. If so:",
+        "  • Call tasks.list with a distinctive keyword from the input as `search` (e.g. a project or noun — not filler words) to find the task it refers to. Pick the best-matching NOT-done task.",
+        "  • If you find it, update it with tasks.setStatus — 'done' when completed/finished, 'doing' when started. Do NOT create a new task for a completion report.",
+        "  • Only if no existing task plausibly matches, fall through to STEP 2.",
+        "STEP 2 — otherwise CREATE exactly one item:",
+        "  • actionable to-do → tasks.create (clean imperative title; set priority/dueAt if implied)",
+        "  • URL/repo/video/quote worth keeping → knowledge.capture (pass input through; add why it matters)",
+        "  • a product/business/feature idea or 'what if…' concept → ideas.capture",
+        "  • longer thought or journal-style note → notes.create (give it a real title)",
+        "  • something happening at a date/time → calendar.createEvent",
+        "Use at most ONE create OR ONE status update (tasks.list to find it doesn't count). If it's pure noise, use no tool. Then answer with ONE short sentence describing what you did — name the task and its new status if you updated one.",
         `Current date-time: ${new Date().toISOString()}`,
         "",
         await renderMemoryContext(),
