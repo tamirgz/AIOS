@@ -11,6 +11,12 @@ export type InboxStatus = (typeof INBOX_STATUSES)[number];
 export const inboxItems = pgTable("inbox_items", {
   id: uuid("id").defaultRandom().primaryKey(),
   input: text("input").notNull(),
+  /**
+   * Provenance for programmatic captures (e.g. "slack:<channel>:<ts>"), used
+   * to dedupe so the same source message can't be filed twice. Null for
+   * manual captures from the UI.
+   */
+  source: text("source"),
   status: text("status", { enum: INBOX_STATUSES }).notNull().default("new"),
   /**
    * Written by the triage job: a one-line summary and where it routed (the
