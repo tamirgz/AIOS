@@ -466,6 +466,41 @@ async function suggestProject(
 }
 
 /**
+ * Best-fit ACTIVE project for a piece of free text (e.g. a freshly-captured
+ * inbox item), by embedding the text and comparing to project embeddings.
+ * Same confidence gates as the item-based matcher. Never throws — returns null
+ * when embeddings aren't ready or nothing is close enough.
+ */
+export async function matchProjectByText(
+  text: string,
+): Promise<{ id: string; name: string; confidence: "strong" | "possible" } | null> {
+  const clean = text.trim();
+  if (!clean) return null;
+  try {
+    const vec = await embedText(clean.slice(0, 2000));
+    const rows = await db.execute<{ id: string; name: string; distance: number }>(dsql`
+      select p.id::text, p.name,
+             (p.embedding <=> ${toVec(vec)}::vector)::float8 as distance
+        from projects p
+       where p.embedding is not null and p.status = 'active'
+       order by distance asc
+       limit 1
+    `);
+    const top = [...rows][0];
+    if (top && Number(top.distance) <= PROJECT_POSSIBLE) {
+      return {
+        id: top.id,
+        name: top.name,
+        confidence: Number(top.distance) <= PROJECT_STRONG ? "strong" : "possible",
+      };
+    }
+  } catch {
+    // embeddings not ready / ollama down — no match rather than an error
+  }
+  return null;
+}
+
+/**
  * The relations engine: from any source item, return a best-fit project
  * suggestion (with confidence) plus quality-gated, cross-type neighbours.
  * Never throws — degrades to empty when embeddings aren't ready yet.

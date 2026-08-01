@@ -37,6 +37,26 @@ export async function slackApi<T>(
   return data;
 }
 
+/** POST variant for write methods (chat.postMessage, reactions.add). */
+export async function slackPost<T>(
+  token: string,
+  method: string,
+  body: Record<string, unknown>,
+): Promise<T> {
+  const res = await fetch(`https://slack.com/api/${method}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json; charset=utf-8",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const data = (await res.json()) as { ok: boolean; error?: string } & T;
+  if (!data.ok) throw new Error(`slack ${method}: ${data.error}`);
+  return data;
+}
+
 /**
  * Slack mrkdwn → Markdown (not stripped plain text): links stay clickable,
  * bold/italic/bullets survive, emoji shortcodes become real emoji, and

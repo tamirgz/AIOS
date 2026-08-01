@@ -128,7 +128,7 @@ export function IntegrationsEditor({
       <IntegrationField
         settingKey="slack_inbox_channels"
         label="Slack capture channels → Inbox"
-        hint="Comma-separated channel IDs (e.g. #ai-os) the bot has been invited to. Every new message is captured to the Inbox and auto-triaged into a task, note, idea, etc. Keep this separate from report channels."
+        hint="Comma-separated channel IDs (e.g. #ai-os) the bot has been invited to. Every new message is captured to the Inbox and auto-triaged into a task, note, idea, etc. — the bot then replies in-thread with how/where it filed (add chat:write + reactions:write scopes for that). Keep this separate from report channels."
         placeholder="C0ABCDEFG"
         initial={slackInboxChannels}
         secret={false}
