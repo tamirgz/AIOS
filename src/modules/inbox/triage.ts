@@ -97,6 +97,24 @@ export async function triageInboxItem(itemId: string): Promise<void> {
         ...(dest ? { route: dest } : {}),
       },
     });
+
+    // Slack-captured items get an in-thread confirmation of how/where they
+    // were filed. No-op for manual captures; never breaks triage.
+    if (item.source?.startsWith("slack:")) {
+      const r = (toolResult ?? {}) as {
+        created?: { id?: string };
+        captured?: { id?: string };
+        id?: string;
+      };
+      const { confirmSlackCapture } = await import("./slack-capture");
+      await confirmSlackCapture({
+        source: item.source,
+        input: item.input,
+        summary: finalText,
+        route: dest,
+        createdId: r.created?.id ?? r.captured?.id ?? r.id ?? null,
+      }).catch(() => {});
+    }
   } catch (e) {
     await set({ status: "error", error: String(e).slice(0, 400) });
   }
