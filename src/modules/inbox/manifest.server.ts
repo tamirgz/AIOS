@@ -1,6 +1,7 @@
 import type { ModuleServerManifest } from "@/core/modules/types.server";
 import { inboxItems } from "./schema";
 import { inboxJobs } from "./triage";
+import { slackInboxJobs } from "./slack-capture";
 import { InboxPage } from "./pages/InboxPage";
 import { InboxWidget } from "./widgets/InboxWidget";
 
@@ -15,5 +16,5 @@ export const inboxServerManifest: ModuleServerManifest = {
   schema: { inboxItems },
   aiTools: [],
   agentTemplates: [],
-  jobs: inboxJobs,
+  jobs: [...inboxJobs, ...slackInboxJobs],
 };

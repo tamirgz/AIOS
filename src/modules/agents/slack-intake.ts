@@ -20,7 +20,7 @@ interface SlackMessage {
   bot_id?: string;
 }
 
-async function slackApi<T>(
+export async function slackApi<T>(
   token: string,
   method: string,
   params: Record<string, string>,

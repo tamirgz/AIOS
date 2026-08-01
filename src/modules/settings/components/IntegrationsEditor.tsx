@@ -79,6 +79,7 @@ export function IntegrationsEditor({
   googleConnected,
   slackBotToken,
   slackReportChannels,
+  slackInboxChannels,
 }: {
   icsUrl: string;
   slackWebhook: string;
@@ -88,6 +89,7 @@ export function IntegrationsEditor({
   googleConnected: boolean;
   slackBotToken: string;
   slackReportChannels: string;
+  slackInboxChannels: string;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -121,6 +123,14 @@ export function IntegrationsEditor({
         hint="Comma-separated channel IDs the bot has been invited to. Each new message becomes an external report."
         placeholder="C0B7TLBJ4LU, C0B7VNRPQSV"
         initial={slackReportChannels}
+        secret={false}
+      />
+      <IntegrationField
+        settingKey="slack_inbox_channels"
+        label="Slack capture channels → Inbox"
+        hint="Comma-separated channel IDs (e.g. #ai-os) the bot has been invited to. Every new message is captured to the Inbox and auto-triaged into a task, note, idea, etc. Keep this separate from report channels."
+        placeholder="C0ABCDEFG"
+        initial={slackInboxChannels}
         secret={false}
       />
       <IntegrationField

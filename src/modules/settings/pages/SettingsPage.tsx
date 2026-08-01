@@ -28,6 +28,7 @@ export async function SettingsPage() {
     googleRefreshToken,
     slackBotToken,
     slackReportChannels,
+    slackInboxChannels,
     memory,
   ] = await Promise.all([
     db.select().from(aiRoutes).orderBy(asc(aiRoutes.taskKey)),
@@ -40,6 +41,7 @@ export async function SettingsPage() {
     getSetting("google_refresh_token"),
     getSetting("slack_bot_token"),
     getSetting("slack_report_channels"),
+    getSetting("slack_inbox_channels"),
     // Memory being unavailable must not take the whole page down.
     listMemoryBlocks().catch(() => []),
   ]);
@@ -81,6 +83,7 @@ export async function SettingsPage() {
           googleConnected={!!googleRefreshToken}
           slackBotToken={slackBotToken ?? ""}
           slackReportChannels={slackReportChannels ?? ""}
+          slackInboxChannels={slackInboxChannels ?? ""}
         />
         <ExecutorsPanel
           executors={workbenchExecutors}
