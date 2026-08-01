@@ -12,6 +12,14 @@ const TRIAGE_TOOLS = [
   "calendar.createEvent",
 ];
 
+function safeJsonParse(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return s;
+  }
+}
+
 /** Map the tool the triage used → a destination label + link to the new item. */
 function routeFor(
   tool: string,
@@ -89,7 +97,11 @@ export async function triageInboxItem(itemId: string): Promise<void> {
       if (event.type === "tool_result") toolResult = event.result;
     }
 
-    const dest = usedTool ? routeFor(usedTool, toolResult) : null;
+    // The Agent SDK serializes a tool's return value to a JSON string in the
+    // tool-result block, so parse it back before reading the created item's id.
+    const resultObj =
+      typeof toolResult === "string" ? safeJsonParse(toolResult) : toolResult;
+    const dest = usedTool ? routeFor(usedTool, resultObj) : null;
     await set({
       status: "triaged",
       triage: {
@@ -101,7 +113,7 @@ export async function triageInboxItem(itemId: string): Promise<void> {
     // Slack-captured items get an in-thread confirmation of how/where they
     // were filed. No-op for manual captures; never breaks triage.
     if (item.source?.startsWith("slack:")) {
-      const r = (toolResult ?? {}) as {
+      const r = (resultObj ?? {}) as {
         created?: { id?: string };
         captured?: { id?: string };
         id?: string;
