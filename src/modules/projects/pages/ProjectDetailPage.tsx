@@ -2,7 +2,12 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { ModuleRouteProps } from "@/core/modules/types.server";
 import { GlassPanel } from "@/core/ui/GlassPanel";
-import { listProjects, setProjectGoal, setProjectNextAction } from "../actions";
+import {
+  completeProjectNextAction,
+  listProjects,
+  setProjectGoal,
+  setProjectNextAction,
+} from "../actions";
 import { getProjectCockpitById, getProjectTasks } from "../queries";
 import { CockpitHeader } from "../components/CockpitHeader";
 import { ProjectAttention } from "../components/ProjectAttention";
@@ -105,6 +110,7 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
         lastActive={lastActiveLabel(project.lastActivityAt)}
         setGoal={setProjectGoal}
         setNextAction={setProjectNextAction}
+        completeNextAction={completeProjectNextAction}
       />
 
       <ProjectAttention

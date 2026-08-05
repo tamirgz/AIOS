@@ -521,52 +521,85 @@ export async function matchProjectByText(
   return null;
 }
 
-/** Cosine distance between free text and ONE project's embedding; null if either isn't embedded. */
-async function scoreProjectForText(
-  projectId: string,
+/**
+ * Neighbour-vote project match for free text: which project do this text's
+ * closest notes/tasks already belong to? Robust even when a project's own
+ * description is thin, because it uses the project's REAL contents, not a
+ * synthetic project vector. "Strong" when ≥2 neighbours agree or one is very
+ * close. Text-based sibling of suggestProject (which works from an item id).
+ */
+export async function suggestProjectByText(
   text: string,
-): Promise<number | null> {
+): Promise<{ id: string; confidence: "strong" | "possible" } | null> {
   const clean = text.trim();
   if (!clean) return null;
   try {
-    const vec = await embedText(clean.slice(0, 2000));
-    const rows = await db.execute<{ distance: number | null }>(dsql`
-      select (p.embedding <=> ${toVec(vec)}::vector)::float8 as distance
-        from projects p
-       where p.id = ${projectId} and p.embedding is not null
+    const v = toVec(await embedText(clean.slice(0, 2000)));
+    const rows = await db.execute<{ project_ref: string; best: number; n: number }>(dsql`
+      with neighbours as (
+        select project_ref, (embedding <=> ${v}::vector) as d
+          from (
+            select project_ref, embedding from notes where embedding is not null and project_ref is not null
+            union all
+            select project_ref, embedding from tasks where embedding is not null and project_ref is not null
+          ) x
+         where (embedding <=> ${v}::vector) < ${RELATED_MAX_DISTANCE})
+      select project_ref, min(d)::float8 as best, count(*)::int as n
+        from neighbours
+       group by project_ref
+       order by sum(${RELATED_MAX_DISTANCE} - d) desc
        limit 1
     `);
-    const top = [...rows][0];
-    return top && top.distance != null ? Number(top.distance) : null;
+    const vote = [...rows][0];
+    if (vote?.project_ref) {
+      return {
+        id: vote.project_ref.split(":")[1],
+        confidence: vote.n >= 2 || Number(vote.best) < 0.42 ? "strong" : "possible",
+      };
+    }
   } catch {
-    return null;
+    // embeddings not ready / ollama down — no vote rather than an error
   }
+  return null;
 }
 
 /**
- * Validate an agent-supplied project anchor against the item's own text, so a
- * weak model can't stamp an unrelated project on a card (the "consult a lawyer
- * → GitLocker" class of miss). Returns a canonical "projects:<id>" or null:
- *   • no ref            → null (nothing to ground)
- *   • project unembedded → keep the ref (can't judge; don't strip on doubt)
- *   • ref is plausible   → keep it (within the relevance gate)
- *   • ref is unsupported → correct to a STRONG text match, else drop to null
+ * Decide a card's project anchor from EVIDENCE about the card itself, not from
+ * the raising model's guess — because a weak agent stamps the week's dominant
+ * project on everything ("consult a lawyer" → GitLocker). Two independent
+ * signals: the enriched project embedding (matchProjectByText) and a
+ * neighbour vote over real linked items (suggestProjectByText). Abstain by
+ * default — a wrong tag is worse than none — anchoring only when the evidence
+ * is clear:
+ *   • both signals agree                          → anchor
+ *   • the neighbour vote is strong                → anchor
+ *   • the embedding is strong and the vote agrees → anchor
+ *   • the agent's own ref is corroborated by either signal → keep it
+ *   • otherwise                                   → null (leave it personal)
  */
 export async function groundProjectRef(
   projectRef: string | null | undefined,
   text: string,
 ): Promise<string | null> {
-  if (!projectRef) return null;
-  const id = projectRef.startsWith("projects:")
-    ? projectRef.slice("projects:".length)
-    : projectRef;
+  const agentId = projectRef
+    ? projectRef.startsWith("projects:")
+      ? projectRef.slice("projects:".length)
+      : projectRef
+    : null;
 
-  const dist = await scoreProjectForText(id, text);
-  if (dist === null) return `projects:${id}`; // can't validate → trust the agent
-  if (dist <= PROJECT_POSSIBLE) return `projects:${id}`; // plausible → keep
+  const [emb, vote] = await Promise.all([
+    matchProjectByText(text),
+    suggestProjectByText(text),
+  ]);
 
-  const best = await matchProjectByText(text);
-  return best && best.confidence === "strong" ? `projects:${best.id}` : null;
+  let id: string | null = null;
+  if (emb && vote && emb.id === vote.id) id = emb.id; // both agree
+  else if (vote?.confidence === "strong") id = vote.id; // strong neighbour evidence
+  else if (emb?.confidence === "strong" && (!vote || vote.id === emb.id)) id = emb.id;
+  // Agent's guess counts only when a semantic signal (even a weaker one) backs it.
+  else if (agentId && (emb?.id === agentId || vote?.id === agentId)) id = agentId;
+
+  return id ? `projects:${id}` : null;
 }
 
 /**

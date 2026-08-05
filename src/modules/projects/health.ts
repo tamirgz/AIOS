@@ -38,6 +38,7 @@ export const HEALTH_STALE_DAYS = 10;
 
 export interface HealthSignals {
   status: ProjectStatus;
+  goal: string | null;
   nextAction: string | null;
   lastActivityAt: Date | null;
   overdue: number;
@@ -75,6 +76,9 @@ export function deriveHealth(s: HealthSignals): {
   }
   if (!s.nextAction) {
     return { health: "at_risk", reason: "no next action" };
+  }
+  if (!s.goal) {
+    return { health: "at_risk", reason: "no goal set" };
   }
   if (ageDays >= 7) {
     return { health: "at_risk", reason: `quiet for ${ageDays}d` };

@@ -13,12 +13,15 @@ function EditableLine({
   icon,
   accent,
   onSave,
+  onComplete,
 }: {
   value: string | null;
   placeholder: string;
   icon: React.ReactNode;
   accent: string;
   onSave: (v: string | null) => Promise<void>;
+  /** When set, a ✓ Done control appears while a value exists (next action). */
+  onComplete?: () => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
@@ -78,30 +81,44 @@ function EditableLine({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        setDraft(value ?? "");
-        setEditing(true);
-      }}
+    <div
       className={cn(
-        "group/line flex w-full items-start gap-2 rounded-lg px-1.5 py-1 text-left transition hover:bg-white/4",
+        "group/line flex w-full items-start gap-2 rounded-lg px-1.5 py-1 transition hover:bg-white/4",
         pending && "opacity-50",
       )}
     >
-      <span className="mt-0.5 shrink-0" style={{ color: accent }}>
-        {icon}
-      </span>
-      <span
-        className={cn(
-          "flex-1 text-sm leading-snug",
-          value ? "text-ink-dim" : "text-ink-faint italic",
-        )}
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(value ?? "");
+          setEditing(true);
+        }}
+        className="flex flex-1 items-start gap-2 text-left"
       >
-        {value ?? placeholder}
-      </span>
+        <span className="mt-0.5 shrink-0" style={{ color: accent }}>
+          {icon}
+        </span>
+        <span
+          className={cn(
+            "flex-1 text-sm leading-snug",
+            value ? "text-ink-dim" : "text-ink-faint italic",
+          )}
+        >
+          {value ?? placeholder}
+        </span>
+      </button>
+      {onComplete && value && (
+        <button
+          type="button"
+          onClick={() => startTransition(() => onComplete())}
+          title="Mark done — records it and clears for the next step"
+          className="flex shrink-0 items-center gap-1 rounded-md border border-plasma/25 bg-plasma/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-plasma transition hover:bg-plasma/20"
+        >
+          <Check className="size-3" /> done
+        </button>
+      )}
       <Pencil className="mt-0.5 size-3 shrink-0 text-ink-faint opacity-0 transition group-hover/line:opacity-100" />
-    </button>
+    </div>
   );
 }
 
@@ -117,6 +134,7 @@ export function CockpitHeader({
   lastActive,
   setGoal,
   setNextAction,
+  completeNextAction,
 }: {
   id: string;
   status: ProjectStatus;
@@ -127,6 +145,7 @@ export function CockpitHeader({
   healthSource: "agent" | "derived";
   stats: { open: number; done: number; overdue: number; notes: number; attention: number };
   lastActive: string;
+  completeNextAction: (id: string) => Promise<void>;
   setGoal: (id: string, goal: string | null) => Promise<void>;
   setNextAction: (id: string, nextAction: string | null) => Promise<void>;
 }) {
@@ -163,6 +182,7 @@ export function CockpitHeader({
           icon={<ArrowRight className="size-3.5" />}
           accent="var(--color-solar)"
           onSave={(v) => setNextAction(id, v)}
+          onComplete={() => completeNextAction(id)}
         />
       </div>
 
