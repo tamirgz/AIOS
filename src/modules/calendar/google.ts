@@ -2,6 +2,7 @@ import { and, eq, gte, notInArray } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
 import { getSetting, setSetting } from "@/core/app-settings";
 import type { ModuleJob } from "@/core/modules/types.server";
+import { attentionItems } from "@/modules/today/schema";
 import { firstConferenceUrl } from "./meeting-url";
 import { calendarEvents } from "./schema";
 
@@ -283,12 +284,56 @@ export async function syncGoogle(
   return { synced };
 }
 
+// Distinctive title so the card dedupes and can be auto-resolved on recovery.
+const RECONNECT_TITLE = "Reconnect Google — Calendar & Gmail sync stopped";
+
 export const googleJobs: ModuleJob[] = [
   {
     channel: "google_sync",
     schedule: "*/5 * * * *",
     handle: async () => {
-      await syncGoogle(console.log);
+      try {
+        await syncGoogle(console.log);
+        // Recovered — clear any standing "reconnect" nag.
+        await db
+          .update(attentionItems)
+          .set({ status: "done", updatedAt: new Date() })
+          .where(
+            and(
+              eq(attentionItems.title, RECONNECT_TITLE),
+              eq(attentionItems.status, "open"),
+            ),
+          );
+      } catch (e) {
+        // A revoked/expired refresh token fails silently forever otherwise —
+        // surface it as a "Needs you" card instead of a 5-minute log loop.
+        if (/invalid_grant|token refresh failed/i.test(String(e))) {
+          const [open] = await db
+            .select({ id: attentionItems.id })
+            .from(attentionItems)
+            .where(
+              and(
+                eq(attentionItems.title, RECONNECT_TITLE),
+                eq(attentionItems.status, "open"),
+              ),
+            )
+            .limit(1);
+          if (!open) {
+            const { insertAttentionItem } = await import("@/modules/today/core");
+            await insertAttentionItem({
+              type: "do",
+              title: RECONNECT_TITLE,
+              body: "Google revoked or expired the token (invalid_grant). Reconnect in Settings → Integrations to resume Calendar & Gmail sync.",
+              source: "system",
+              urgency: 20,
+              href: "/m/settings",
+            });
+            console.log("google_sync: token invalid — raised a Reconnect Google card");
+          }
+          return; // handled — don't spam the error log
+        }
+        throw e; // other failures surface as before
+      }
     },
   },
 ];
