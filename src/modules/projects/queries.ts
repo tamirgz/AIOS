@@ -64,6 +64,7 @@ export async function getProjectCockpit(
     const last = lastActivityAt ? new Date(lastActivityAt) : null;
     const signals: HealthSignals = {
       status: project.status,
+      goal: project.goal,
       nextAction: project.nextAction,
       lastActivityAt: last,
       overdue: Number(overdue),

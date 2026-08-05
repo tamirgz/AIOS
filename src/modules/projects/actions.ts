@@ -3,6 +3,7 @@
 import { desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/core/db/client";
+import { tasks } from "@/modules/tasks/schema";
 import {
   projects,
   statusRank,
@@ -73,7 +74,8 @@ export async function deleteProject(id: string) {
 export async function setProjectGoal(id: string, goal: string | null) {
   await db
     .update(projects)
-    .set({ goal: goal?.trim() || null })
+    // Goal feeds the project embedding (grounding) — re-embed on change.
+    .set({ goal: goal?.trim() || null, embedding: null })
     .where(eq(projects.id, id));
   revalidateProjects(id);
 }
@@ -82,7 +84,34 @@ export async function setProjectGoal(id: string, goal: string | null) {
 export async function setProjectNextAction(id: string, nextAction: string | null) {
   await db
     .update(projects)
-    .set({ nextAction: nextAction?.trim() || null, updatedAt: new Date() })
+    .set({ nextAction: nextAction?.trim() || null, embedding: null, updatedAt: new Date() })
+    .where(eq(projects.id, id));
+  revalidateProjects(id);
+}
+
+/**
+ * Complete the current next action: record it as a done task under the project
+ * (a permanent trail + it counts toward "done"), then clear the field so the
+ * project's health flips to "define the next step" and the planner proposes
+ * the next one. Turns the next action from dead text into a moving cursor.
+ */
+export async function completeProjectNextAction(id: string) {
+  const [proj] = await db
+    .select({ nextAction: projects.nextAction })
+    .from(projects)
+    .where(eq(projects.id, id));
+  const step = proj?.nextAction?.trim();
+  if (!step) return;
+
+  await db.insert(tasks).values({
+    title: step,
+    status: "done",
+    completedAt: new Date(),
+    projectRef: `projects:${id}`,
+  });
+  await db
+    .update(projects)
+    .set({ nextAction: null, embedding: null, updatedAt: new Date() })
     .where(eq(projects.id, id));
   revalidateProjects(id);
 }
