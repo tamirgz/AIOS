@@ -147,12 +147,33 @@ export async function sweepEmbeddings(
       id: projects.id,
       name: projects.name,
       description: projects.description,
+      goal: projects.goal,
+      nextAction: projects.nextAction,
     })
     .from(projects)
     .where(isNull(projects.embedding))
     .limit(20);
   for (const p of projectRows) {
-    const e = await embedText(`${p.name}\n${p.description ?? ""}`);
+    // Embed the project from its actual WORK, not just its name — name+goal
+    // alone is too sparse to tell a real task ("move the encrypted code") from
+    // an unrelated one ("consult a lawyer"), which is what let agents mis-anchor
+    // cards. Linked task/note titles ground the embedding in the real theme.
+    const ref = `projects:${p.id}`;
+    const [ptasks, pnotes] = await Promise.all([
+      db.select({ t: tasks.title }).from(tasks).where(dsql`${tasks.projectRef} = ${ref}`).limit(30),
+      db.select({ t: notes.title }).from(notes).where(dsql`${notes.projectRef} = ${ref}`).limit(30),
+    ]);
+    const text = [
+      p.name,
+      p.goal,
+      p.description,
+      p.nextAction,
+      ...ptasks.map((r) => r.t),
+      ...pnotes.map((r) => r.t),
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const e = await embedText(text);
     await db
       .update(projects)
       .set({ embedding: dsql`${toVec(e)}::vector` })
@@ -498,6 +519,54 @@ export async function matchProjectByText(
     // embeddings not ready / ollama down — no match rather than an error
   }
   return null;
+}
+
+/** Cosine distance between free text and ONE project's embedding; null if either isn't embedded. */
+async function scoreProjectForText(
+  projectId: string,
+  text: string,
+): Promise<number | null> {
+  const clean = text.trim();
+  if (!clean) return null;
+  try {
+    const vec = await embedText(clean.slice(0, 2000));
+    const rows = await db.execute<{ distance: number | null }>(dsql`
+      select (p.embedding <=> ${toVec(vec)}::vector)::float8 as distance
+        from projects p
+       where p.id = ${projectId} and p.embedding is not null
+       limit 1
+    `);
+    const top = [...rows][0];
+    return top && top.distance != null ? Number(top.distance) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validate an agent-supplied project anchor against the item's own text, so a
+ * weak model can't stamp an unrelated project on a card (the "consult a lawyer
+ * → GitLocker" class of miss). Returns a canonical "projects:<id>" or null:
+ *   • no ref            → null (nothing to ground)
+ *   • project unembedded → keep the ref (can't judge; don't strip on doubt)
+ *   • ref is plausible   → keep it (within the relevance gate)
+ *   • ref is unsupported → correct to a STRONG text match, else drop to null
+ */
+export async function groundProjectRef(
+  projectRef: string | null | undefined,
+  text: string,
+): Promise<string | null> {
+  if (!projectRef) return null;
+  const id = projectRef.startsWith("projects:")
+    ? projectRef.slice("projects:".length)
+    : projectRef;
+
+  const dist = await scoreProjectForText(id, text);
+  if (dist === null) return `projects:${id}`; // can't validate → trust the agent
+  if (dist <= PROJECT_POSSIBLE) return `projects:${id}`; // plausible → keep
+
+  const best = await matchProjectByText(text);
+  return best && best.confidence === "strong" ? `projects:${best.id}` : null;
 }
 
 /**

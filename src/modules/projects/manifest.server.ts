@@ -2,6 +2,7 @@ import type { ModuleServerManifest } from "@/core/modules/types.server";
 import { projectFiles, projects } from "./schema";
 import { projectTools } from "./tools";
 import { projectFilesJobs } from "./files-pipeline";
+import { projectReembedJobs } from "./reembed";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ProjectDetailPage } from "./pages/ProjectDetailPage";
 import { ActiveProjectsWidget } from "./widgets/ActiveProjectsWidget";
@@ -22,7 +23,7 @@ export const projectsServerManifest: ModuleServerManifest = {
   ],
   schema: { projects, projectFiles },
   aiTools: projectTools,
-  jobs: projectFilesJobs,
+  jobs: [...projectFilesJobs, ...projectReembedJobs],
   agentTemplates: [
     {
       id: "project-pulse",

@@ -6,7 +6,7 @@
  */
 import { and, eq, sql as dsql } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
-import { embedText } from "@/core/embeddings";
+import { embedText, groundProjectRef } from "@/core/embeddings";
 import { attentionItems, type AttentionType } from "./schema";
 
 // Below this cosine distance, two attention titles are treated as the same
@@ -91,7 +91,14 @@ function isUniqueViolation(e: unknown): boolean {
  */
 export async function insertAttentionItem(input: RaiseInput) {
   const source = input.source ?? "system";
-  const projectRef = normalizeRef(input.projectRef, "projects");
+  // Ground the agent-supplied project anchor against the item's own text — a
+  // weak model tends to stamp the week's dominant project on everything, so
+  // drop/correct an anchor the content doesn't actually support before it's
+  // persisted (and before it feeds the dedupe key).
+  const projectRef = await groundProjectRef(
+    normalizeRef(input.projectRef, "projects"),
+    input.title,
+  );
   const personRef = normalizeRef(input.personRef, "people");
   // Content key off the NORMALIZED refs — so "projects:<id>" and a bare "<id>"
   // from an inconsistent agent collapse to one key.
