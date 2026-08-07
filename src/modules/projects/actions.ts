@@ -70,6 +70,26 @@ export async function deleteProject(id: string) {
   revalidateProjects(id);
 }
 
+/** Assign the project's free-form category (null clears it). */
+export async function setProjectCategory(id: string, category: string | null) {
+  await db
+    .update(projects)
+    .set({ category: category?.trim() || null, updatedAt: new Date() })
+    .where(eq(projects.id, id));
+  revalidateProjects(id);
+}
+
+/** Distinct categories already in use — feeds the cockpit's suggestion chips. */
+export async function listProjectCategories(): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ category: projects.category })
+    .from(projects);
+  return rows
+    .map((r) => r.category)
+    .filter((c): c is string => !!c)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 /** L2: the project's north-star outcome (one line). Null clears it. */
 export async function setProjectGoal(id: string, goal: string | null) {
   await db

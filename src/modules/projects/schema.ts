@@ -30,6 +30,12 @@ export const projects = pgTable("projects", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
+  /**
+   * Free-form single category the project belongs to ("Shahar", "Startup",
+   * "Self"…). Free-form so personal groupings fit; the Projects page groups by
+   * it and the cockpit suggests already-used values. Null = uncategorized.
+   */
+  category: text("category"),
   status: text("status", { enum: PROJECT_STATUSES })
     .notNull()
     .default("active"),
