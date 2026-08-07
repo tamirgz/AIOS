@@ -26,6 +26,7 @@ import {
 } from "../actions";
 import type { TaskDetail as Detail } from "../queries";
 import { STATUS_META } from "./TaskBoard";
+import { ReportPanel } from "./ReportPanel";
 
 const EVENT_COLOR: Record<string, string> = {
   status: "var(--color-ink-faint)",
@@ -284,14 +285,17 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
             </p>
           )}
           {latest?.result && (
-            <>
-              <p className="mt-5 mb-2 font-mono text-[10px] uppercase tracking-[0.3em] text-plasma">
-                what came back
-              </p>
-              <p dir="auto" className="whitespace-pre-wrap text-sm leading-relaxed text-ink-dim">
-                {latest.result}
-              </p>
-            </>
+            <div className="mt-5">
+              <ReportPanel
+                attemptId={latest.id}
+                taskId={task.id}
+                result={latest.result}
+                defaultTitle={
+                  latest.result.match(/^#{1,6}\s+(.+)$/m)?.[1]?.trim() || task.title
+                }
+                sourceUrl={task.prompt.match(/https?:\/\/[^\s)]+/)?.[0] ?? ""}
+              />
+            </div>
           )}
           {latest?.error && (
             <p className="mt-4 rounded-lg border border-flare/20 bg-flare/5 p-3 text-xs text-flare">
