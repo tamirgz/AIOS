@@ -2,7 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Layers, Plus, Trash2, Unlink } from "lucide-react";
+import { Reorder, useDragControls } from "motion/react";
+import { GripVertical, Layers, ListPlus, Plus, Trash2, Unlink } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { setTaskStatus, deleteTask } from "@/modules/tasks/actions";
 import type { Task, TaskStatus } from "@/modules/tasks/schema";
@@ -11,12 +12,17 @@ import {
   createFeature,
   createFeatureTask,
   deleteFeature,
+  reorderFeatures,
   setTaskFeature,
 } from "../features-actions";
 
 export interface FeatureGroup {
   feature: Feature;
   tasks: Task[];
+}
+interface LooseTask {
+  id: string;
+  title: string;
 }
 
 const NEXT_STATUS: Record<TaskStatus, TaskStatus> = {
@@ -30,7 +36,6 @@ const STATUS_COLOR: Record<TaskStatus, string> = {
   done: "var(--color-plasma)",
 };
 
-/** planned → building → done, derived from the feature's tasks. */
 function deriveStatus(tasks: Task[]): { label: string; color: string } {
   const total = tasks.length;
   const done = tasks.filter((t) => t.status === "done").length;
@@ -91,28 +96,48 @@ function TaskRow({ task, projectId }: { task: Task; projectId: string }) {
   );
 }
 
-function FeatureCard({ projectId, feature, tasks }: { projectId: string } & FeatureGroup) {
+function FeatureCard({
+  projectId,
+  feature,
+  tasks,
+  looseTasks,
+}: { projectId: string; looseTasks: LooseTask[] } & FeatureGroup) {
   const router = useRouter();
+  const controls = useDragControls();
   const [pending, start] = useTransition();
+  const [pickOpen, setPickOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const done = tasks.filter((t) => t.status === "done").length;
   const total = tasks.length;
   const pct = total ? Math.round((done / total) * 100) : 0;
   const status = deriveStatus(tasks);
 
+  const run = (fn: () => Promise<unknown>) =>
+    start(async () => {
+      await fn();
+      router.refresh();
+    });
+
   const addTask = () => {
     const title = inputRef.current?.value.trim();
     if (!title) return;
-    start(async () => {
+    run(async () => {
       await createFeatureTask(feature.id, projectId, title);
       if (inputRef.current) inputRef.current.value = "";
-      router.refresh();
     });
   };
 
   return (
-    <div className="glass rounded-xl p-4">
+    <Reorder.Item value={feature.id} dragListener={false} dragControls={controls} className="glass rounded-xl p-4">
       <div className="mb-2 flex items-center gap-2.5">
+        <button
+          type="button"
+          onPointerDown={(e) => controls.start(e)}
+          title="Drag to reorder features"
+          className="cursor-grab touch-none text-ink-faint transition hover:text-ink-dim active:cursor-grabbing"
+        >
+          <GripVertical className="size-3.5" />
+        </button>
         <Layers className="size-4 shrink-0 text-ion" />
         <h4 className="font-display text-base font-medium text-ink">{feature.name}</h4>
         <span
@@ -124,10 +149,48 @@ function FeatureCard({ projectId, feature, tasks }: { projectId: string } & Feat
         <span className="ml-auto font-mono text-[10px] tabular-nums text-ink-faint">
           {done}/{total}
         </span>
+        {/* Pull an existing loose task into this feature. */}
+        <div className="relative">
+          <button
+            type="button"
+            title="Add an existing loose task to this feature"
+            onClick={() => setPickOpen((o) => !o)}
+            className="shrink-0 rounded p-1 text-ink-faint transition hover:bg-white/6 hover:text-ion"
+          >
+            <ListPlus className="size-3.5" />
+          </button>
+          {pickOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setPickOpen(false)} />
+              <div className="glass absolute right-0 top-full z-20 mt-1 max-h-64 w-64 overflow-y-auto rounded-xl p-1.5">
+                {looseTasks.length === 0 ? (
+                  <p className="px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+                    no loose tasks to pull in
+                  </p>
+                ) : (
+                  looseTasks.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        setPickOpen(false);
+                        run(() => setTaskFeature(t.id, projectId, feature.id));
+                      }}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-ink-dim transition hover:bg-white/5 hover:text-ink"
+                    >
+                      <Plus className="size-3 shrink-0 text-ink-faint" />
+                      <span className="truncate">{t.title}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
         <button
           type="button"
           title="Delete feature (its tasks become loose)"
-          onClick={() => start(async () => { await deleteFeature(feature.id, projectId); router.refresh(); })}
+          onClick={() => run(() => deleteFeature(feature.id, projectId))}
           className="shrink-0 rounded p-1 text-ink-faint transition hover:bg-flare/10 hover:text-flare"
         >
           <Trash2 className="size-3.5" />
@@ -158,20 +221,34 @@ function FeatureCard({ projectId, feature, tasks }: { projectId: string } & Feat
           className="h-7 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
         />
       </form>
-    </div>
+    </Reorder.Item>
   );
+}
+
+/** Saved order (from sortOrder) may drift from what's rendered; keep both in sync. */
+function reconcile(live: string[], order: string[]): string[] {
+  const liveSet = new Set(live);
+  return [...order.filter((id) => liveSet.has(id)), ...live.filter((id) => !order.includes(id))];
 }
 
 export function ProjectFeatures({
   projectId,
   groups,
+  looseTasks,
 }: {
   projectId: string;
   groups: FeatureGroup[];
+  looseTasks: LooseTask[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [, startSave] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const liveIds = groups.map((g) => g.feature.id);
+  const [order, setOrder] = useState<string[]>(liveIds);
+  const display = reconcile(liveIds, order);
+  const byId = new Map(groups.map((g) => [g.feature.id, g]));
 
   const addFeature = () => {
     const name = inputRef.current?.value.trim();
@@ -192,9 +269,28 @@ export function ProjectFeatures({
         <span className="font-mono text-xs tabular-nums text-ink-faint">{groups.length}</span>
       </div>
 
-      {groups.map((g) => (
-        <FeatureCard key={g.feature.id} projectId={projectId} feature={g.feature} tasks={g.tasks} />
-      ))}
+      <Reorder.Group
+        axis="y"
+        values={display}
+        onReorder={(next) => {
+          setOrder(next);
+          startSave(() => reorderFeatures(projectId, next));
+        }}
+        className="flex flex-col gap-3"
+      >
+        {display.map((id) => {
+          const g = byId.get(id);
+          return g ? (
+            <FeatureCard
+              key={id}
+              projectId={projectId}
+              feature={g.feature}
+              tasks={g.tasks}
+              looseTasks={looseTasks}
+            />
+          ) : null;
+        })}
+      </Reorder.Group>
 
       <form
         onSubmit={(e) => { e.preventDefault(); addFeature(); }}

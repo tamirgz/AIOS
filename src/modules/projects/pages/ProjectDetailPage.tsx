@@ -141,7 +141,11 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
         }))}
       />
 
-      <ProjectFeatures projectId={project.id} groups={featureGroups} />
+      <ProjectFeatures
+        projectId={project.id}
+        groups={featureGroups}
+        looseTasks={looseTasks.map((t) => ({ id: t.id, title: t.title }))}
+      />
 
       <div className="flex items-center gap-2 px-1 pt-1">
         <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">
