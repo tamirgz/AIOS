@@ -162,6 +162,7 @@ export const claudeHeadlessAdapter: Adapter = {
 
     let stderr = "";
     let final: AdapterResult = { ok: false, error: "no result event" };
+    let ranModel: string | null = ctx.model ?? null;
     let buffer = "";
     const pending: Promise<void>[] = [];
 
@@ -175,6 +176,10 @@ export const claudeHeadlessAdapter: Adapter = {
         // Non-JSON noise on stdout (rare) is still worth keeping.
         pending.push(emit({ type: "text", payload: { text: truncate(text) } }));
         return;
+      }
+      // The init line is authoritative for the model Claude Code resolved.
+      if (parsed.type === "system" && parsed.subtype === "init" && parsed.model) {
+        ranModel = parsed.model;
       }
       for (const e of translate(parsed)) pending.push(emit(e));
       if (parsed.type === "result") {
@@ -190,6 +195,7 @@ export const claudeHeadlessAdapter: Adapter = {
             (u.cache_read_input_tokens ?? 0),
           outputTokens: u.output_tokens ?? 0,
           costUsd: parsed.total_cost_usd,
+          model: ranModel,
         };
       }
     };

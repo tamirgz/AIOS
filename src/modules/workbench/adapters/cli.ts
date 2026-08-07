@@ -16,37 +16,30 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
 import { subscriptionEnv } from "@/core/ai/auth";
 import type { Adapter, AdapterContext, AdapterEvent, AdapterResult } from "./types";
+import {
+  AIOS_OPENCODE_CONFIG,
+  AIOS_OPENCODE_DIR,
+  childPath,
+  resolveBin,
+} from "./opencode-env";
+import {
+  classifyModelFailure,
+  recordModelHealth,
+  suggestFreeModels,
+} from "../model-health";
+
+// Re-exported for existing importers (engine.ts) — the definitions now live in
+// the leaf opencode-env module to keep the model-health prober cycle-free.
+export {
+  AIOS_OPENCODE_CONFIG,
+  AIOS_OPENCODE_DIR,
+  childPath,
+  resolveBin,
+} from "./opencode-env";
 
 export type CliParser = "jsonl" | "pi-json" | "text";
-
-/**
- * launchd hands the worker a minimal PATH, so agent binaries installed in a
- * user prefix are invisible to it. Resolve the executable ourselves and give
- * children a PATH that includes the usual install locations.
- */
-const BIN_DIRS = [
-  join(homedir(), ".opencode", "bin"),
-  join(homedir(), ".local", "bin"),
-  "/opt/homebrew/bin",
-  "/usr/local/bin",
-  "/usr/bin",
-];
-
-export function resolveBin(cmd: string): string {
-  if (cmd.includes("/")) return cmd;
-  for (const dir of BIN_DIRS) {
-    const p = join(dir, cmd);
-    if (existsSync(p)) return p;
-  }
-  return cmd;
-}
-
-export function childPath(): string {
-  return [...BIN_DIRS, process.env.PATH ?? ""].filter(Boolean).join(":");
-}
 
 /**
  * Split a command template on whitespace, but keep quoted runs together and
@@ -191,6 +184,7 @@ export const cliAdapter: Adapter = {
     let costUsd = 0;
     let lastText = "";
     let stderr = "";
+    let stdoutTail = ""; // raw stdout, for classifying a model-availability failure
     let buffer = "";
     let sawOutput = false;
 
@@ -220,6 +214,7 @@ export const cliAdapter: Adapter = {
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
+      stdoutTail = (stdoutTail + chunk).slice(-8000); // opencode's error JSON lands here
       buffer += chunk;
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
@@ -261,6 +256,25 @@ export const cliAdapter: Adapter = {
     if (ctx.signal.aborted) {
       return { ok: false, exitCode, error: "cancelled or timed out" };
     }
+    // Whatever the exit code, first ask whether the *model* died on us: a
+    // retired (410) or erroring free model looks like a task failure but isn't.
+    // Record it so the pickers drop it, and tell the user plainly.
+    const health = classifyModelFailure(`${stdoutTail}\n${stderr}`);
+    if (health && ctx.model) {
+      recordModelHealth(ctx.model, health.status, health.detail);
+      const alt = suggestFreeModels();
+      const why =
+        health.status === "gone"
+          ? "is no longer available — the provider retired it"
+          : "is failing on the provider right now";
+      return {
+        ok: false,
+        exitCode,
+        error:
+          `"${ctx.model}" ${why}. It's been removed from your free-model list; ` +
+          (alt.length ? `try a known-good free model instead: ${alt.join(", ")}.` : "pick another free model."),
+      };
+    }
     if (exitCode !== 0) {
       return {
         ok: false,
@@ -277,6 +291,9 @@ export const cliAdapter: Adapter = {
         error: `${cmd} exited 0 without producing any output${stderr.trim() ? ` — stderr: ${stderr.trim().slice(-400)}` : ""}`,
       };
     }
+    // A real result means this model works — remember that too, so a prior
+    // transient error doesn't keep it hidden.
+    recordModelHealth(ctx.model, "ok");
     return {
       ok: true,
       exitCode,
@@ -287,12 +304,3 @@ export const cliAdapter: Adapter = {
     };
   },
 };
-
-/** Where AIOS keeps the opencode config it manages (never the user's own). */
-export const AIOS_OPENCODE_CONFIG = join(
-  homedir(),
-  ".aios",
-  "opencode",
-  "opencode.json",
-);
-export const AIOS_OPENCODE_DIR = dirname(AIOS_OPENCODE_CONFIG);

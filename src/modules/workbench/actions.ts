@@ -94,6 +94,15 @@ export async function clipTaskToObsidian(input: {
   return { path };
 }
 
+/**
+ * Ask the worker to live-probe the free cloud models and prune the dead ones.
+ * Fire-and-forget: the worker records results to the health ledger and NOTIFYs
+ * when done, so the Settings picker refreshes with a cleaned list.
+ */
+export async function requestFreeModelVerify(force?: boolean) {
+  await sql.notify("verify_free_models", force ? "force" : "");
+}
+
 export async function createTask(input: {
   prompt: string;
   taskType: TaskType;
@@ -136,7 +145,11 @@ export async function createTask(input: {
  * Retry as a sibling attempt, optionally on a different executor — the point
  * of separating task from attempt. History is kept, not overwritten.
  */
-export async function retryTask(taskId: string, executorId?: string) {
+export async function retryTask(
+  taskId: string,
+  executorId?: string,
+  model?: string | null,
+) {
   const [task] = await db
     .select()
     .from(workbenchTasks)
@@ -157,7 +170,9 @@ export async function retryTask(taskId: string, executorId?: string) {
       seq: (last?.seq ?? 0) + 1,
       executorId:
         executorId ?? last?.executorId ?? TYPE_DEFAULT_EXECUTOR[task.taskType],
-      model: last?.model ?? null,
+      // An explicit model pins this attempt (e.g. a free-model comparison run);
+      // otherwise inherit the previous attempt's model.
+      model: model !== undefined ? model : (last?.model ?? null),
     })
     .returning();
 

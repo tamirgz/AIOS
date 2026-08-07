@@ -33,6 +33,8 @@ export interface AdapterResult {
   inputTokens?: number;
   outputTokens?: number;
   costUsd?: number;
+  /** The model the executor actually ran (Claude Code resolves it itself). */
+  model?: string | null;
 }
 
 export interface Adapter {

@@ -5,6 +5,19 @@ import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { ollamaProvider } from "@/core/ai/ollama";
+import { getSetting, setSetting } from "@/core/app-settings";
+import {
+  type FreeModelHealthSummary,
+  filterUsableModels,
+  probeFreeModel,
+  readHealthLedger,
+  recordModelHealthBatch,
+  STALE_MS,
+  summarizeHealth,
+} from "./model-health";
+
+/** app_settings key for the last verify pass's tally (shown in Settings). */
+export const FREE_MODEL_HEALTH_KEY = "free_model_health_summary";
 
 
 /**
@@ -161,7 +174,11 @@ function opencodeCloudFreeModels(): string[] {
 export async function listFreeModelsFor(executorId: string): Promise<string[]> {
   const local = await localOllamaModels();
   if (executorId === "opencode") {
-    return [...local.map((t) => `ollama/${t}`), ...opencodeCloudFreeModels()];
+    const ledger = readHealthLedger();
+    return filterUsableModels(
+      [...local.map((t) => `ollama/${t}`), ...opencodeCloudFreeModels()],
+      ledger,
+    );
   }
   return local;
 }
@@ -188,12 +205,70 @@ export async function listFreeModelsByExecutor(
   const cloud = executorIds.includes("opencode")
     ? opencodeCloudFreeModels()
     : [];
+  const ledger = readHealthLedger();
 
   const out: Record<string, string[]> = {};
   for (const id of executorIds) {
-    out[id] =
+    const all =
       id === "opencode" ? [...local.map((t) => `ollama/${t}`), ...cloud] : local;
+    out[id] = filterUsableModels(all, ledger); // drop retired/broken free models
   }
   cache = { at: Date.now(), ids, value: out };
   return out;
+}
+
+/**
+ * Verify pass: live-probe the free cloud models opencode offers ($0 calls) and
+ * record what's actually reachable, so the pickers can hide the dead ones.
+ *
+ * Idempotent per the state ledger — only (re)probes models never seen or last
+ * checked over {@link STALE_MS} ago, unless `force`. Bounded concurrency keeps
+ * it from hammering the provider. Writes a one-line summary to app_settings.
+ */
+export async function verifyFreeModels(opts?: {
+  force?: boolean;
+}): Promise<FreeModelHealthSummary> {
+  const candidates = opencodeCloudFreeModels(); // raw, pre-filter
+  const ledger = readHealthLedger();
+  const now = Date.now();
+  const toProbe = opts?.force
+    ? candidates
+    : candidates.filter((m) => {
+        const h = ledger[m];
+        return !h || now - Date.parse(h.checkedAt) > STALE_MS;
+      });
+
+  const results: Array<{ model: string; status: "ok" | "gone" | "error"; detail?: string }> = [];
+  const CONCURRENCY = 5;
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < toProbe.length) {
+      const model = toProbe[cursor++];
+      const r = await probeFreeModel(model);
+      // Skip inconclusive probes (slow cold start) — never hide a working model
+      // on a timeout; just leave it unchecked for the next pass.
+      if (r.status !== "unknown") {
+        results.push({ model, status: r.status, detail: r.detail });
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, toProbe.length) }, worker),
+  );
+  recordModelHealthBatch(results);
+
+  const summary = summarizeHealth(candidates);
+  await setSetting(FREE_MODEL_HEALTH_KEY, JSON.stringify(summary));
+  return summary;
+}
+
+/** The last verify pass's tally, for the Settings panel (null if never run). */
+export async function getFreeModelHealthSummary(): Promise<FreeModelHealthSummary | null> {
+  const raw = await getSetting(FREE_MODEL_HEALTH_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as FreeModelHealthSummary;
+  } catch {
+    return null;
+  }
 }
