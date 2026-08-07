@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowLeft,
   ArrowRight,
+  ChevronDown,
   Flame,
   FolderKanban,
   GripVertical,
@@ -251,6 +252,14 @@ export function TaskBoard({
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStatus, setOverStatus] = useState<TaskStatus | null>(null);
   const [editing, setEditing] = useState<Task | null>(null);
+  // Which columns are collapsed — click a column header to fold its list away.
+  const [collapsed, setCollapsed] = useState<Set<TaskStatus>>(new Set());
+  const toggleCollapsed = (status: TaskStatus) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(status) ? next.delete(status) : next.add(status);
+      return next;
+    });
   const [, startMove] = useTransition();
 
   const projectNames = useMemo(
@@ -278,6 +287,13 @@ export function TaskBoard({
     if (!id) return;
     const task = tasks.find((t) => t.id === id);
     if (!task || task.status === status) return;
+    // Reveal the destination if it was folded, so the moved card is visible.
+    setCollapsed((prev) => {
+      if (!prev.has(status)) return prev;
+      const next = new Set(prev);
+      next.delete(status);
+      return next;
+    });
     startMove(async () => {
       await setTaskStatus(id, status);
       onMoved();
@@ -294,6 +310,7 @@ export function TaskBoard({
           // column is being dragged over it.
           const isTarget = !!dragged && dragged.status !== col.status;
           const active = overStatus === col.status && isTarget;
+          const isCollapsed = collapsed.has(col.status);
           return (
             <section
               key={col.status}
@@ -314,54 +331,71 @@ export function TaskBoard({
                 drop(col.status);
               }}
               className={cn(
-                "min-h-40 rounded-2xl p-2 transition-colors",
+                "rounded-2xl p-2 transition-colors",
+                !isCollapsed && "min-h-40",
                 active
                   ? "bg-white/[0.03] outline outline-1 outline-dashed"
                   : "outline-none",
               )}
               style={active ? { outlineColor: col.accent } : undefined}
             >
-              <header className="mb-3 flex items-center gap-2 px-1">
-                <span className="dot" style={{ color: col.accent }} />
-                <h2 className="font-display text-sm font-medium uppercase tracking-[0.2em] text-ink-dim">
-                  {col.label}
-                </h2>
-                <span className="ml-auto font-mono text-xs tabular-nums text-ink-faint">
-                  {items.length}
-                </span>
-              </header>
-              <div className="flex flex-col gap-2.5">
-                <AnimatePresence mode="popLayout">
-                  {items.map((t) => (
-                    <TaskCard
-                      key={t.id}
-                      task={t}
-                      dragging={dragId === t.id}
-                      projectName={
-                        hideProjectBadge || !t.projectRef
-                          ? null
-                          : (projectNames[t.projectRef.split(":")[1]] ?? null)
-                      }
-                      onDragStart={onDragStart}
-                      onDragEnd={onDragEnd}
-                      onEdit={setEditing}
-                      onMoved={onMoved}
-                    />
-                  ))}
-                </AnimatePresence>
-                {items.length === 0 && (
-                  <div
+              <header className="mb-3 px-1">
+                <button
+                  type="button"
+                  onClick={() => toggleCollapsed(col.status)}
+                  aria-expanded={!isCollapsed}
+                  title={isCollapsed ? `Expand ${col.label}` : `Collapse ${col.label}`}
+                  className="group/hd flex w-full items-center gap-2"
+                >
+                  <span className="dot" style={{ color: col.accent }} />
+                  <h2 className="font-display text-sm font-medium uppercase tracking-[0.2em] text-ink-dim transition group-hover/hd:text-ink">
+                    {col.label}
+                  </h2>
+                  <span className="ml-auto font-mono text-xs tabular-nums text-ink-faint">
+                    {items.length}
+                  </span>
+                  <ChevronDown
                     className={cn(
-                      "rounded-xl border border-dashed py-8 text-center font-mono text-[10px] uppercase tracking-widest transition-colors",
-                      active
-                        ? "border-white/20 text-ink-dim"
-                        : "border-white/6 text-ink-faint",
+                      "size-3.5 text-ink-faint transition-transform group-hover/hd:text-ink-dim",
+                      isCollapsed && "-rotate-90",
                     )}
-                  >
-                    {active ? "drop here" : "empty"}
-                  </div>
-                )}
-              </div>
+                  />
+                </button>
+              </header>
+              {!isCollapsed && (
+                <div className="flex flex-col gap-2.5">
+                  <AnimatePresence mode="popLayout">
+                    {items.map((t) => (
+                      <TaskCard
+                        key={t.id}
+                        task={t}
+                        dragging={dragId === t.id}
+                        projectName={
+                          hideProjectBadge || !t.projectRef
+                            ? null
+                            : (projectNames[t.projectRef.split(":")[1]] ?? null)
+                        }
+                        onDragStart={onDragStart}
+                        onDragEnd={onDragEnd}
+                        onEdit={setEditing}
+                        onMoved={onMoved}
+                      />
+                    ))}
+                  </AnimatePresence>
+                  {items.length === 0 && (
+                    <div
+                      className={cn(
+                        "rounded-xl border border-dashed py-8 text-center font-mono text-[10px] uppercase tracking-widest transition-colors",
+                        active
+                          ? "border-white/20 text-ink-dim"
+                          : "border-white/6 text-ink-faint",
+                      )}
+                    >
+                      {active ? "drop here" : "empty"}
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           );
         })}
