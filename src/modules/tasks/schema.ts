@@ -24,6 +24,13 @@ export const tasks = pgTable("tasks", {
   dueAt: timestamp("due_at", { withTimezone: true }),
   /** Cross-module entity ref, e.g. "projects:<uuid>" — text, not FK, so modules stay droppable. */
   projectRef: text("project_ref"),
+  /**
+   * Optional "features:<uuid>" ref when this task is part of a multi-task
+   * feature. featureRef set → task belongs to that feature (and still carries
+   * the feature's projectRef so it rolls up to the project); null → a
+   * standalone project/loose task.
+   */
+  featureRef: text("feature_ref"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

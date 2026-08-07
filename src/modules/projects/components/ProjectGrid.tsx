@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useMemo, useRef, useState, useTransition } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { ArrowRight, ChevronDown, FolderPlus } from "lucide-react";
+import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react";
+import { ArrowRight, ChevronDown, FolderPlus, GripVertical } from "lucide-react";
 import { cn } from "@/core/ui/cn";
-import { createProject } from "../actions";
+import { createProject, setProjectCategoryOrder } from "../actions";
 import type { ProjectCockpit } from "../queries";
 import { HealthChip } from "./HealthChip";
 import { STATUS_CHIP } from "./statusStyle";
@@ -199,10 +199,45 @@ function GroupHeader({ label, count, color }: { label: string; count: number; co
   );
 }
 
-export function ProjectGrid({ projects }: { projects: ProjectCockpit[] }) {
-  // Active projects group by category (named groups first, biggest first, then
-  // uncategorized); paused/done/archived stay in the collapse at the bottom.
-  const { named, uncategorized, inactive, activeCount } = useMemo(() => {
+/** A draggable category group — grab the handle in its header to reorder. */
+function CategoryGroup({ name, items }: { name: string; items: ProjectCockpit[] }) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item value={name} dragListener={false} dragControls={controls}>
+      <div className="group/cat mb-3 flex items-center gap-2 px-1">
+        <button
+          type="button"
+          onPointerDown={(e) => controls.start(e)}
+          title="Drag to reorder"
+          className="cursor-grab touch-none text-ink-faint opacity-0 transition hover:text-ink-dim group-hover/cat:opacity-100 active:cursor-grabbing"
+        >
+          <GripVertical className="size-3.5" />
+        </button>
+        <span className="size-2 rounded-full" style={{ background: categoryColor(name) }} />
+        <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-dim">{name}</span>
+        <span className="font-mono text-xs tabular-nums text-ink-faint">{items.length}</span>
+      </div>
+      <ProjectSection title={name} projects={items} />
+    </Reorder.Item>
+  );
+}
+
+/** Saved order wins (filtered to what exists); new categories append after. */
+function reconcileOrder(live: string[], saved: string[]): string[] {
+  const liveSet = new Set(live);
+  return [...saved.filter((n) => liveSet.has(n)), ...live.filter((n) => !saved.includes(n))];
+}
+
+export function ProjectGrid({
+  projects,
+  categoryOrder,
+}: {
+  projects: ProjectCockpit[];
+  categoryOrder: string[];
+}) {
+  // Active projects group by category; paused/done/archived stay in the
+  // collapse at the bottom. Named category groups are drag-reorderable.
+  const { byCat, liveNames, uncategorized, inactive, activeCount } = useMemo(() => {
     const active = projects.filter((p) => p.status === "active");
     const inactive = projects.filter((p) => p.status !== "active");
     const byCat = new Map<string, ProjectCockpit[]>();
@@ -210,32 +245,35 @@ export function ProjectGrid({ projects }: { projects: ProjectCockpit[] }) {
       const key = p.category?.trim() || "";
       (byCat.get(key) ?? byCat.set(key, []).get(key)!).push(p);
     }
-    const named = [...byCat.entries()]
-      .filter(([k]) => k !== "")
-      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
-    return {
-      named,
-      uncategorized: byCat.get("") ?? [],
-      inactive,
-      activeCount: active.length,
-    };
+    const liveNames = [...byCat.keys()]
+      .filter((k) => k !== "")
+      .sort((a, b) => (byCat.get(b)!.length - byCat.get(a)!.length) || a.localeCompare(b));
+    return { byCat, liveNames, uncategorized: byCat.get("") ?? [], inactive, activeCount: active.length };
   }, [projects]);
+
+  const [order, setOrder] = useState<string[]>(() => reconcileOrder(liveNames, categoryOrder));
+  const [, startSave] = useTransition();
+  const display = reconcileOrder(liveNames, order);
+
+  const handleReorder = (next: string[]) => {
+    setOrder(next);
+    startSave(() => setProjectCategoryOrder(next));
+  };
 
   return (
     <div>
       <NewProjectForm />
 
       <div className="flex flex-col gap-7">
-        {named.map(([category, items]) => (
-          <div key={category}>
-            <GroupHeader label={category} count={items.length} color={categoryColor(category)} />
-            <ProjectSection title={category} projects={items} />
-          </div>
-        ))}
+        <Reorder.Group axis="y" values={display} onReorder={handleReorder} className="flex flex-col gap-7">
+          {display.map((name) => (
+            <CategoryGroup key={name} name={name} items={byCat.get(name) ?? []} />
+          ))}
+        </Reorder.Group>
         {uncategorized.length > 0 && (
           <div>
             <GroupHeader
-              label={named.length > 0 ? "uncategorized" : "active"}
+              label={liveNames.length > 0 ? "uncategorized" : "active"}
               count={uncategorized.length}
             />
             <ProjectSection title="uncategorized" projects={uncategorized} />

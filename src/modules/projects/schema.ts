@@ -73,6 +73,32 @@ export const projects = pgTable("projects", {
 
 export type Project = typeof projects.$inferSelect;
 
+/**
+ * A feature — a mid-layer between project and task. A feature belongs to one
+ * project and groups multiple tasks (tasks.featureRef = "features:<id>").
+ * Lightweight: just name + description; status and progress are derived from
+ * its tasks at read time.
+ */
+export const features = pgTable(
+  "features",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId: uuid("project_id").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    /** Manual order within the project's feature list. */
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("features_project").on(t.projectId)],
+);
+
+export type Feature = typeof features.$inferSelect;
+
+/** The entity ref stored in tasks.featureRef for a given feature row. */
+export const featureRefOf = (id: string) => `features:${id}`;
+
 /** Sort helper: active → paused → done (text enum, so plain asc would be wrong). */
 export const statusRank = sql`case ${projects.status} when 'active' then 0 when 'paused' then 1 when 'done' then 2 else 3 end`;
 

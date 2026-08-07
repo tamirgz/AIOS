@@ -24,6 +24,7 @@ export async function createTask(input: {
   priority?: TaskPriority;
   dueAt?: Date | null;
   projectRef?: string | null;
+  featureRef?: string | null;
 }) {
   const title = input.title.trim();
   if (!title) throw new Error("Task title is required");
@@ -35,6 +36,7 @@ export async function createTask(input: {
       priority: input.priority ?? "medium",
       dueAt: input.dueAt ?? null,
       projectRef: input.projectRef ?? null,
+      featureRef: input.featureRef ?? null,
     })
     .returning();
   revalidatePath("/");
@@ -61,6 +63,7 @@ export async function updateTask(
     priority: TaskPriority;
     dueAt: Date | null;
     projectRef: string | null;
+    featureRef: string | null;
   }>,
 ) {
   // Content changed → stale embedding; the sweep re-computes it.
