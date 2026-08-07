@@ -197,6 +197,13 @@
       "when": 1785564205359,
       "tag": "0027_loving_virginia_dare",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786096320725,
+      "tag": "0028_new_nighthawk",
+      "breakpoints": true
     }
   ]
 }

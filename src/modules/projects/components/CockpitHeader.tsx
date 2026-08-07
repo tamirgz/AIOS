@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { ArrowRight, Check, Pencil, Target, X } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { HealthChip } from "./HealthChip";
+import { CategoryPicker } from "./CategoryPicker";
 import type { ProjectHealth, ProjectStatus } from "../schema";
 
 /** One inline-editable line (goal / next action). Enter or ✓ saves; Esc cancels. */
@@ -126,6 +127,8 @@ export function CockpitHeader({
   id,
   status,
   goal,
+  category,
+  categories,
   nextAction,
   health,
   healthReason,
@@ -133,12 +136,15 @@ export function CockpitHeader({
   stats,
   lastActive,
   setGoal,
+  setCategory,
   setNextAction,
   completeNextAction,
 }: {
   id: string;
   status: ProjectStatus;
   goal: string | null;
+  category: string | null;
+  categories: string[];
   nextAction: string | null;
   health: ProjectHealth;
   healthReason: string;
@@ -147,6 +153,7 @@ export function CockpitHeader({
   lastActive: string;
   completeNextAction: (id: string) => Promise<void>;
   setGoal: (id: string, goal: string | null) => Promise<void>;
+  setCategory: (id: string, category: string | null) => Promise<void>;
   setNextAction: (id: string, nextAction: string | null) => Promise<void>;
 }) {
   return (
@@ -156,8 +163,16 @@ export function CockpitHeader({
           <HealthChip health={health} reason={healthReason} />
         )}
         <span className="text-sm text-ink-dim">{healthReason}</span>
+        <span className="ml-auto">
+          <CategoryPicker
+            id={id}
+            category={category}
+            categories={categories}
+            onSet={setCategory}
+          />
+        </span>
         <span
-          className="ml-auto font-mono text-[9px] uppercase tracking-widest text-ink-faint"
+          className="font-mono text-[9px] uppercase tracking-widest text-ink-faint"
           title={
             healthSource === "agent"
               ? "set by the Project-pulse agent"

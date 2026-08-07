@@ -4,7 +4,9 @@ import type { ModuleRouteProps } from "@/core/modules/types.server";
 import { GlassPanel } from "@/core/ui/GlassPanel";
 import {
   completeProjectNextAction,
+  listProjectCategories,
   listProjects,
+  setProjectCategory,
   setProjectGoal,
   setProjectNextAction,
 } from "../actions";
@@ -61,6 +63,7 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
       listProjects(),
       listProjectFiles(id),
     ]);
+  const categories = await listProjectCategories();
   const projectOptions = allProjects.map((p) => ({ id: p.id, name: p.name }));
   const done = projectTasks.filter((t) => t.status === "done").length;
   const openAttention = attention.filter((a) => a.status === "open");
@@ -96,6 +99,8 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
         id={project.id}
         status={project.status}
         goal={project.goal}
+        category={project.category}
+        categories={categories}
         nextAction={project.nextAction}
         health={project.resolvedHealth.health}
         healthReason={project.resolvedHealth.reason}
@@ -109,6 +114,7 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
         }}
         lastActive={lastActiveLabel(project.lastActivityAt)}
         setGoal={setProjectGoal}
+        setCategory={setProjectCategory}
         setNextAction={setProjectNextAction}
         completeNextAction={completeProjectNextAction}
       />

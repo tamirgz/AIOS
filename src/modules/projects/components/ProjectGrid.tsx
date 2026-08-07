@@ -9,6 +9,7 @@ import { createProject } from "../actions";
 import type { ProjectCockpit } from "../queries";
 import { HealthChip } from "./HealthChip";
 import { STATUS_CHIP } from "./statusStyle";
+import { categoryColor } from "./categoryColor";
 
 function lastActiveLabel(d: Date | null): string {
   if (!d) return "no activity";
@@ -185,36 +186,69 @@ function InactiveProjects({ projects }: { projects: ProjectCockpit[] }) {
   );
 }
 
+/** Section header: a category's color dot + name + count (or a plain label). */
+function GroupHeader({ label, count, color }: { label: string; count: number; color?: string }) {
+  return (
+    <div className="mb-3 flex items-center gap-2 px-1">
+      {color && <span className="size-2 rounded-full" style={{ background: color }} />}
+      <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-dim">
+        {label}
+      </span>
+      <span className="font-mono text-xs tabular-nums text-ink-faint">{count}</span>
+    </div>
+  );
+}
+
 export function ProjectGrid({ projects }: { projects: ProjectCockpit[] }) {
-  const { active, inactive } = useMemo(() => {
-    const active: ProjectCockpit[] = [];
-    const inactive: ProjectCockpit[] = [];
-    for (const p of projects) (p.status === "active" ? active : inactive).push(p);
-    return { active, inactive };
+  // Active projects group by category (named groups first, biggest first, then
+  // uncategorized); paused/done/archived stay in the collapse at the bottom.
+  const { named, uncategorized, inactive, activeCount } = useMemo(() => {
+    const active = projects.filter((p) => p.status === "active");
+    const inactive = projects.filter((p) => p.status !== "active");
+    const byCat = new Map<string, ProjectCockpit[]>();
+    for (const p of active) {
+      const key = p.category?.trim() || "";
+      (byCat.get(key) ?? byCat.set(key, []).get(key)!).push(p);
+    }
+    const named = [...byCat.entries()]
+      .filter(([k]) => k !== "")
+      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+    return {
+      named,
+      uncategorized: byCat.get("") ?? [],
+      inactive,
+      activeCount: active.length,
+    };
   }, [projects]);
 
   return (
     <div>
       <NewProjectForm />
 
-      {active.length > 0 && (
-        <div className="mb-3 flex items-center gap-2 px-1">
-          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">
-            active
-          </span>
-          <span className="font-mono text-xs tabular-nums text-ink-faint">
-            {active.length}
-          </span>
-        </div>
-      )}
-      <ProjectSection title="Active" projects={active} />
+      <div className="flex flex-col gap-7">
+        {named.map(([category, items]) => (
+          <div key={category}>
+            <GroupHeader label={category} count={items.length} color={categoryColor(category)} />
+            <ProjectSection title={category} projects={items} />
+          </div>
+        ))}
+        {uncategorized.length > 0 && (
+          <div>
+            <GroupHeader
+              label={named.length > 0 ? "uncategorized" : "active"}
+              count={uncategorized.length}
+            />
+            <ProjectSection title="uncategorized" projects={uncategorized} />
+          </div>
+        )}
+      </div>
 
       {projects.length === 0 && (
         <div className="rounded-xl border border-dashed border-white/6 py-12 text-center font-mono text-[10px] uppercase tracking-widest text-ink-faint">
           no projects yet — start one above
         </div>
       )}
-      {projects.length > 0 && active.length === 0 && (
+      {projects.length > 0 && activeCount === 0 && (
         <div className="rounded-xl border border-dashed border-white/6 py-8 text-center font-mono text-[10px] uppercase tracking-widest text-ink-faint">
           no active projects — see paused/done/archived below
         </div>
