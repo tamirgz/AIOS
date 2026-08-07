@@ -3,12 +3,15 @@
 import { desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/core/db/client";
+import { getSetting, setSetting } from "@/core/app-settings";
 import { tasks } from "@/modules/tasks/schema";
 import {
   projects,
   statusRank,
   type ProjectStatus,
 } from "./schema";
+
+const CATEGORY_ORDER_KEY = "project_category_order";
 
 function revalidateProjects(id?: string) {
   revalidatePath("/");
@@ -77,6 +80,23 @@ export async function setProjectCategory(id: string, category: string | null) {
     .set({ category: category?.trim() || null, updatedAt: new Date() })
     .where(eq(projects.id, id));
   revalidateProjects(id);
+}
+
+/** Persisted order of category groups on the Projects page (top → bottom). */
+export async function setProjectCategoryOrder(names: string[]) {
+  await setSetting(CATEGORY_ORDER_KEY, JSON.stringify(names));
+  revalidateProjects();
+}
+
+export async function getProjectCategoryOrder(): Promise<string[]> {
+  const raw = await getSetting(CATEGORY_ORDER_KEY);
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Distinct categories already in use — feeds the cockpit's suggestion chips. */

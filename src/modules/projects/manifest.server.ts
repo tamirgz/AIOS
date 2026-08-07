@@ -1,5 +1,5 @@
 import type { ModuleServerManifest } from "@/core/modules/types.server";
-import { projectFiles, projects } from "./schema";
+import { features, projectFiles, projects } from "./schema";
 import { projectTools } from "./tools";
 import { projectFilesJobs } from "./files-pipeline";
 import { projectReembedJobs } from "./reembed";
@@ -21,7 +21,7 @@ export const projectsServerManifest: ModuleServerManifest = {
       component: ActiveProjectsWidget,
     },
   ],
-  schema: { projects, projectFiles },
+  schema: { projects, projectFiles, features },
   aiTools: projectTools,
   jobs: [...projectFilesJobs, ...projectReembedJobs],
   agentTemplates: [

@@ -204,6 +204,13 @@
       "when": 1786096320725,
       "tag": "0028_new_nighthawk",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1786097456317,
+      "tag": "0029_greedy_smasher",
+      "breakpoints": true
     }
   ]
 }

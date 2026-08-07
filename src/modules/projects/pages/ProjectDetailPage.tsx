@@ -21,6 +21,9 @@ import { StatusCycleButton } from "../components/StatusCycleButton";
 import { ProjectTitle } from "../components/ProjectTitle";
 import { TaskBoard } from "../../tasks/components/TaskBoard";
 import { listProjectFiles } from "../files-actions";
+import { listProjectFeatures } from "../features-actions";
+import { featureRefOf } from "../schema";
+import { ProjectFeatures } from "../components/ProjectFeatures";
 
 function lastActiveLabel(d: Date | null): string {
   if (!d) return "no activity";
@@ -63,10 +66,20 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
       listProjects(),
       listProjectFiles(id),
     ]);
-  const categories = await listProjectCategories();
+  const [categories, projectFeatures] = await Promise.all([
+    listProjectCategories(),
+    listProjectFeatures(id),
+  ]);
   const projectOptions = allProjects.map((p) => ({ id: p.id, name: p.name }));
   const done = projectTasks.filter((t) => t.status === "done").length;
   const openAttention = attention.filter((a) => a.status === "open");
+
+  // Split the project's tasks into feature groups + loose (standalone) tasks.
+  const featureGroups = projectFeatures.map((feature) => ({
+    feature,
+    tasks: projectTasks.filter((t) => t.featureRef === featureRefOf(feature.id)),
+  }));
+  const looseTasks = projectTasks.filter((t) => !t.featureRef);
 
   return (
     <div className="flex flex-col gap-6">
@@ -128,10 +141,18 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
         }))}
       />
 
+      <ProjectFeatures projectId={project.id} groups={featureGroups} />
+
+      <div className="flex items-center gap-2 px-1 pt-1">
+        <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">
+          tasks
+        </span>
+        <span className="font-mono text-xs tabular-nums text-ink-faint">{looseTasks.length}</span>
+      </div>
       <ProjectTaskQuickAdd projectId={project.id} />
 
       <TaskBoard
-        tasks={projectTasks}
+        tasks={looseTasks}
         projectOptions={projectOptions}
         quickAddProjectRef={`projects:${project.id}`}
         hideQuickAdd
