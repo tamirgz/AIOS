@@ -2,10 +2,25 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BookMarked, Check, Pencil, X } from "lucide-react";
+import { BookMarked, Check, Pencil, Sparkles, X } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { Markdown } from "@/core/ui/Markdown";
 import { clipTaskToObsidian, updateAttemptResult } from "../actions";
+
+/** Which agent framework actually ran this, inferred from the executor id. */
+function frameworkLabel(executorId?: string | null): string {
+  const id = executorId ?? "";
+  if (id.startsWith("claude")) return "Claude Code (headless) · Claude Agent SDK";
+  if (id === "native") return "AIOS native runtime · Claude Agent SDK";
+  if (id.includes("opencode")) return "opencode CLI";
+  return id || "AIOS Workbench";
+}
+
+/** The provenance line appended to the report — model + agent framework. */
+function creditLine(model?: string | null, executorId?: string | null): string {
+  const parts = [model?.trim(), frameworkLabel(executorId)].filter(Boolean);
+  return `Generated with ${parts.join(" · ")} — via AIOS Workbench.`;
+}
 
 export function ReportPanel({
   attemptId,
@@ -13,13 +28,18 @@ export function ReportPanel({
   result,
   defaultTitle,
   sourceUrl,
+  model,
+  executorId,
 }: {
   attemptId: string;
   taskId: string;
   result: string;
   defaultTitle: string;
   sourceUrl: string;
+  model?: string | null;
+  executorId?: string | null;
 }) {
+  const credit = creditLine(model, executorId);
   const router = useRouter();
   const [pending, start] = useTransition();
   const [text, setText] = useState(result);
@@ -43,7 +63,7 @@ export function ReportPanel({
         const { path } = await clipTaskToObsidian({
           title,
           source,
-          body: text,
+          body: `${text.trim()}\n\n---\n\n*${credit}*`,
           createdISODate: new Date().toISOString().slice(0, 10),
         });
         setClip({ ok: path.split("/").slice(-2).join("/") });
@@ -149,8 +169,11 @@ export function ReportPanel({
           </div>
         </div>
       ) : (
-        <div dir="auto" className={cn("max-w-none", pending && "opacity-60")}>
+        <div dir="auto" className={cn("max-w-3xl", pending && "opacity-60")}>
           <Markdown>{text}</Markdown>
+          <p className="mt-6 flex items-center gap-1.5 border-t border-white/6 pt-3 font-mono text-[10px] italic tracking-wide text-ink-faint">
+            <Sparkles className="size-3 not-italic" /> {credit}
+          </p>
         </div>
       )}
 

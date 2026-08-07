@@ -150,6 +150,16 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
   const latest = attempts[attempts.length - 1];
   const meta = STATUS_META[task.status];
 
+  // Older claude-headless attempts didn't persist the model; recover it from
+  // the "started (<model>)" event so the report's credit line is still honest.
+  const ranModel =
+    latest?.model ??
+    (events
+      .map((e) => (e.type === "status" ? (e.payload as { model?: string })?.model : null))
+      .filter(Boolean)
+      .pop() ??
+      null);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start gap-3">
@@ -167,7 +177,7 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
             <span style={{ color: meta.color }}>{meta.label}</span>
             <span>{task.taskType}</span>
             {latest?.executorId && <span>{latest.executorId}</span>}
-            {latest?.model && <span>{latest.model}</span>}
+            {ranModel && <span>{ranModel}</span>}
             {latest?.branch && <span className="text-ion/70">{latest.branch}</span>}
             {latest?.inputTokens != null && (
               <span>
@@ -271,6 +281,22 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
         </div>
       </div>
 
+      {latest?.result && (
+        <section className="glass rounded-2xl p-5 sm:p-6">
+          <ReportPanel
+            attemptId={latest.id}
+            taskId={task.id}
+            result={latest.result}
+            defaultTitle={
+              latest.result.match(/^#{1,6}\s+(.+)$/m)?.[1]?.trim() || task.title
+            }
+            sourceUrl={task.prompt.match(/https?:\/\/[^\s)]+/)?.[0] ?? ""}
+            model={ranModel}
+            executorId={latest.executorId}
+          />
+        </section>
+      )}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <section className="glass rounded-2xl p-4 lg:col-span-2">
           <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
@@ -283,19 +309,6 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
             <p className="mt-3 font-mono text-[10px] text-ink-faint">
               {task.repoPath}
             </p>
-          )}
-          {latest?.result && (
-            <div className="mt-5">
-              <ReportPanel
-                attemptId={latest.id}
-                taskId={task.id}
-                result={latest.result}
-                defaultTitle={
-                  latest.result.match(/^#{1,6}\s+(.+)$/m)?.[1]?.trim() || task.title
-                }
-                sourceUrl={task.prompt.match(/https?:\/\/[^\s)]+/)?.[0] ?? ""}
-              />
-            </div>
           )}
           {latest?.error && (
             <p className="mt-4 rounded-lg border border-flare/20 bg-flare/5 p-3 text-xs text-flare">

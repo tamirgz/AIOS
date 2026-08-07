@@ -442,6 +442,9 @@ export async function runAttempt(attemptId: string): Promise<void> {
         inputTokens: result.inputTokens ?? null,
         outputTokens: result.outputTokens ?? null,
         costUsd: result.costUsd != null ? String(result.costUsd) : null,
+        // Record the model the executor actually ran, if it reported one and the
+        // attempt didn't already pin it (claude-headless resolves it itself).
+        ...(result.model && !attempt.model ? { model: result.model } : {}),
         endedAt: new Date(),
       })
       .where(eq(taskAttempts.id, attempt.id));
@@ -556,6 +559,20 @@ export const workbenchJobs: ModuleJob[] = [
     handle: async () => {
       await ensureExecutors();
       await reconcile();
+    },
+  },
+  {
+    // "Verify free models" from Settings: live-probe the free cloud catalog
+    // ($0 calls) and prune what's retired/broken. Idempotent via the health
+    // ledger — a `force` payload re-checks everything.
+    channel: "verify_free_models",
+    handle: async (payload) => {
+      const { verifyFreeModels } = await import("./models");
+      const s = await verifyFreeModels({ force: payload === "force" });
+      log(
+        `free-model verify: ${s.ok} ok, ${s.gone} retired, ${s.error} failing, ${s.unknown} unchecked (of ${s.total})`,
+      );
+      await notifyChanged("free_models");
     },
   },
 ];

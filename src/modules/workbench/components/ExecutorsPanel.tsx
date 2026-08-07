@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Cpu, Terminal } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Cpu, RefreshCw, ShieldCheck, Terminal } from "lucide-react";
 import { cn } from "@/core/ui/cn";
-import { updateExecutor } from "../actions";
+import { useLiveEvents } from "@/core/ui/useLiveEvents";
+import { requestFreeModelVerify, updateExecutor } from "../actions";
+import type { FreeModelHealthSummary } from "../model-health";
 
 export interface ExecutorRow {
   id: string;
@@ -20,13 +23,77 @@ export interface ExecutorRow {
  * joins AIOS — no code, no deploy: a command template with {{prompt}},
  * {{workdir}} and {{model}} placeholders, plus which model it defaults to.
  */
+function timeAgo(iso: string): string {
+  const s = Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 1000));
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+/** "Verify free models" — probes the free cloud catalog and prunes the dead. */
+function VerifyFreeModels({
+  health,
+}: {
+  health: FreeModelHealthSummary | null;
+}) {
+  const router = useRouter();
+  const [running, setRunning] = useState(false);
+  // The worker NOTIFYs workbench_changed when the verify pass finishes.
+  useLiveEvents(["workbench_changed"], () => {
+    if (running) {
+      setRunning(false);
+      router.refresh();
+    }
+  });
+
+  const start = () => {
+    setRunning(true);
+    void requestFreeModelVerify(true);
+    // Safety valve so the button never sticks if no event arrives.
+    setTimeout(() => setRunning(false), 180_000);
+  };
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-white/6 bg-abyss/40 px-3 py-2">
+      <ShieldCheck className="size-3.5 text-ion" />
+      {health ? (
+        <span className="font-mono text-[10px] text-ink-dim">
+          <span className="text-plasma">{health.ok} live</span>
+          {health.gone > 0 && <span className="text-flare"> · {health.gone} retired</span>}
+          {health.error > 0 && <span className="text-solar"> · {health.error} failing</span>}
+          {health.unknown > 0 && <span className="text-ink-faint"> · {health.unknown} unchecked</span>}
+          <span className="text-ink-faint"> · checked {timeAgo(health.at)}</span>
+        </span>
+      ) : (
+        <span className="font-mono text-[10px] text-ink-faint">
+          free cloud models never verified — dead/retired ones may still be listed
+        </span>
+      )}
+      <button
+        type="button"
+        disabled={running}
+        onClick={start}
+        title="Live-probe the free cloud models ($0) and hide the retired/broken ones"
+        className="ml-auto flex items-center gap-1.5 rounded-lg border border-ion/25 bg-ion/10 px-2.5 py-1 font-mono text-[9px] uppercase tracking-widest text-ion transition hover:bg-ion/20 disabled:opacity-50"
+      >
+        <RefreshCw className={cn("size-3", running && "animate-spin")} />
+        {running ? "verifying…" : "verify free models"}
+      </button>
+    </div>
+  );
+}
+
 export function ExecutorsPanel({
   executors,
   modelsByExecutor,
+  freeModelHealth,
 }: {
   executors: ExecutorRow[];
   /** Free models each executor may use — local + its free cloud tiers. */
   modelsByExecutor: Record<string, string[]>;
+  /** Last verify pass's tally, or null if never run. */
+  freeModelHealth: FreeModelHealthSummary | null;
 }) {
   // Total distinct free models offered — for the intro copy.
   const totalFree = new Set(Object.values(modelsByExecutor).flat()).size;
@@ -53,6 +120,8 @@ export function ExecutorsPanel({
         <code className="text-ion">{"{{workdir}}"}</code>{" "}
         <code className="text-ion">{"{{model}}"}</code>
       </p>
+
+      <VerifyFreeModels health={freeModelHealth} />
 
       <div className="flex flex-col gap-3">
         {executors.map((x) => {

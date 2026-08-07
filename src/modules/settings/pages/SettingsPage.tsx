@@ -13,7 +13,10 @@ import { EmbeddingModelPicker } from "../components/EmbeddingModelPicker";
 import { AuthPanel } from "../components/AuthPanel";
 import { ExecutorsPanel } from "@/modules/workbench/components/ExecutorsPanel";
 import { listExecutors } from "@/modules/workbench/queries";
-import { listFreeModelsByExecutor } from "@/modules/workbench/models";
+import {
+  getFreeModelHealthSummary,
+  listFreeModelsByExecutor,
+} from "@/modules/workbench/models";
 
 export async function SettingsPage() {
   await ensureDefaultRoutes();
@@ -50,6 +53,7 @@ export async function SettingsPage() {
   const freeModelsByExecutor = await listFreeModelsByExecutor(
     workbenchExecutors.map((x) => x.id),
   );
+  const freeModelHealth = await getFreeModelHealthSummary();
 
   const { memoryEntries } = await import("@/core/db/schema/memory");
   const { desc: descOrder, sql: dsql } = await import("drizzle-orm");
@@ -88,6 +92,7 @@ export async function SettingsPage() {
         <ExecutorsPanel
           executors={workbenchExecutors}
           modelsByExecutor={freeModelsByExecutor}
+          freeModelHealth={freeModelHealth}
         />
       </div>
       <div className="flex flex-col gap-5">
