@@ -50,7 +50,7 @@ Horizontal OS layers; **projects/work are the primary object they operate on**, 
 | A3 | **Senses — ingest & route** | Everything flows in and lands where it belongs: `#tldr`/`#my-today` routed to the project they affect; email triage + approval-gated drafts; files *(absorbs P2, two-way email, desktop capture)* | A week of `#tldr` lands as per-project signal; inbox triaged without opening Gmail | ⬜ |
 | A4 | **Attention scheduler** | AIOS pings **you** — stalls, deadlines, waiting-triggers, decisions needed *(absorbs "proactive attention routing", P5)* | A stalled project reached you before you noticed it | 🟡 attention items + queue exist |
 | A5 | **World model — grounding** | Deep current context that makes advice real. Extend advisor to people, decisions, knowledge; proactive recall *(absorbs "grounding & code context", P1)* | An advisor read cites the right note/decision/commit unprompted | ✅ **advisor + code repos shipped 2026-08-09**; breadth pending |
-| A6 | **Deliverable factory** | Workbench → real work products (PRD, analysis, code change, report), repo-grounded and verified *(absorbs P4)* | A delegated deliverable lands good enough to use as-is | 🟡 Workbench + repo grounding done |
+| A6 | **Deliverable factory** | Workbench → real work products (PRD, analysis, code change, report), repo-grounded and verified — **incl. the merge/PR button** so an approved branch actually lands *(absorbs P4 + the W3 merge remnant)* | A delegated deliverable lands good enough to use as-is — **and gets merged from inside AIOS** | 🟡 Workbench + repo grounding done; merge/PR never built |
 | A7 | **Brain-trust router + governor** | Per-task routing across Claude / GPT-5 (Codex) / Gemini / free-local; multi-opinion on the hardest calls; quota + cost ceilings *(absorbs "brain-trust router")* | A month with no quota surprise; the hard call got two opinions | 🟡 4 brains wired; routing + governor missing |
 | A8 | **Control room** | What ran · running · cost · pending your approval · failed — per project and system-wide *(absorbs "control room", P6)* | You can answer "what did AIOS do this week?" at a glance | ⬜ |
 | A9 | **Reliability spine** | Always-on: heartbeat, catch-up on missed runs, idempotency ledgers, self-healing | A sleep/restart cycle loses no work | 🟡 listener heartbeat shipped 2026-08-09 |
@@ -61,6 +61,20 @@ Horizontal OS layers; **projects/work are the primary object they operate on**, 
 - **Multi-agent framework sidecar** (CrewAI / Agno / Langflow / Pydantic-AI) — researched 2026-08-09: orchestration adds failure surface, not capability, and no free local model handled the judgment task. Revisit only if a task genuinely decomposes.
 
 **Parked — deferred, not killed:** phone reach (PWA/Telegram + Tailscale) and mobile/share-sheet capture. ⌘K already covers desktop command; reach returns when there is more worth reaching for.
+
+#### Full-backlog audit *(2026-08-09)* — everything from the original plan that A1–A9 did **not** carry forward
+
+A first pass claimed "nothing else was lost"; auditing the original plan + WORKBENCH/ONE-STOP tails proved that wrong. Complete ledger:
+
+| Item | Origin | Disposition |
+|---|---|---|
+| **Workbench merge / PR button** | W3 remnant — "only the merge/PR button stays a Workbench task" | ⚠️ **Never built, and a real hole**: an agent's branch is reviewed in-app but merged outside AIOS. **Folded into A6** (a deliverable isn't delivered until it can land) |
+| **Habits / Metrics tracker** | Original plan, future module #5 | ❌ **Dropped** — a widget-system demo, not project/work leverage |
+| **CRM / Sales module** | Original plan, future module #3 ("the deferred module") | ❌ **Dropped as a module** — the `people` CRM-lite (calendar-derived, follow-ups, personRef) already covers the project-ops need; a sales pipeline is out of scope |
+| **`pi` JSON parser rebuild · `aider` install · pi/aider free-cloud tiers** | W2 tails | ❌ **Dropped** — `opencode` (free local + free cloud), `claude-headless` and `codex` cover every executor need; two unproven rows aren't worth maintaining |
+| **Connector agent** ("this item relates to project X — attach it?") | L3 §3.4, deferred optional | ✅ **Absorbed into A3** — proactive item→project routing *is* A3's core |
+| **Auth gate** | Old Phase 9 | ⏸️ **Parked with phone reach** — AIOS is localhost-only today; the gate becomes mandatory the moment it's exposed (ships together with Tailscale/PWA, never after) |
+| **Notes-vs-Vault decision · module graveyards · fluidity pass · agent 👍/👎 evals** | Old Phase 9 | ⏸️ **Parked** — the "subtract" pass, worth doing after A1–A3 |
 
 ## What AIOS is — an Agentic OS with projects at the centre *(reframed 2026-08-09)*
 
