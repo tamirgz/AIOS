@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { ArrowRight, Check, GitBranch, Pencil, Target, X } from "lucide-react";
 import { cn } from "@/core/ui/cn";
+import { useLiveEvents } from "@/core/ui/useLiveEvents";
 import { HealthChip } from "./HealthChip";
 import { CategoryPicker } from "./CategoryPicker";
 import type { ProjectHealth, ProjectStatus } from "../schema";
@@ -163,6 +164,10 @@ export function CockpitHeader({
   setNextAction: (id: string, nextAction: string | null) => Promise<void>;
   setRepo: (id: string, repoUrl: string | null) => Promise<void>;
 }) {
+  // The worker announces repo-sync (and advisor) completion on this channel —
+  // refresh so "cloning…" flips to "cloned" (and fresh reads appear) live.
+  useLiveEvents(["projects_changed"]);
+
   return (
     <div className="glass rounded-2xl p-4">
       <div className="mb-3 flex items-center gap-2.5">

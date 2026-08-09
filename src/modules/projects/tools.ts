@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import type { AiToolDef } from "@/core/modules/types.server";
+import { sql } from "@/core/db/client";
 import { getProjectCockpit } from "./queries";
 import { usableRepoPath } from "./repo";
 import { projectFiles, projects, PROJECT_HEALTHS, PROJECT_STATUSES } from "./schema";
@@ -214,6 +215,7 @@ export const projectTools: AiToolDef[] = [
         })
         .where(eq(projects.id, input.projectId))
         .returning();
+      if (row) await sql.notify("projects_changed", input.projectId); // live cockpit update
       return row ? { updated: { id: row.id } } : { error: "project not found" };
     },
   },
