@@ -148,6 +148,7 @@ export const attemptEvents = pgTable(
  */
 export const EXECUTOR_KINDS = [
   "claude-headless",
+  "codex-headless",
   "native",
   "cli",
   "opencode-server",

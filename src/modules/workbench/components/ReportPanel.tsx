@@ -11,6 +11,7 @@ import { clipTaskToObsidian, updateAttemptResult } from "../actions";
 function frameworkLabel(executorId?: string | null): string {
   const id = executorId ?? "";
   if (id.startsWith("claude")) return "Claude Code (headless) · Claude Agent SDK";
+  if (id.startsWith("codex")) return "Codex CLI · GPT-5 (ChatGPT subscription)";
   if (id === "native") return "AIOS native runtime · Claude Agent SDK";
   if (id.includes("opencode")) return "opencode CLI";
   return id || "AIOS Workbench";

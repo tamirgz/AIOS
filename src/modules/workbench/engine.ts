@@ -13,6 +13,7 @@ import { and, asc, eq, inArray, sql as dsql } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
 import type { ModuleJob } from "@/core/modules/types.server";
 import { claudeHeadlessAdapter } from "./adapters/claude-headless";
+import { codexHeadlessAdapter } from "./adapters/codex-headless";
 import {
   AIOS_OPENCODE_CONFIG,
   AIOS_OPENCODE_DIR,
@@ -46,6 +47,7 @@ const STALL_MS = 5 * 60 * 1000;
 
 const ADAPTERS: Record<string, Adapter> = {
   "claude-headless": claudeHeadlessAdapter,
+  "codex-headless": codexHeadlessAdapter,
   native: nativeAdapter,
   cli: cliAdapter,
 };
@@ -141,6 +143,16 @@ export async function ensureExecutors() {
         name: "Claude Code (headless)",
         kind: "claude-headless" as const,
         defaultModel: "claude-sonnet-5",
+        gitMode: "worktree" as const,
+        timeoutMs: TIMEOUTS.code,
+      },
+      {
+        // GPT-5 via a ChatGPT Pro subscription (no API key) — the second
+        // "hard task" brain alongside Claude. Auth: `codex login`.
+        id: "codex-headless",
+        name: "Codex (GPT-5, ChatGPT sub)",
+        kind: "codex-headless" as const,
+        defaultModel: "gpt-5.6-sol",
         gitMode: "worktree" as const,
         timeoutMs: TIMEOUTS.code,
       },
