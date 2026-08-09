@@ -11,7 +11,7 @@ config({ path: ".env.local" });
 import { Cron } from "croner";
 import { and, eq, lt, sql as dsql } from "drizzle-orm";
 import postgres from "postgres";
-import { db } from "@/core/db/client";
+import { db, sql } from "@/core/db/client";
 import { agentRuns, agents, type Agent } from "@/core/db/schema/agents";
 import { notifications } from "@/core/db/schema/notifications";
 import { getSetting, SETTING_KEYS } from "@/core/app-settings";
@@ -152,39 +152,97 @@ async function main() {
     log(`job "${job.channel}" scheduled [${job.schedule}]`);
   }
 
-  // Dedicated LISTEN connection.
-  const listener = postgres(url, { max: 1 });
-  await listener.listen("agents_changed", () => {
-    log("agents_changed → resyncing schedules");
-    syncSchedules().catch((e) => log(`resync failed: ${e}`));
-  });
-  await listener.listen("run_requests", (runId) => {
-    log(`run request → ${runId}`);
-    executeRun(runId).catch((e) => log(`run ${runId} failed: ${e}`));
-  });
-  await listener.listen("approval_decisions", (approvalId) => {
-    log(`approval decision → ${approvalId}`);
-    executeApproval(approvalId).catch((e) =>
-      log(`approval ${approvalId} failed: ${e}`),
-    );
-  });
-  await listener.listen("config_changed", (key) => {
-    log(`config_changed → ${key} (routes re-read per run; noted)`);
-  });
-  // Slack delivery of notifications (skipped gracefully when unconfigured).
-  await listener.listen("notifications", (id) => {
-    if (!id || id === "read") return;
-    deliverToSlack(id).catch((e) => log(`slack delivery failed: ${e}`));
-  });
-  for (const [channel, handle] of jobHandlers) {
-    await listener.listen(channel, (payload) => {
-      log(`job ${channel} ← ${payload}`);
-      handle(payload, { db }).catch((e) =>
-        log(`job ${channel} failed: ${e}`),
+  // Dedicated LISTEN connection — made resilient. A Mac that sleeps leaves a
+  // half-open socket that postgres.js won't notice on its own: writes succeed
+  // into the void, no NOTIFY ever arrives, and every event-driven path (agent
+  // hot-reload, run/cancel, approvals, Slack delivery, the verify button, Slack
+  // intake) goes silently deaf until the process restarts. We subscribe all
+  // channels on a fresh connection and let a heartbeat watchdog rebuild it when
+  // its own pings stop coming back, then catch up on work missed while deaf.
+  //
+  // The health signal is a self-NOTIFY: every tick we NOTIFY `aios_heartbeat`
+  // through the main pool and expect THIS connection to hear it. That exercises
+  // the real LISTEN path end-to-end — a plain `SELECT 1` would run on a separate
+  // pool connection and prove nothing about whether this socket still delivers.
+  let lastHeartbeat = Date.now();
+  const subscribeAll = async (l: ReturnType<typeof postgres>) => {
+    await l.listen("aios_heartbeat", () => {
+      lastHeartbeat = Date.now();
+    });
+    await l.listen("agents_changed", () => {
+      log("agents_changed → resyncing schedules");
+      syncSchedules().catch((e) => log(`resync failed: ${e}`));
+    });
+    await l.listen("run_requests", (runId) => {
+      log(`run request → ${runId}`);
+      executeRun(runId).catch((e) => log(`run ${runId} failed: ${e}`));
+    });
+    await l.listen("approval_decisions", (approvalId) => {
+      log(`approval decision → ${approvalId}`);
+      executeApproval(approvalId).catch((e) =>
+        log(`approval ${approvalId} failed: ${e}`),
       );
     });
-    log(`listening for module jobs on "${channel}"`);
-  }
+    await l.listen("config_changed", (key) => {
+      log(`config_changed → ${key} (routes re-read per run; noted)`);
+    });
+    // Slack delivery of notifications (skipped gracefully when unconfigured).
+    await l.listen("notifications", (id) => {
+      if (!id || id === "read") return;
+      deliverToSlack(id).catch((e) => log(`slack delivery failed: ${e}`));
+    });
+    for (const [channel, handle] of jobHandlers) {
+      await l.listen(channel, (payload) => {
+        log(`job ${channel} ← ${payload}`);
+        handle(payload, { db }).catch((e) => log(`job ${channel} failed: ${e}`));
+      });
+    }
+  };
+
+  const startListener = async () => {
+    // Named so it's identifiable in pg_stat_activity (monitoring + the drop is
+    // observable). max:1 — one dedicated connection carries every LISTEN.
+    const l = postgres(url, {
+      max: 1,
+      connection: { application_name: "aios-worker-listener" },
+    });
+    await subscribeAll(l);
+    return l;
+  };
+
+  let listener = await startListener();
+  log(`listening on ${jobHandlers.size + 6} channel(s)`);
+
+  const rebuildListener = async () => {
+    try {
+      await listener.end({ timeout: 5 });
+    } catch {
+      // dead socket — abandon it and move on
+    }
+    listener = await startListener();
+    lastHeartbeat = Date.now(); // fresh grace window for the new subscription
+    log("listener rebuilt — catching up (schedules + queued runs)");
+    syncSchedules().catch((e) => log(`catch-up resync failed: ${e}`));
+    pickUpQueuedRuns().catch((e) => log(`catch-up queued pickup failed: ${e}`));
+  };
+  // Heartbeat watchdog: emit a beat every 30s and rebuild if none has come back
+  // for 90s (≈3 missed) — the window that means this socket has gone deaf.
+  const HEARTBEAT_MS = 30_000;
+  const DEAF_AFTER_MS = 90_000;
+  setInterval(() => {
+    void (async () => {
+      const silentFor = Date.now() - lastHeartbeat;
+      if (silentFor > DEAF_AFTER_MS) {
+        log(`⚠ listener deaf for ${Math.round(silentFor / 1000)}s — rebuilding`);
+        await rebuildListener().catch((err) =>
+          log(`listener rebuild failed, retry next tick: ${err}`),
+        );
+      }
+      // Send through the main pool (which reconnects on its own); the listener
+      // must echo it back to prove it's still delivering.
+      sql.notify("aios_heartbeat", "").catch(() => {});
+    })();
+  }, HEARTBEAT_MS).unref();
 
   // Periodic safety net: orphan sweep + schedule resync + stale queued
   // pick-up every 5 minutes.
