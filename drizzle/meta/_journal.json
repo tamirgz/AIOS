@@ -218,6 +218,13 @@
       "when": 1786289947870,
       "tag": "0030_broken_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786299564706,
+      "tag": "0031_safe_arclight",
+      "breakpoints": true
     }
   ]
 }

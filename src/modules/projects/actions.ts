@@ -93,6 +93,26 @@ export async function setProjectRepo(id: string, repoUrl: string | null) {
   revalidateProjects(id);
 }
 
+/** Refresh the per-project Advisor reads now — runs the Project-advisor agent
+ *  (auto-creating it from its template the first time). */
+export async function runProjectAdvisor() {
+  const { agents } = await import("@/core/db/schema/agents");
+  const { createFromTemplate, requestRun } = await import(
+    "@/modules/agents/actions"
+  );
+  let [agent] = await db
+    .select({ id: agents.id })
+    .from(agents)
+    .where(eq(agents.name, "Project advisor"));
+  if (!agent) {
+    const created = await createFromTemplate("project-advisor");
+    agent = { id: created.id };
+  }
+  await requestRun(agent.id);
+  revalidateProjects();
+  return { ok: true as const };
+}
+
 /** Persisted order of category groups on the Projects page (top → bottom). */
 export async function setProjectCategoryOrder(names: string[]) {
   await setSetting(CATEGORY_ORDER_KEY, JSON.stringify(names));

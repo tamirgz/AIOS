@@ -60,5 +60,33 @@ export const projectsServerManifest: ModuleServerManifest = {
       defaultProvider: "ollama",
       defaultModel: "qwen3-coder:30b",
     },
+    {
+      id: "project-advisor",
+      name: "Project advisor",
+      description:
+        "Chief-of-staff read per active project: where it stands, the one real blocker, and the single next move — grounded in the project's tasks, notes and (for code projects) its actual repo. Runs on Haiku for quality; refreshable on demand from the project cockpit.",
+      defaultPrompt: [
+        "You are the user's chief-of-staff. For each ACTIVE project, write a sharp, grounded read the user could act on immediately — where it stands, the one real blocker, and the single next move. Generic advice is a failure.",
+        "1. Call projects.list — your world model (goal, health, open/done/overdue counts, daysSinceActivity). Only consider status = 'active'.",
+        "2. For each active project, gather EVIDENCE before writing: call tasks.list for its open/overdue tasks; if it is a code project, call projects.readRepo to see recent commits + README, and ground your read in what's actually happening in the code.",
+        "3. Write the read with projects.setAdvisorBrief(projectId, state, blocker, recommendation):",
+        "   - state: 2-3 sentences on where it ACTUALLY stands, citing evidence (a specific task, a recent commit, N days idle). Do NOT restate the goal or pad with filler.",
+        "   - blocker: the ONE real thing holding it up (a missing decision, an external dependency, a stalled task), or null if it is genuinely unblocked.",
+        "   - recommendation: the single most useful next move — concrete and doable this week.",
+        "4. Be specific and honest. If a project is healthy, say so in one line. Do not send notifications and do not raise cards — the briefs are the only output.",
+      ].join("\n"),
+      defaultTools: [
+        "projects.list",
+        "tasks.list",
+        "projects.readRepo",
+        "projects.setAdvisorBrief",
+      ],
+      defaultSchedule: "15 7 * * 1-5", // 07:15 weekdays — just after Project-pulse
+      // Haiku: judgement-heavy synthesis where quality compounds (the advisor is
+      // the brain). Cheap at a few projects/day; a deliberate metered exception
+      // to the free-periodic rule, chosen by the user. Routable per-agent.
+      defaultProvider: "anthropic",
+      defaultModel: "claude-haiku-4-5-20251001",
+    },
   ],
 };

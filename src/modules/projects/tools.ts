@@ -1,7 +1,12 @@
+import { execFile } from "node:child_process";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import type { AiToolDef } from "@/core/modules/types.server";
 import { getProjectCockpit } from "./queries";
+import { usableRepoPath } from "./repo";
 import { projectFiles, projects, PROJECT_HEALTHS, PROJECT_STATUSES } from "./schema";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -141,6 +146,75 @@ export const projectTools: AiToolDef[] = [
         .from(projectFiles)
         .where(eq(projectFiles.projectId, input.projectId));
       return rows;
+    },
+  },
+  {
+    name: "projects.readRepo",
+    description:
+      "Read a project's attached code repo — recent commits + its README — so your advice is grounded in the actual code, not a guess. Returns attached:false when no repo is attached or it hasn't cloned yet.",
+    input: z.object({ projectId: z.string().uuid() }),
+    async execute(input, { db }) {
+      const [p] = await db
+        .select({ repoUrl: projects.repoUrl })
+        .from(projects)
+        .where(eq(projects.id, input.projectId));
+      const dir = usableRepoPath(input.projectId, p?.repoUrl ?? null);
+      if (!dir) return { attached: false, note: "no repo attached or not cloned yet" };
+      const exec = promisify(execFile);
+      let recentCommits = "";
+      let readme = "";
+      try {
+        recentCommits = (
+          await exec("git", ["-C", dir, "log", "--oneline", "-20"], {
+            maxBuffer: 4 * 1024 * 1024,
+          })
+        ).stdout.trim();
+      } catch {
+        // shallow/odd repo — commits are optional context
+      }
+      try {
+        const name = readdirSync(dir).find((n) => /^readme(\.md|\.rst|\.txt)?$/i.test(n));
+        if (name) readme = readFileSync(join(dir, name), "utf8").slice(0, 4000);
+      } catch {
+        // no README — fine
+      }
+      return { attached: true, recentCommits, readme };
+    },
+  },
+  {
+    name: "projects.setAdvisorBrief",
+    description:
+      "Record the chief-of-staff read for ONE project: where it actually stands (state), the single real blocker (or null if none), and one concrete recommended next move. Ground every field in the project's real tasks/notes/repo — no boilerplate, no restating the goal.",
+    input: z.object({
+      projectId: z.string().uuid(),
+      state: z
+        .string()
+        .min(3)
+        .max(600)
+        .describe("2-3 sentences: where this project actually stands right now"),
+      blocker: z
+        .string()
+        .max(400)
+        .nullish()
+        .describe("The one real blocker holding it up, or null if nothing is blocking"),
+      recommendation: z
+        .string()
+        .min(3)
+        .max(400)
+        .describe("One concrete next move you'd make"),
+    }),
+    async execute(input, { db }) {
+      const [row] = await db
+        .update(projects)
+        .set({
+          advisorState: input.state.trim(),
+          advisorBlocker: input.blocker?.trim() || null,
+          advisorNext: input.recommendation.trim(),
+          advisorUpdatedAt: new Date(),
+        })
+        .where(eq(projects.id, input.projectId))
+        .returning();
+      return row ? { updated: { id: row.id } } : { error: "project not found" };
     },
   },
 ];
