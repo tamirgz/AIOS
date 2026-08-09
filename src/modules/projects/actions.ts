@@ -2,7 +2,7 @@
 
 import { desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { db } from "@/core/db/client";
+import { db, sql } from "@/core/db/client";
 import { getSetting, setSetting } from "@/core/app-settings";
 import { tasks } from "@/modules/tasks/schema";
 import {
@@ -79,6 +79,17 @@ export async function setProjectCategory(id: string, category: string | null) {
     .update(projects)
     .set({ category: category?.trim() || null, updatedAt: new Date() })
     .where(eq(projects.id, id));
+  revalidateProjects(id);
+}
+
+/** Attach a code repo (GitHub URL or local path) and clone/refresh it now. */
+export async function setProjectRepo(id: string, repoUrl: string | null) {
+  const url = repoUrl?.trim() || null;
+  await db
+    .update(projects)
+    .set({ repoUrl: url, updatedAt: new Date() })
+    .where(eq(projects.id, id));
+  if (url) await sql.notify("project_repos_sync", id); // worker clones/refreshes
   revalidateProjects(id);
 }
 

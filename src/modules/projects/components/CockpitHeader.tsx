@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ArrowRight, Check, Pencil, Target, X } from "lucide-react";
+import { ArrowRight, Check, GitBranch, Pencil, Target, X } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { HealthChip } from "./HealthChip";
 import { CategoryPicker } from "./CategoryPicker";
@@ -130,6 +130,8 @@ export function CockpitHeader({
   category,
   categories,
   nextAction,
+  repoUrl,
+  repoReady,
   health,
   healthReason,
   healthSource,
@@ -138,6 +140,7 @@ export function CockpitHeader({
   setGoal,
   setCategory,
   setNextAction,
+  setRepo,
   completeNextAction,
 }: {
   id: string;
@@ -146,6 +149,9 @@ export function CockpitHeader({
   category: string | null;
   categories: string[];
   nextAction: string | null;
+  repoUrl: string | null;
+  /** True once the read-only clone exists (or the local path is a git repo). */
+  repoReady: boolean;
   health: ProjectHealth;
   healthReason: string;
   healthSource: "agent" | "derived";
@@ -155,6 +161,7 @@ export function CockpitHeader({
   setGoal: (id: string, goal: string | null) => Promise<void>;
   setCategory: (id: string, category: string | null) => Promise<void>;
   setNextAction: (id: string, nextAction: string | null) => Promise<void>;
+  setRepo: (id: string, repoUrl: string | null) => Promise<void>;
 }) {
   return (
     <div className="glass rounded-2xl p-4">
@@ -199,6 +206,32 @@ export function CockpitHeader({
           onSave={(v) => setNextAction(id, v)}
           onComplete={() => completeNextAction(id)}
         />
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <EditableLine
+              value={repoUrl}
+              placeholder="Attach a code repo — GitHub URL or local path (agents read the real code)"
+              icon={<GitBranch className="size-3.5" />}
+              accent="var(--color-ion)"
+              onSave={(v) => setRepo(id, v)}
+            />
+          </div>
+          {repoUrl && (
+            <span
+              className={cn(
+                "shrink-0 rounded-md px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest",
+                repoReady ? "bg-plasma/10 text-plasma" : "bg-solar/10 text-solar",
+              )}
+              title={
+                repoReady
+                  ? "Read-only clone is ready — pick it as the repo when delegating a code task"
+                  : "Cloning in the background — refresh in a moment"
+              }
+            >
+              {repoReady ? "cloned" : "cloning…"}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/6 pt-3 font-mono text-[10px] uppercase tracking-widest text-ink-faint">
