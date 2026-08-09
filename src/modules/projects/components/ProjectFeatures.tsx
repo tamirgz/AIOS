@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Reorder, useDragControls } from "motion/react";
-import { GripVertical, Layers, ListPlus, Plus, Trash2, Unlink } from "lucide-react";
+import { ChevronDown, GripVertical, Layers, ListPlus, Plus, Trash2, Unlink } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { setTaskStatus, deleteTask } from "@/modules/tasks/actions";
 import type { Task, TaskStatus } from "@/modules/tasks/schema";
@@ -111,6 +111,10 @@ function FeatureCard({
   const total = tasks.length;
   const pct = total ? Math.round((done / total) * 100) : 0;
   const status = deriveStatus(tasks);
+  // A shipped feature (all tasks done) folds away by default so it stops
+  // crowding the active work — expandable, and it reopens if you add a task.
+  const isDone = total > 0 && done === total;
+  const [collapsed, setCollapsed] = useState(isDone);
 
   const run = (fn: () => Promise<unknown>) =>
     start(async () => {
@@ -128,7 +132,7 @@ function FeatureCard({
   };
 
   return (
-    <Reorder.Item value={feature.id} dragListener={false} dragControls={controls} className="glass rounded-xl p-4">
+    <Reorder.Item value={feature.id} dragListener={false} dragControls={controls} className={cn("glass rounded-xl p-4 transition-opacity", collapsed && isDone && "opacity-60")}>
       <div className="mb-2 flex items-center gap-2.5">
         <button
           type="button"
@@ -149,6 +153,14 @@ function FeatureCard({
         <span className="ml-auto font-mono text-[10px] tabular-nums text-ink-faint">
           {done}/{total}
         </span>
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          title={collapsed ? "Expand feature" : "Collapse feature"}
+          className="shrink-0 rounded p-1 text-ink-faint transition hover:text-ink-dim"
+        >
+          <ChevronDown className={cn("size-3.5 transition-transform", collapsed && "-rotate-90")} />
+        </button>
         {/* Pull an existing loose task into this feature. */}
         <div className="relative">
           <button
@@ -201,26 +213,30 @@ function FeatureCard({
         <div className="h-full rounded-full bg-gradient-to-r from-plasma-dim to-plasma" style={{ width: `${pct}%` }} />
       </div>
 
-      {tasks.length > 0 && (
-        <div className="flex flex-col divide-y divide-white/4">
-          {tasks.map((t) => (
-            <TaskRow key={t.id} task={t} projectId={projectId} />
-          ))}
-        </div>
-      )}
+      {!collapsed && (
+        <>
+          {tasks.length > 0 && (
+            <div className="flex flex-col divide-y divide-white/4">
+              {tasks.map((t) => (
+                <TaskRow key={t.id} task={t} projectId={projectId} />
+              ))}
+            </div>
+          )}
 
-      <form
-        onSubmit={(e) => { e.preventDefault(); addTask(); }}
-        className="mt-2 flex items-center gap-2 border-t border-white/6 pt-2"
-      >
-        <Plus className="size-3.5 text-ion" />
-        <input
-          ref={inputRef}
-          placeholder="Add a task to this feature…"
-          disabled={pending}
-          className="h-7 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
-        />
-      </form>
+          <form
+            onSubmit={(e) => { e.preventDefault(); addTask(); }}
+            className="mt-2 flex items-center gap-2 border-t border-white/6 pt-2"
+          >
+            <Plus className="size-3.5 text-ion" />
+            <input
+              ref={inputRef}
+              placeholder="Add a task to this feature…"
+              disabled={pending}
+              className="h-7 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
+            />
+          </form>
+        </>
+      )}
     </Reorder.Item>
   );
 }

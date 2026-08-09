@@ -139,6 +139,7 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
       />
 
       <AdvisorPanel
+        projectId={project.id}
         state={project.advisorState}
         blocker={project.advisorBlocker}
         next={project.advisorNext}

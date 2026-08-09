@@ -113,6 +113,62 @@ export async function runProjectAdvisor() {
   return { ok: true as const };
 }
 
+/** Turn an advisor recommendation into a task in this project. */
+export async function advisorToTask(projectId: string, title: string) {
+  const { createTask } = await import("@/modules/tasks/actions");
+  await createTask({ title: title.trim().slice(0, 200), projectRef: `projects:${projectId}` });
+  revalidateProjects(projectId);
+  return { ok: true as const };
+}
+
+/** Turn an advisor recommendation into a feature in this project. */
+export async function advisorToFeature(projectId: string, name: string) {
+  const { createFeature } = await import("./features-actions");
+  await createFeature(projectId, name.trim().slice(0, 120));
+  revalidateProjects(projectId);
+  return { ok: true as const };
+}
+
+/** Re-run the advisor for ONE project from a user-supplied angle (Haiku). */
+export async function reconsiderProject(projectId: string, angle: string) {
+  const steer = angle.trim();
+  if (!steer) return { error: "no angle" as const };
+  const [p] = await db
+    .select({ name: projects.name })
+    .from(projects)
+    .where(eq(projects.id, projectId));
+  if (!p) return { error: "project not found" as const };
+
+  const { getToolsByNames } = await import("@/core/ai/tool-registry");
+  const { providers } = await import("@/core/ai/routing");
+  const tools = getToolsByNames([
+    "projects.list",
+    "tasks.list",
+    "projects.readRepo",
+    "projects.setAdvisorBrief",
+  ]);
+  for await (const ev of providers.anthropic.run({
+    system:
+      "You are the user's chief-of-staff for their projects. Be sharp, specific and honest — no boilerplate, no restating the goal.",
+    messages: [
+      {
+        role: "user",
+        content:
+          `Reconsider ONLY the project "${p.name}" (id ${projectId}) from this angle: "${steer}". ` +
+          "Gather its context first (call tasks.list, and projects.readRepo if it has a code repo), then write ONE fresh read for THIS project via projects.setAdvisorBrief — state, blocker (or null), and recommendation — reflecting the requested angle. Call setAdvisorBrief exactly once, for this project only.",
+      },
+    ],
+    tools,
+    toolCtx: { db },
+    model: "claude-haiku-4-5-20251001",
+    maxTurns: 6,
+  })) {
+    if (ev.type === "error") throw new Error(ev.message);
+  }
+  revalidateProjects(projectId);
+  return { ok: true as const };
+}
+
 /** Persisted order of category groups on the Projects page (top → bottom). */
 export async function setProjectCategoryOrder(names: string[]) {
   await setSetting(CATEGORY_ORDER_KEY, JSON.stringify(names));
