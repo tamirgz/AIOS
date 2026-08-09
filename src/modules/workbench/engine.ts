@@ -42,6 +42,10 @@ import {
 
 /** Ollama serves one model at a time; two heavy attempts thrash the machine. */
 const MAX_CONCURRENT = 2;
+/** Run ids arrive as raw NOTIFY payloads; reject anything that isn't a uuid so
+ * a malformed payload fails cleanly instead of corrupting the query params. */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** An attempt whose last event is older than this after a restart is dead. */
 const STALL_MS = 5 * 60 * 1000;
 
@@ -261,6 +265,10 @@ async function setTask(
  * cannot double-execute.
  */
 export async function runAttempt(attemptId: string): Promise<void> {
+  if (!UUID_RE.test(attemptId)) {
+    log(`ignoring malformed attempt id: ${JSON.stringify(attemptId).slice(0, 60)}`);
+    return;
+  }
   const running = await db
     .select({ id: taskAttempts.id })
     .from(taskAttempts)

@@ -48,6 +48,9 @@ const url =
 const log = (msg: string) =>
   console.log(`[worker ${new Date().toISOString()}] ${msg}`);
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const crons = new Map<string, Cron>();
 
 async function syncSchedules() {
@@ -174,6 +177,12 @@ async function main() {
       syncSchedules().catch((e) => log(`resync failed: ${e}`));
     });
     await l.listen("run_requests", (runId) => {
+      // NOTIFY payloads are raw text; reject non-uuids so a malformed one fails
+      // cleanly rather than corrupting the claim's query parameters.
+      if (!UUID_RE.test(runId)) {
+        log(`ignoring malformed run_requests payload: ${JSON.stringify(runId).slice(0, 60)}`);
+        return;
+      }
       log(`run request → ${runId}`);
       executeRun(runId).catch((e) => log(`run ${runId} failed: ${e}`));
     });
