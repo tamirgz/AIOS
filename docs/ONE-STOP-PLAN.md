@@ -70,7 +70,9 @@ Per-tool verdicts:
 
 ---
 
-## 3 · AIOS as a Life OS — the attention loop *(design, 2026-07-23)*
+## 3 · The attention loop *(design, 2026-07-23 — reframed 2026-08-09)*
+
+> **Reframe (2026-08-09):** this loop stands, but AIOS is an **Agentic OS whose primary object is a project** (work *and* personal projects) — not a life-brief generator. The loop below is the substrate; §5's **A1–A9 layers** are what gets built on it. The daily brief/TLDR come from Claude Desktop into Slack and are *consumed* (A3), never regenerated.
 
 The modules are containers; the Workbench is an execution surface. What turns AIOS into *the place you run your day, week, projects and ideas from* is a single loop that most "life OS" tools never build — because they are **spatial** (places to put things you must feed) rather than **temporal + observing** (a system with a heartbeat that maintains itself from your real activity).
 
@@ -201,37 +203,38 @@ Rule of thumb: **volume, summarization & the heartbeat → local (free); one-off
 
 > **These integration phases follow L1–L3 and now *feed* the attention loop.** Gmail becomes a source for the Follow-up tracker and the daily plan; "Reach & act" is how the "Needs you" queue reaches your phone. The Daily-brief work folds into Plan-my-day rather than being a separate notification.
 
-### Phase 6 — Close the loop (Gmail; feeds L3 + Plan-my-day)
-*Goal: the morning brief becomes complete enough that AIOS is the first thing you open.*
-- You: the 3 token setups (§1). Google client gains `gmail.readonly` scope — **one OAuth for calendar + mail**.
-- Build: **Gmail module** (read-only): inbox scan job → "needs attention" classification (local model), sender/thread summaries, `gmail.search`/`gmail.read` tools, brief section "Emails".
-- Reroute per §3: triage + enrichment(light) + consolidation → local. Split `knowledge.enrich` into light/deep routes.
-- Daily brief v2: schedule + tasks + emails + idea nudges + agent findings, pushed to bell + Slack.
-- Exit: one morning where the brief told you everything and you didn't open Gmail/Calendar first. >80 % of calls local (usage panel proves it).
+### Phase 6 — Close the loop (Gmail) ✅ *shipped 2026-07-24*
+- Google client gained `gmail.readonly` — **one OAuth for calendar + mail**; **Gmail module** (metadata-only sync, 10-min job, page + widget); `gmail.recent` wired into the Daily planner + Follow-up tracker; triage stays local.
+- ⛔️ **"Daily brief v2" is cancelled** (decided 2026-08-09): Claude Desktop already posts the briefing to **#my-today** and the TLDR to **#tldr**. AIOS **consumes** those channels instead — see layer **A3** below. Two-way email (triage + approval-gated drafts) also moves to **A3 + A2**.
 
-### Phase 7 — One search ("Ask" = NotebookLM replacement + Notion)
+### Phase 7 — One search ("Ask" = NotebookLM replacement + Notion) ✅ *shipped 2026-07-24*
 *Goal: any question about anything you've ever saved gets answered in one place, free.*
 - **Notion indexer**: integration token → read-only page index (same pattern as vault: sync job, embeddings, search union, deep links).
 - **"Ask" page**: full-page chat with source-grounded answers and citations over knowledge+vault+notion+notes+gmail; Ollama-first with an "escalate to Claude" button on the answer.
 - Gmail history joins the semantic index (embeddings are local/free).
 - Exit: three real questions you'd have asked NotebookLM answered correctly with citations, zero Claude tokens.
 
-### Phase 8 — Reach & act (the "Needs you" queue on your phone)
-*Goal: AIOS comes to you, and can act with your sign-off.*
-- **Telegram bridge**: capture by message; brief delivered; approvals answered by replying — the mobile story without building an app. (Needs Tailscale or webhook tunnel.)
-- **Gmail drafts** (approval-gated): agents draft replies; you approve in bell/Telegram; draft lands in Gmail.
-- **Calendar write-back** (OAuth already there): `calendar.createEvent` goes to real Google Calendar — still approval-tier.
-- Exit: from your phone — capture a thought, receive the brief, approve one real action.
+### Phases A1–A9 — the Agentic-OS layers *(roadmap reconstructed 2026-08-09; replaces old phases 8–9 and the interim P1–P6 project list)*
 
-### Phase 9 — Consolidate & polish
-*Goal: subtract.*
-- Notes-vs-Vault decision; retire what didn't earn its keep; module usage review (Ideas/Knowledge stats).
-- Fluidity pass: global capture from any page, drag-drop between kanban stages, keyboard-first navigation everywhere.
-- Auth gate + Tailscale (prerequisite hardening from Phase 3 made permanent).
-- Eval loop: 👍/👎 on agent reports; per-agent quality history in the usage panel.
-- Exit: you list the apps you stopped opening daily.
+From here the roadmap is **horizontal OS layers, with projects/work as the primary object they act on** — but the same layers serve people, calendar, ideas, knowledge and ops. Loop: **sense → decide → act → verify → report.** The full table (contents · exit test · status) is the order of battle in **EXECUTION-PLAN.md**; in short:
 
-*Sequencing note: phases ship in order but each is independently useful; L1–L3 don't depend on Gmail (they run off calendar + AIOS's own data), and Gmail then enriches them.*
+| # | Layer | One line | Status |
+|---|---|---|---|
+| **A1** | **Work Kernel — routines** | `trigger + steps + brain + success-check + destination` — the unit of autonomous work | ⬜ **next (with A2)** |
+| **A2** | **Trust & permissions** | Verification + an approval queue for every outward act — what makes autonomy safe to leave on | ⬜ **next (with A1)** |
+| **A3** | **Senses — ingest & route** | `#tldr`/`#my-today` → the project they affect; email triage + approval-gated drafts; files | ⬜ |
+| **A4** | **Attention scheduler** | AIOS pings *you*: stalls, deadlines, waiting-triggers, decisions | 🟡 attention atom + queue exist |
+| **A5** | **World model — grounding** | Project advisor + code repos ✅; extend to people, decisions, knowledge | ✅ shipped 2026-08-09 (breadth pending) |
+| **A6** | **Deliverable factory** | Workbench → real work products, repo-grounded and verified | 🟡 Workbench + repo grounding done |
+| **A7** | **Brain-trust router + governor** | Claude / GPT-5 (Codex) / Gemini / free-local per task; quota + cost ceilings | 🟡 4 brains wired; routing missing |
+| **A8** | **Control room** | Ran · running · cost · pending approval · failed | ⬜ |
+| **A9** | **Reliability spine** | Heartbeat ✅, catch-up on missed runs, idempotency, self-healing | 🟡 |
+
+**Removed — decided against:** the **Morning Brief / daily-brief notification** (Claude Desktop → #my-today / #tldr; AIOS consumes via A3); **OpenAI as a routing provider** (GPT-5 stays the no-API-key Codex executor); a **multi-agent framework sidecar** (CrewAI/Agno/Langflow — orchestration adds failure surface, not capability).
+
+**Parked — deferred, not killed:** phone reach (PWA / Telegram bridge + Tailscale) and mobile/share-sheet capture; the old Phase-9 "consolidate & subtract" pass (Notes-vs-Vault, module graveyards, agent 👍/👎 evals) — worth doing, just not ahead of A1–A3.
+
+*Sequencing note: each layer is independently useful. A1+A2 ship together (a routine without a success-check is exactly the autonomy you'd leave switched off); A3 then feeds them, and A4/A8 close the loop back to you.*
 
 ---
 
