@@ -16,6 +16,7 @@ const ALLOWED_INTEGRATION_KEYS = new Set([
   "slack_bot_token",
   "slack_report_channels",
   "slack_inbox_channels",
+  "gemini_api_key",
 ]);
 
 export async function disconnectGoogle() {

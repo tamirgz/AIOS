@@ -32,6 +32,7 @@ export async function SettingsPage() {
     slackBotToken,
     slackReportChannels,
     slackInboxChannels,
+    geminiApiKey,
     memory,
   ] = await Promise.all([
     db.select().from(aiRoutes).orderBy(asc(aiRoutes.taskKey)),
@@ -45,6 +46,7 @@ export async function SettingsPage() {
     getSetting("slack_bot_token"),
     getSetting("slack_report_channels"),
     getSetting("slack_inbox_channels"),
+    getSetting("gemini_api_key"),
     // Memory being unavailable must not take the whole page down.
     listMemoryBlocks().catch(() => []),
   ]);
@@ -86,6 +88,7 @@ export async function SettingsPage() {
           googleClientSecret={googleClientSecret ?? ""}
           googleConnected={!!googleRefreshToken}
           slackBotToken={slackBotToken ?? ""}
+          geminiApiKey={geminiApiKey ?? ""}
           slackReportChannels={slackReportChannels ?? ""}
           slackInboxChannels={slackInboxChannels ?? ""}
         />

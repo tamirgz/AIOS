@@ -24,7 +24,7 @@ export interface AIRunOptions {
 }
 
 export interface AIProvider {
-  id: "anthropic" | "ollama" | "nvidia";
+  id: "anthropic" | "ollama" | "nvidia" | "gemini";
   listModels(): Promise<string[]>;
   run(opts: AIRunOptions): AsyncIterable<AIEvent>;
 }

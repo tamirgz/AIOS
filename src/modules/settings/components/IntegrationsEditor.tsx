@@ -80,6 +80,7 @@ export function IntegrationsEditor({
   slackBotToken,
   slackReportChannels,
   slackInboxChannels,
+  geminiApiKey,
 }: {
   icsUrl: string;
   slackWebhook: string;
@@ -90,12 +91,20 @@ export function IntegrationsEditor({
   slackBotToken: string;
   slackReportChannels: string;
   slackInboxChannels: string;
+  geminiApiKey: string;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
       <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
         integrations
       </p>
+      <IntegrationField
+        settingKey="gemini_api_key"
+        label="Gemini API key (metered)"
+        hint="A Google AI Studio key (aistudio.google.com/apikey) — NOT your Gemini app subscription, which has no API. Enables Gemini as a routable brain in AI Routing above. This one is billed per-token by Google (free tier available), unlike the Claude/Codex subscriptions."
+        placeholder="AIza…"
+        initial={geminiApiKey}
+      />
       <IntegrationField
         settingKey="calendar_ics_url"
         label="Google Calendar (read-only ICS)"

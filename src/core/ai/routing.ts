@@ -5,11 +5,13 @@ import type { AIProvider } from "./provider";
 import { anthropicProvider } from "./anthropic";
 import { ollamaProvider } from "./ollama";
 import { nvidiaProvider } from "./nvidia";
+import { geminiProvider } from "./gemini";
 
 export const providers: Record<AIProviderId, AIProvider> = {
   anthropic: anthropicProvider,
   ollama: ollamaProvider,
   nvidia: nvidiaProvider,
+  gemini: geminiProvider,
 };
 
 // Re-exported for server-side callers that already import this module —
