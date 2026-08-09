@@ -67,6 +67,14 @@ export const projects = pgTable("projects", {
   healthReason: text("health_reason"),
   /** When the agent last wrote `health` (staleness gate for the fallback). */
   healthUpdatedAt: timestamp("health_updated_at", { withTimezone: true }),
+  /**
+   * P1 Project Advisor read (chief-of-staff synthesis, written by the
+   * Project-advisor agent): where it stands · the real blocker · next move.
+   */
+  advisorState: text("advisor_state"),
+  advisorBlocker: text("advisor_blocker"),
+  advisorNext: text("advisor_next"),
+  advisorUpdatedAt: timestamp("advisor_updated_at", { withTimezone: true }),
   /** name + description embedding, for the relations/suggestions layer. */
   embedding: embeddingVector("embedding"),
   createdAt: timestamp("created_at", { withTimezone: true })

@@ -12,6 +12,7 @@ import {
   setProjectRepo,
 } from "../actions";
 import { usableRepoPath } from "../repo";
+import { AdvisorPanel } from "../components/AdvisorPanel";
 import { getProjectCockpitById, getProjectTasks } from "../queries";
 import { CockpitHeader } from "../components/CockpitHeader";
 import { ProjectAttention } from "../components/ProjectAttention";
@@ -135,6 +136,13 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
         setNextAction={setProjectNextAction}
         setRepo={setProjectRepo}
         completeNextAction={completeProjectNextAction}
+      />
+
+      <AdvisorPanel
+        state={project.advisorState}
+        blocker={project.advisorBlocker}
+        next={project.advisorNext}
+        updatedAt={project.advisorUpdatedAt}
       />
 
       <ProjectAttention
