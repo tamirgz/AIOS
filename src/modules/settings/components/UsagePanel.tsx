@@ -19,6 +19,7 @@ const COST_REASON: Record<AIProviderId, string> = {
   ollama: "local — runs on this machine, no billing at all",
   nvidia: "NVIDIA free tier — the agent layer refuses any model that isn't confirmed $0 (fail-closed)",
   anthropic: "Claude Max subscription — flat-rate, no per-token metering (no API key is configured)",
+  gemini: "Google AI Studio API key — METERED, billed per-token by Google (free tier available)",
 };
 
 /** Per-agent token/run aggregates for the last 30 days, plus which mode (cloud/local) each currently runs on. */

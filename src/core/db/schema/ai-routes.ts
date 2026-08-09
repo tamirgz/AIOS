@@ -2,7 +2,7 @@ import { jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 // "nvidia" = free-tier NVIDIA cloud (OpenAI-compatible). Guarded so only $0
 // models can run — see src/core/ai/nvidia.ts. Text column, so no migration.
-export const AI_PROVIDERS = ["anthropic", "ollama", "nvidia"] as const;
+export const AI_PROVIDERS = ["anthropic", "ollama", "nvidia", "gemini"] as const;
 export type AIProviderId = (typeof AI_PROVIDERS)[number];
 
 /**
@@ -13,7 +13,11 @@ export type AIProviderId = (typeof AI_PROVIDERS)[number];
  * one of those (@anthropic-ai/claude-agent-sdk) needs Node's `async_hooks`
  * and breaks the browser bundle if a "use client" file imports it.
  */
-export const CLOUD_PROVIDERS: readonly AIProviderId[] = ["anthropic", "nvidia"];
+export const CLOUD_PROVIDERS: readonly AIProviderId[] = [
+  "anthropic",
+  "nvidia",
+  "gemini",
+];
 export function isCloudProvider(p: AIProviderId): boolean {
   return CLOUD_PROVIDERS.includes(p);
 }
