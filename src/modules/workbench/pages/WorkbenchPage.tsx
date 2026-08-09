@@ -24,8 +24,14 @@ export async function WorkbenchPage() {
     .from(projects)
     .where(isNotNull(projects.repoUrl));
   const projectRepos = projectRepoRows
-    .map((p) => ({ name: p.name, path: usableRepoPath(p.id, p.repoUrl) }))
-    .filter((r): r is { name: string; path: string } => !!r.path);
+    .map((p) => ({
+      name: p.name,
+      path: usableRepoPath(p.id, p.repoUrl),
+      source: p.repoUrl,
+    }))
+    .filter((r): r is { name: string; path: string; source: string | null } =>
+      Boolean(r.path),
+    );
 
   return (
     <div>
