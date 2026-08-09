@@ -249,7 +249,9 @@ From here the roadmap is **horizontal OS layers, with projects/work as the prima
 
 **Removed — decided against:** the **Morning Brief / daily-brief notification** (Claude Desktop → #my-today / #tldr; AIOS consumes via A3); **OpenAI as a routing provider** (GPT-5 stays the no-API-key Codex executor); a **multi-agent framework sidecar** (CrewAI/Agno/Langflow — orchestration adds failure surface, not capability).
 
-**Parked — deferred, not killed:** phone reach (PWA / Telegram bridge + Tailscale) and mobile/share-sheet capture; the old Phase-9 "consolidate & subtract" pass (Notes-vs-Vault, module graveyards, agent 👍/👎 evals) — worth doing, just not ahead of A1–A3.
+**Parked — deferred, not killed:** phone reach (PWA / Telegram bridge + Tailscale) and mobile/share-sheet capture; the **auth gate** (ships *with* exposure, never after — localhost-only today); the old Phase-9 "consolidate & subtract" pass (Notes-vs-Vault, module graveyards, agent 👍/👎 evals) — worth doing, just not ahead of A1–A3.
+
+**Also dropped by the 2026-08-09 full-backlog audit** (see EXECUTION-PLAN for the ledger): the **Habits/Metrics tracker** and the **CRM/Sales module** from the original plan's future-modules list (the `people` CRM-lite covers the project-ops need), and the **`pi`/`aider` executor tails** (parser rebuild, install, cloud tiers — opencode + claude-headless + codex cover it). The **Connector agent** is *absorbed* into A3, and the never-built **Workbench merge/PR button** is *folded into A6* — an agent's branch is currently reviewed in-app but merged outside AIOS, which is a real hole in the loop.
 
 *Sequencing note: each layer is independently useful. A1+A2 ship together (a routine without a success-check is exactly the autonomy you'd leave switched off); A3 then feeds them, and A4/A8 close the loop back to you.*
 
