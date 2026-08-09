@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check } from "lucide-react";
+import { Check, Info } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { useProviderModels } from "@/core/ui/useProviderModels";
 import type { AiRoute, AIProviderId } from "@/core/db/schema/ai-routes";
@@ -105,9 +105,24 @@ function RouteRow({ route }: { route: AiRoute }) {
 export function RoutesEditor({ routes }: { routes: AiRoute[] }) {
   return (
     <div className="flex flex-col gap-2.5">
-      <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
-        ai routing — which brain answers which job
-      </p>
+      <div className="flex items-center gap-1.5">
+        <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
+          ai routing — which brain answers which job
+        </p>
+        <span
+          className="cursor-help text-ink-faint/70 transition hover:text-ink-dim"
+          title={
+            "These are no-API-key, in-process brains that run AIOS's own tools: " +
+            "Claude (Max subscription), Ollama (local, free), NVIDIA (free tier), " +
+            "or Gemini (your metered AI Studio key). " +
+            "OpenAI/GPT-5 isn't listed here because its no-key subscription path is " +
+            "CLI-only (Codex) and can't host AIOS's module tools — so GPT-5 lives in " +
+            'the Workbench as the "Codex (GPT-5, ChatGPT sub)" executor, not in this dropdown.'
+          }
+        >
+          <Info className="size-3" />
+        </span>
+      </div>
       {routes.map((r) => (
         <RouteRow key={r.taskKey} route={r} />
       ))}
