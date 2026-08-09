@@ -57,11 +57,14 @@ export function NewTaskBox({
   defaultRepo,
   executors,
   freeModels,
+  projectRepos = [],
 }: {
   defaultRepo: string;
   executors: { id: string; name: string; defaultModel: string | null }[];
   /** Free models each executor may use (local + its free cloud tiers). */
   freeModels: Record<string, string[]>;
+  /** Projects with an attached, cloned repo — pickable for a code task. */
+  projectRepos?: { name: string; path: string }[];
 }) {
   const [type, setType] = useState<TaskType>("research");
   const [repo, setRepo] = useState(defaultRepo);
@@ -143,13 +146,24 @@ export function NewTaskBox({
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <p className="flex-1 text-xs text-ink-faint">{active.hint}</p>
         {active.needsRepo && (
-          <input
-            value={repo}
-            onChange={(e) => setRepo(e.target.value)}
-            spellCheck={false}
-            placeholder="/absolute/path/to/repo"
-            className="w-72 rounded-lg border border-white/8 bg-abyss/60 px-3 py-1.5 font-mono text-[11px] text-ink-dim outline-none focus:border-plasma/40"
-          />
+          <>
+            <input
+              value={repo}
+              onChange={(e) => setRepo(e.target.value)}
+              spellCheck={false}
+              list="wb-project-repos"
+              placeholder="/absolute/path/to/repo — or pick a project"
+              className="w-72 rounded-lg border border-white/8 bg-abyss/60 px-3 py-1.5 font-mono text-[11px] text-ink-dim outline-none focus:border-plasma/40"
+            />
+            {/* Attached project repos (feature #9) — agent reads that code. */}
+            <datalist id="wb-project-repos">
+              {projectRepos.map((r) => (
+                <option key={r.path} value={r.path}>
+                  {r.name}
+                </option>
+              ))}
+            </datalist>
+          </>
         )}
         <span className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
           ⌘↵ to send

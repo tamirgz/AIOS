@@ -9,7 +9,9 @@ import {
   setProjectCategory,
   setProjectGoal,
   setProjectNextAction,
+  setProjectRepo,
 } from "../actions";
+import { usableRepoPath } from "../repo";
 import { getProjectCockpitById, getProjectTasks } from "../queries";
 import { CockpitHeader } from "../components/CockpitHeader";
 import { ProjectAttention } from "../components/ProjectAttention";
@@ -115,6 +117,8 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
         category={project.category}
         categories={categories}
         nextAction={project.nextAction}
+        repoUrl={project.repoUrl}
+        repoReady={!!usableRepoPath(project.id, project.repoUrl)}
         health={project.resolvedHealth.health}
         healthReason={project.resolvedHealth.reason}
         healthSource={project.resolvedHealth.source}
@@ -129,6 +133,7 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
         setGoal={setProjectGoal}
         setCategory={setProjectCategory}
         setNextAction={setProjectNextAction}
+        setRepo={setProjectRepo}
         completeNextAction={completeProjectNextAction}
       />
 

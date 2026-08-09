@@ -52,6 +52,12 @@ export const projects = pgTable("projects", {
    */
   nextAction: text("next_action"),
   /**
+   * Code grounding: a git remote (GitHub URL) or absolute local path. The
+   * worker keeps a read-only clone at ~/.aios/repos/<projectId> so agents can
+   * read the real code when working this project. Nullable = no repo attached.
+   */
+  repoUrl: text("repo_url"),
+  /**
    * L2 health, as last written by the Project-pulse agent. Nullable: when null
    * (or stale) the cockpit falls back to the read-time heuristic, so a project
    * always shows a health without anyone setting it.
