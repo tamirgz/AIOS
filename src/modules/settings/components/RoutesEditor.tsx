@@ -15,6 +15,8 @@ const KEY_LABELS: Record<string, string> = {
   "inbox.triage": "Inbox triage",
   "ideas.analyze": "Idea reality-check",
   ask: "Ask (cited Q&A)",
+  "project.advisor": "Project advisor (per-project read + re-angle)",
+  "workbench.native": "Workbench · docs tasks (AIOS data + module tools)",
 };
 
 function RouteRow({ route }: { route: AiRoute }) {

@@ -150,7 +150,11 @@ Everything that *acts* obeys one dial, defaulted per card type and tunable per a
 
 **Auth rule (locked 2026-07-22): AIOS never uses a metered API key** — not Anthropic, not OpenAI or any provider added later. Subscription or local auth only. Enforced in `src/core/ai/auth.ts`: metered vars are deleted from AIOS's own process at startup and stripped from every spawned executor's environment, so a stray key cannot silently start billing. Settings → "AI authentication" shows the live state. Claude authenticates via **`CLAUDE_CODE_OAUTH_TOKEN` in `.env.local`** (`claude setup-token`, filled in 2026-07-23 — earlier it was empty and auth fell back to the Keychain session). A "monthly spend limit" message is a Max-plan cap, not an API bill.
 
-Claude Max is a quota, not a meter — the goal is spending it where judgment matters and never on volume. The routing table already supports this per key; these are the target defaults:
+Claude Max is a quota, not a meter — the goal is spending it where judgment matters and never on volume.
+
+> **Everything in this section is user-configurable in Settings — nothing below is hardcoded** *(closed 2026-08-09)*. The table is the *recommended default*, not a fixed wiring: every job resolves its model at call time from a row you can edit. See **§4.1** for which surface owns which choice. The two gaps found in the 2026-08-09 audit — `workbench.native` (resolved a route that had no row, so it never appeared in Settings) and the project advisor's re-angle (hardcoded to Haiku) — are fixed; both are now editable route keys.
+
+These are the target defaults:
 
 | Job (route key) | Model | Why |
 |---|---|---|
@@ -169,7 +173,20 @@ Claude Max is a quota, not a meter — the goal is spending it where judgment ma
 | Workbench `research` / `code` | **Claude Code headless** (Max quota) | Judgment, web search and repo edits — measured: $0.35 for a cited research report, $0.18 for a small code fix |
 | Workbench `docs` / `code-local` | **Ollama, or opencode + a $0 model** | Structuring AIOS data, or local/free-cloud coding — verified $0 live (Big Pickle, Nvidia minimax) |
 
-Rule of thumb: **volume, summarization & the heartbeat → local (free); one-off judgment & action → Claude.** The Life-OS agents run constantly, so they are **free by rule** — a `qwen3:8b` route is set for each and the guard keeps them off Claude. Estimated effect: >80 % of daily AI calls go local; the periodic layer costs $0.
+Rule of thumb: **volume, summarization & the heartbeat → local (free); one-off judgment & action → Claude.** The Life-OS agents run constantly, so they are **free by rule** — a free local route is set for each and the guard keeps them off Claude. Estimated effect: >80 % of daily AI calls go local; the periodic layer costs $0.
+
+### 4.1 · Where every model choice is configured *(all in the UI, 2026-08-09)*
+
+| Surface | What it controls | Covers |
+|---|---|---|
+| **Settings → AI routing** | Per-job route (`provider` + `model`), resolved at call time | `chat` · `agent.default` · `ask` · `inbox.triage` · `knowledge.enrich` · `ideas.analyze` · **`project.advisor`** · **`workbench.native`**. Resolution: exact key → `agent.default` → `chat` |
+| **Agents → *(an agent)* → provider/model** | Per-agent override, beats `agent.default` | Daily planner · Project pulse · **Project advisor** · Follow-up tracker · Loose-ends chaser · Weekly reviewer · Memory consolidation · Task triage. Also a **fallback model** (cloud primary → local retry) |
+| **Settings → Workbench executors** | Default model per executor + command template + enable | `claude-headless` (Claude Max) · **`codex-headless`** (GPT-5, ChatGPT sub) · `opencode` / `pi` / `aider` (free local + free cloud) · `native`. Model field offers only that executor's **free** library, pruned by the health ledger |
+| **Settings → Semantic search** | Embedding model (local, free) | `nomic-embed-text` / `bge-m3` — changing it rebuilds every stored embedding |
+| **Settings → Integrations** | The one metered brain's key | **Gemini API key** (Google AI Studio). Claude + GPT-5 are subscription auth, no key |
+| **Per Workbench task** | One-off executor + model override at delegation time | Any task, without changing the defaults |
+
+Guards that survive any configuration: local/CLI executors **refuse a non-free model** (fail-closed against opencode's pricing DB, plus a live health ledger that prunes retired/broken free models), and metered API keys are stripped from AIOS's process and every spawned executor (§ auth rule above) — so re-routing a job can change *quality and speed*, but cannot silently start a bill.
 
 ---
 

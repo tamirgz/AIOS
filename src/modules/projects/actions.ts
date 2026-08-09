@@ -140,14 +140,17 @@ export async function reconsiderProject(projectId: string, angle: string) {
   if (!p) return { error: "project not found" as const };
 
   const { getToolsByNames } = await import("@/core/ai/tool-registry");
-  const { providers } = await import("@/core/ai/routing");
+  const { resolveRoute } = await import("@/core/ai/routing");
+  // Which brain reads a project is configurable — Settings → AI Routing
+  // ("project.advisor"), not hardcoded here.
+  const route = await resolveRoute("project.advisor");
   const tools = getToolsByNames([
     "projects.list",
     "tasks.list",
     "projects.readRepo",
     "projects.setAdvisorBrief",
   ]);
-  for await (const ev of providers.anthropic.run({
+  for await (const ev of route.provider.run({
     system:
       "You are the user's chief-of-staff for their projects. Be sharp, specific and honest — no boilerplate, no restating the goal.",
     messages: [
