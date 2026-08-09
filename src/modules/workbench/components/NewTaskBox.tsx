@@ -2,7 +2,15 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, Code2, Cpu, FileText, Sparkles, Wrench } from "lucide-react";
+import {
+  BookOpen,
+  Code2,
+  Cpu,
+  FileText,
+  FolderGit2,
+  Sparkles,
+  Wrench,
+} from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { createTask } from "../actions";
 import type { TaskType } from "../schema";
@@ -63,17 +71,22 @@ export function NewTaskBox({
   executors: { id: string; name: string; defaultModel: string | null }[];
   /** Free models each executor may use (local + its free cloud tiers). */
   freeModels: Record<string, string[]>;
-  /** Projects with an attached, cloned repo — pickable for a code task. */
-  projectRepos?: { name: string; path: string }[];
+  /** Projects with an attached, cloned repo — pickable for a code task.
+   *  `path` is the read-only copy AIOS works in; `source` is the original,
+   *  shown in the picker because a cache uuid means nothing to a human. */
+  projectRepos?: { name: string; path: string; source?: string | null }[];
 }) {
   const [type, setType] = useState<TaskType>("research");
   const [repo, setRepo] = useState(defaultRepo);
   const [executorId, setExecutorId] = useState("");
   const [model, setModel] = useState("");
+  const [repoPickOpen, setRepoPickOpen] = useState(false);
   const [pending, start] = useTransition();
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const router = useRouter();
   const active = TYPES.find((t) => t.id === type)!;
+  // Show the project's name on the button once its repo is the chosen path.
+  const matchedProject = projectRepos.find((r) => r.path === repo)?.name;
 
   const submit = () => {
     const prompt = promptRef.current?.value.trim();
@@ -146,24 +159,57 @@ export function NewTaskBox({
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <p className="flex-1 text-xs text-ink-faint">{active.hint}</p>
         {active.needsRepo && (
-          <>
+          <div className="flex items-center gap-1.5">
             <input
               value={repo}
               onChange={(e) => setRepo(e.target.value)}
               spellCheck={false}
-              list="wb-project-repos"
-              placeholder="/absolute/path/to/repo — or pick a project"
+              placeholder="/absolute/path/to/repo"
               className="w-72 rounded-lg border border-white/8 bg-abyss/60 px-3 py-1.5 font-mono text-[11px] text-ink-dim outline-none focus:border-plasma/40"
             />
-            {/* Attached project repos (feature #9) — agent reads that code. */}
-            <datalist id="wb-project-repos">
-              {projectRepos.map((r) => (
-                <option key={r.path} value={r.path}>
-                  {r.name}
-                </option>
-              ))}
-            </datalist>
-          </>
+            {/* A real picker, not a <datalist>: the field is pre-filled, and a
+                datalist filters its options by the current value — so it opened
+                empty and looked broken. Attached project repos (feature #9). */}
+            {projectRepos.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setRepoPickOpen((o) => !o)}
+                  title="Use a project's attached repo"
+                  className="flex items-center gap-1.5 rounded-lg border border-white/8 bg-abyss/60 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest text-ink-faint transition hover:border-ion/30 hover:text-ion"
+                >
+                  <FolderGit2 className="size-3.5" />
+                  {matchedProject ?? "project"}
+                </button>
+                {repoPickOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setRepoPickOpen(false)}
+                    />
+                    <div className="glass absolute right-0 top-full z-20 mt-1 max-h-72 w-80 overflow-y-auto rounded-xl p-1.5">
+                      {projectRepos.map((r) => (
+                        <button
+                          key={r.path}
+                          type="button"
+                          onClick={() => {
+                            setRepo(r.path);
+                            setRepoPickOpen(false);
+                          }}
+                          className="flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left transition hover:bg-white/5"
+                        >
+                          <span className="text-sm text-ink-dim">{r.name}</span>
+                          <span className="truncate font-mono text-[9px] text-ink-faint">
+                            {r.source ?? r.path}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         )}
         <span className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
           ⌘↵ to send
