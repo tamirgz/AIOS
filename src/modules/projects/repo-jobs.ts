@@ -1,6 +1,6 @@
 import { eq, isNotNull } from "drizzle-orm";
 import type { ModuleJob } from "@/core/modules/types.server";
-import { db } from "@/core/db/client";
+import { db, sql } from "@/core/db/client";
 import { projects } from "./schema";
 import { syncProjectRepo } from "./repo";
 
@@ -14,6 +14,8 @@ async function syncOne(id: string): Promise<void> {
   if (!p?.repoUrl) return;
   const r = await syncProjectRepo(p.id, p.repoUrl);
   log(`repo ${p.id.slice(0, 8)} — ${r.ok ? r.detail : `FAILED: ${r.detail}`}`);
+  // Nudge the cockpit so the "cloning…" chip flips to "cloned" without a reload.
+  await sql.notify("projects_changed", p.id);
 }
 
 async function syncAll(): Promise<void> {
@@ -25,6 +27,7 @@ async function syncAll(): Promise<void> {
     if (!p.repoUrl) continue;
     const r = await syncProjectRepo(p.id, p.repoUrl);
     log(`repo ${p.id.slice(0, 8)} — ${r.ok ? r.detail : `FAILED: ${r.detail}`}`);
+    await sql.notify("projects_changed", p.id);
   }
 }
 
