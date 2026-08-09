@@ -47,6 +47,20 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   // Ask (cited Q&A over the user's corpus) — Ollama-first, free by default.
   // Editable in Settings; escalate to Claude there if you want deeper synthesis.
   { taskKey: "ask", provider: "ollama", model: "qwen3-coder:30b" },
+  // Every key below is seeded ONLY so it shows up in Settings → AI Routing.
+  // Each is seeded at the model it already resolved to, so adding the row
+  // changes nothing until you change it — the point is visibility, not a
+  // silent re-route. Token policy: ONE-STOP-PLAN §4.
+  //
+  // Workbench "docs"/native tasks (AIOS's own data + module tools). Previously
+  // fell through to agent.default; §4's target for this job is a local model.
+  { taskKey: "workbench.native", provider: "anthropic", model: "claude-sonnet-5" },
+  // Per-project advisor read + the on-demand "different angle" re-read.
+  {
+    taskKey: "project.advisor",
+    provider: "anthropic",
+    model: "claude-haiku-4-5-20251001",
+  },
 ];
 
 /** Insert default rows once so the Settings UI always has something to edit.
