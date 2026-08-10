@@ -26,8 +26,8 @@
 |---|---|
 | Obsidian | ✅ Read-only vault index → semantic search, `obsidian.read`, deep links |
 | Google Calendar | ✅ **API OAuth connected and syncing** (119 events, server-side recurrence expansion, real per-event colors). Click an event → full details, physical location → Maps, and a JOIN button for meetings. ICS remains the fallback when the API is disconnected |
-| Slack outbound | ✅ Built (bell → Slack) — **waiting on your webhook URL** |
-| Slack inbound (routine reports) | ✅ Built for #tldr + #my-today — **waiting on your bot token** |
+| Slack outbound | ✅ **Connected (bell → Slack)** — webhook URL set; verified delivering real notifications |
+| Slack inbound (routine reports) | ✅ **Connected for #tldr + #my-today** — bot token + report channels set; per-channel sync cursors advancing |
 | Claude Desktop routines | ✅ Via the Slack intake above (they post to Slack; local jobs + drop-box also covered) |
 | Claude Code (headless) | ✅ Workbench executor — delegated research and repo work, on its own branch |
 | opencode + free models | ✅ Workbench executor — local Ollama and free cloud (opencode-zen Big Pickle, free Nvidia via your key), cost-verified so paid models are refused. Verified live at $0 |
@@ -35,7 +35,7 @@
 | Notion | ✅ **Built (read-only, token-gated, multi-workspace)** — add one integration token per workspace; pages are mirrored + embedded (attributed to their workspace) and folded into Ask/search. Awaiting tokens to activate |
 | NotebookLM | ✅ **Replaced by the Ask module** — cited Q&A over your own corpus (notes/knowledge/vault/ideas/tasks/Notion), Ollama-first. Honest limit: no audio overviews |
 
-**Awaiting you (2 five-minute setups).** ~~GCP OAuth client~~ ✅ **done — Google is connected.** ① Slack bot token + channel IDs `C0B7TLBJ4LU, C0B7VNRPQSV`. ② Slack incoming webhook.
+**Activation ✅ done (2026-08-10).** ~~GCP OAuth client~~ ✅ Google connected. ~~① Slack bot token + channel IDs `C0B7TLBJ4LU, C0B7VNRPQSV`~~ ✅ set. ~~② Slack incoming webhook~~ ✅ set. Both Google and Slack are fully live — nothing else awaiting you here.
 
 **Meeting-link finding (2026-07-21, measured not assumed):** Google exposes the join URL as `hangoutLink`/`conferenceData` (31 of 72 events) and only 3 events mention it in the description — but the **Zoom add-on writes it into `location` with no conferenceData at all**, so the fallback chain is hangoutLink → conferenceData → location → description. ICS carries the same thing as `X-GOOGLE-CONFERENCE` (116 VEVENTs).
 
@@ -237,8 +237,8 @@ From here the roadmap is **horizontal OS layers, with projects/work as the prima
 
 | # | Layer | One line | Status |
 |---|---|---|---|
-| **A1** | **Work Kernel — routines** | `trigger + steps + brain + success-check + destination` — the unit of autonomous work | ⬜ **next (with A2)** |
-| **A2** | **Trust & permissions** | Verification + an approval queue for every outward act — what makes autonomy safe to leave on | ⬜ **next (with A1)** |
+| **A1** | **Work Kernel — routines** | `trigger + steps + brain + success-check + destination` — the unit of autonomous work | 🟡 **first routine shipped 2026-08-10** (Repo-watcher: per-project code digest, free/local). Remaining: first-class Routine object, per-agent turn budget, more routines |
+| **A2** | **Trust & permissions** | Verification + an approval queue for every outward act — what makes autonomy safe to leave on | ✅ **shipped 2026-08-10** — `successTool` verification gate + the outward-action approval queue (`slack.post` drafts → "Needs you" → approve/reject inline → worker runs/drops). Remaining: more outward tools on the same spine |
 | **A3** | **Senses — ingest & route** | `#tldr`/`#my-today` → the project they affect; email triage + approval-gated drafts; files | ⬜ |
 | **A4** | **Attention scheduler** | AIOS pings *you*: stalls, deadlines, waiting-triggers, decisions | 🟡 attention atom + queue exist |
 | **A5** | **World model — grounding** | Project advisor + code repos ✅; extend to people, decisions, knowledge | ✅ shipped 2026-08-09 (breadth pending) |
