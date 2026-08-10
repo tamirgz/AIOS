@@ -88,5 +88,32 @@ export const projectsServerManifest: ModuleServerManifest = {
       defaultProvider: "anthropic",
       defaultModel: "claude-haiku-4-5-20251001",
     },
+    {
+      // A1 — the first Routine: a repo watcher. Read-only (reads the read-only
+      // clone), free local model, and GATED by A2 verification — the run is
+      // only "done" if it actually recorded a digest (defaultSuccessTool).
+      id: "repo-watcher",
+      name: "Repo watcher",
+      description:
+        "Per project with an attached code repo, summarizes what the recent commits actually did into a short digest on the cockpit — so the advisor and you can see code momentum without reading the log. Read-only, free local model; a run only counts as done if it recorded a digest.",
+      defaultPrompt: [
+        "You watch each project's code so the user doesn't have to read git logs. Produce a short, concrete digest of what's actually moving in the code.",
+        "1. Call projects.list. Only consider status = 'active'.",
+        "2. For each active project, call projects.readRepo. If attached is false, SKIP it — no repo, nothing to watch.",
+        "3. For each project that HAS a repo, read its recentCommits and write a 2-3 sentence digest via projects.recordRepoDigest: what the recent commits actually did (themes, notable changes, momentum). Be specific — name the real work, not 'various updates'. No repo → do not call recordRepoDigest for it.",
+        "4. Do not raise cards or send anything. The digests are the only output.",
+      ].join("\n"),
+      defaultTools: [
+        "projects.list",
+        "projects.readRepo",
+        "projects.recordRepoDigest",
+      ],
+      // A2: the run fails unless it actually recorded at least one digest.
+      defaultSuccessTool: "projects.recordRepoDigest",
+      defaultSchedule: "45 7 * * 1-5", // weekday 07:45, after pulse/advisor
+      // Read + summarize on the free bench-winner; never bills.
+      defaultProvider: "ollama",
+      defaultModel: "qwen3-coder:30b",
+    },
   ],
 };

@@ -75,6 +75,10 @@ export const projects = pgTable("projects", {
   advisorBlocker: text("advisor_blocker"),
   advisorNext: text("advisor_next"),
   advisorUpdatedAt: timestamp("advisor_updated_at", { withTimezone: true }),
+  /** A1 Repo-watcher routine: a short "what's moving in the code" digest of the
+   * attached repo's recent commits, refreshed on a schedule. Feeds the advisor. */
+  repoDigest: text("repo_digest"),
+  repoDigestAt: timestamp("repo_digest_at", { withTimezone: true }),
   /** name + description embedding, for the relations/suggestions layer. */
   embedding: embeddingVector("embedding"),
   createdAt: timestamp("created_at", { withTimezone: true })

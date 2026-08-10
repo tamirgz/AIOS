@@ -41,6 +41,12 @@ export const agents = pgTable("agents", {
    * cloud is rate-limited or flaky. Null = no fallback (fail as normal).
    */
   fallbackModel: text("fallback_model"),
+  /**
+   * A2 verification: the tool that must SUCCEED for a run to count as done.
+   * If set and no successful call to it happens, the executor marks the run
+   * `failed` — so a routine can't report "done" without producing its effect.
+   */
+  successTool: text("success_tool"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
