@@ -133,6 +133,7 @@ export function CockpitHeader({
   nextAction,
   repoUrl,
   repoReady,
+  repoDigest,
   health,
   healthReason,
   healthSource,
@@ -153,6 +154,8 @@ export function CockpitHeader({
   repoUrl: string | null;
   /** True once the read-only clone exists (or the local path is a git repo). */
   repoReady: boolean;
+  /** Repo-watcher routine's latest "what's moving in the code" digest. */
+  repoDigest: string | null;
   health: ProjectHealth;
   healthReason: string;
   healthSource: "agent" | "derived";
@@ -237,6 +240,17 @@ export function CockpitHeader({
             </span>
           )}
         </div>
+        {repoDigest && (
+          <p className="flex items-start gap-1.5 pl-1.5 text-xs leading-snug text-ink-faint">
+            <GitBranch className="mt-0.5 size-3 shrink-0 text-ion/60" />
+            <span>
+              <span className="font-mono text-[9px] uppercase tracking-widest text-ion/50">
+                code ·{" "}
+              </span>
+              {repoDigest}
+            </span>
+          </p>
+        )}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/6 pt-3 font-mono text-[10px] uppercase tracking-widest text-ink-faint">

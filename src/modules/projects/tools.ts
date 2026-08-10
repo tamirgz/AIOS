@@ -219,4 +219,26 @@ export const projectTools: AiToolDef[] = [
       return row ? { updated: { id: row.id } } : { error: "project not found" };
     },
   },
+  {
+    name: "projects.recordRepoDigest",
+    description:
+      "Record a short 'what's moving in the code' digest for a project from its recent commits (2-3 sentences: themes, notable changes, momentum). Call once per project that has a code repo.",
+    input: z.object({
+      projectId: z.string().uuid(),
+      digest: z
+        .string()
+        .min(3)
+        .max(600)
+        .describe("2-3 sentences on what the recent commits actually did"),
+    }),
+    async execute(input, { db }) {
+      const [row] = await db
+        .update(projects)
+        .set({ repoDigest: input.digest.trim(), repoDigestAt: new Date() })
+        .where(eq(projects.id, input.projectId))
+        .returning();
+      if (row) await sql.notify("projects_changed", input.projectId);
+      return row ? { updated: { id: row.id } } : { error: "project not found" };
+    },
+  },
 ];

@@ -120,6 +120,7 @@ export async function ProjectDetailPage({ params }: ModuleRouteProps) {
         nextAction={project.nextAction}
         repoUrl={project.repoUrl}
         repoReady={!!usableRepoPath(project.id, project.repoUrl)}
+        repoDigest={project.repoDigest}
         health={project.resolvedHealth.health}
         healthReason={project.resolvedHealth.reason}
         healthSource={project.resolvedHealth.source}

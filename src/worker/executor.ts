@@ -174,6 +174,7 @@ export async function executeRun(runId: string): Promise<void> {
       let tokensIn = 0;
       let tokensOut = 0;
       let errored: string | null = null;
+      const okTools = new Set<string>(); // tools that returned a non-error result
       try {
         for await (const event of prov.run({
           system,
@@ -186,6 +187,12 @@ export async function executeRun(runId: string): Promise<void> {
           await appendEvent(runId, event);
           if (event.type === "done") finalText = event.text;
           if (event.type === "error") errored = event.message;
+          if (
+            event.type === "tool_result" &&
+            !(event.result as { error?: unknown } | null)?.error
+          ) {
+            okTools.add(event.name);
+          }
           if (event.type === "usage") {
             tokensIn += event.inputTokens;
             tokensOut += event.outputTokens;
@@ -197,7 +204,7 @@ export async function executeRun(runId: string): Promise<void> {
         clearTimeout(timeout);
         clearInterval(heartbeat);
       }
-      return { finalText, tokensIn, tokensOut, errored, aborted: controller.signal.aborted };
+      return { finalText, tokensIn, tokensOut, errored, okTools, aborted: controller.signal.aborted };
     };
 
     let res = await attempt(provider, model);
@@ -216,16 +223,26 @@ export async function executeRun(runId: string): Promise<void> {
         tokensIn: res.tokensIn + fb.tokensIn,
         tokensOut: res.tokensOut + fb.tokensOut,
         errored: fb.errored,
+        okTools: fb.okTools,
         aborted: fb.aborted,
       };
     }
 
+    // A2 verification gate: a run with a declared successTool is only "done" if
+    // that tool actually succeeded — otherwise it's a failure, not a false done.
+    const verifyFailed =
+      !res.errored &&
+      !!agent.successTool &&
+      !res.okTools.has(agent.successTool);
+
     await patchRun(
       runId,
-      res.errored
+      res.errored || verifyFailed
         ? {
             status: res.aborted ? "timed_out" : "failed",
-            error: res.errored,
+            error:
+              res.errored ??
+              `verification failed: the run never completed a successful "${agent.successTool}" call`,
             finishedAt: new Date(),
             tokensIn: res.tokensIn,
             tokensOut: res.tokensOut,

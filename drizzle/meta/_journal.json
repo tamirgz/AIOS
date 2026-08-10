@@ -225,6 +225,13 @@
       "when": 1786299564706,
       "tag": "0031_safe_arclight",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786351470236,
+      "tag": "0032_breezy_masked_marvel",
+      "breakpoints": true
     }
   ]
 }

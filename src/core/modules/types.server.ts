@@ -55,6 +55,12 @@ export interface AgentTemplate {
    * cloud is rate-limited. Only meaningful with a cloud `defaultProvider`.
    */
   defaultFallbackModel?: string;
+  /**
+   * A2 verification: a tool name that must succeed for a run to be "done".
+   * The executor fails the run if this tool never returned a non-error result
+   * — so a routine can't falsely report success without its effect landing.
+   */
+  defaultSuccessTool?: string;
 }
 
 export interface ModuleWidget {
