@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useLiveEvents } from "@/core/ui/useLiveEvents";
+import { decideApproval } from "@/modules/agents/actions";
 import { doneAttention, dismissAttention, snoozeAttention } from "../actions";
 import type { NeedsYouItem } from "../queries";
 import type { AttentionType } from "../schema";
@@ -33,9 +34,11 @@ function Row({ item }: { item: NeedsYouItem }) {
   const [pending, start] = useTransition();
   const meta = TYPE_META[item.type];
   const Icon = meta.icon;
-  // Only native attention items can be resolved inline; approvals and
-  // workbench tasks are acted on where they live (linked via href).
+  // Attention items resolve inline (done/snooze/dismiss); approvals resolve
+  // inline too (approve/reject → the worker runs or drops the parked action).
+  // Workbench tasks are acted on where they live (linked via href).
   const inline = item.kind === "attention";
+  const isApproval = item.kind === "approval";
 
   const body = (
     <div className="flex items-start gap-3">
@@ -65,12 +68,40 @@ function Row({ item }: { item: NeedsYouItem }) {
       className="group glass rounded-xl p-3 transition hover:glass-edge"
     >
       <div className="flex items-start gap-2">
-        {item.href ? (
+        {item.href && !isApproval ? (
           <Link href={item.href} className="min-w-0 flex-1">
             {body}
           </Link>
         ) : (
           <div className="min-w-0 flex-1">{body}</div>
+        )}
+
+        {isApproval && (
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              title="Approve — runs the action"
+              disabled={pending}
+              onClick={() =>
+                start(async () => void (await decideApproval(item.id, true)))
+              }
+              className="inline-flex items-center gap-1 rounded-md border border-plasma/30 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-plasma transition hover:bg-plasma/10 disabled:opacity-40"
+            >
+              <Check className="size-3" />
+              approve
+            </button>
+            <button
+              type="button"
+              title="Reject — drops the action"
+              disabled={pending}
+              onClick={() =>
+                start(async () => void (await decideApproval(item.id, false)))
+              }
+              className="rounded-md p-1.5 text-ink-faint transition hover:text-flare disabled:opacity-40"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
         )}
 
         {inline && (
