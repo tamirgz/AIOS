@@ -180,7 +180,7 @@ Rule of thumb: **volume, summarization & the heartbeat → local (free); one-off
 | Surface | What it controls | Covers |
 |---|---|---|
 | **Settings → AI routing** | Per-job route (`provider` + `model`), resolved at call time | `chat` · `agent.default` · `ask` · `inbox.triage` · `knowledge.enrich` · `ideas.analyze` · **`project.advisor`** · **`workbench.native`**. Resolution: exact key → `agent.default` → `chat` |
-| **Agents → *(an agent)* → provider/model** | Per-agent override, beats `agent.default` | Daily planner · Project pulse · **Project advisor** · Follow-up tracker · Loose-ends chaser · Weekly reviewer · Memory consolidation · Task triage. Also a **fallback model** (cloud primary → local retry) |
+| **Settings → Agent models** *(added 2026-08-09)* | Per-agent override, beats `agent.default`; "route default" = inherit | Daily planner · Project pulse · **Project advisor** · Follow-up tracker · Loose-ends chaser · Weekly reviewer · **Memory consolidation** · Task triage. Flags how many run on cloud vs free-local. The agent's own page still has the same control (plus the **fallback model**: cloud primary → local retry) |
 | **Settings → Workbench executors** | Default model per executor + command template + enable | `claude-headless` (Claude Max) · **`codex-headless`** (GPT-5, ChatGPT sub) · `opencode` / `pi` / `aider` (free local + free cloud) · `native`. Model field offers only that executor's **free** library, pruned by the health ledger |
 | **Settings → Semantic search** | Embedding model (local, free) | `nomic-embed-text` / `bge-m3` — changing it rebuilds every stored embedding |
 | **Settings → Integrations** | The one metered brain's key | **Gemini API key** (Google AI Studio). Claude + GPT-5 are subscription auth, no key |
