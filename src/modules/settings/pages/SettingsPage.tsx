@@ -7,6 +7,7 @@ import { listMemoryBlocks } from "@/core/memory";
 import { DEFAULT_EMBEDDING_MODEL, EMBEDDING_MODEL_KEY } from "@/core/embeddings";
 import { RoutesEditor } from "../components/RoutesEditor";
 import { IntegrationsEditor } from "../components/IntegrationsEditor";
+import { AgentModelsPanel } from "@/modules/agents/components/AgentModelsPanel";
 import { MemoryEditor } from "../components/MemoryEditor";
 import { UsagePanel } from "../components/UsagePanel";
 import { EmbeddingModelPicker } from "../components/EmbeddingModelPicker";
@@ -57,6 +58,21 @@ export async function SettingsPage() {
   );
   const freeModelHealth = await getFreeModelHealthSummary();
 
+  // Every model choice must be reachable from Settings — including the
+  // per-agent override (memory consolidation, advisor, the periodic agents).
+  const { agents } = await import("@/core/db/schema/agents");
+  const agentRows = await db
+    .select({
+      id: agents.id,
+      name: agents.name,
+      schedule: agents.schedule,
+      enabled: agents.enabled,
+      provider: agents.provider,
+      model: agents.model,
+    })
+    .from(agents)
+    .orderBy(asc(agents.name));
+
   const { memoryEntries } = await import("@/core/db/schema/memory");
   const { desc: descOrder, sql: dsql } = await import("drizzle-orm");
   const [journal, [{ n: journalCount }]] = await Promise.all([
@@ -77,6 +93,7 @@ export async function SettingsPage() {
       <div className="flex flex-col gap-5">
         <AuthPanel />
         <RoutesEditor routes={routes} />
+        <AgentModelsPanel agents={agentRows} />
         <EmbeddingModelPicker
           initial={embeddingModel ?? DEFAULT_EMBEDDING_MODEL}
         />
