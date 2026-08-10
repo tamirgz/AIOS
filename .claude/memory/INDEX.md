@@ -1,3 +1,3 @@
 # Memory Index
 
-- [20260726-203515](./20260726-203515-c12361ac.md) — auto compact, 1196 msgs, 275 files
+- [20260810-085808](./20260810-085808-c12361ac.md) — auto compact, 2024 msgs, 319 files
