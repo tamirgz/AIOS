@@ -385,6 +385,12 @@ export async function runAttempt(attemptId: string): Promise<void> {
         ? [
             "You are running unattended in this project directory. Read and edit files here directly, using the paths the tools give you.",
             "Do not ask questions, do not offer alternatives, do not stop to confirm — make the edits yourself, then stop.",
+            // Recurring failure mode with local models: they read a 'do X on each
+            // commit' task and build a git hook / script to do it later, instead
+            // of doing X now. A single run can't watch future commits, and files
+            // written under .git/ (hooks) aren't even tracked — so the result is
+            // an empty diff and a failed run. Forbid the shortcut explicitly.
+            "Do the actual work NOW by editing the target files in this directory. Do NOT create git hooks, CI workflows, or any automation to do it 'on future commits' — analyze the CURRENT state of the repo and make the concrete file edits the task names, this run. Never write into the .git/ directory.",
             `Today is ${new Date().toISOString().slice(0, 10)}.`,
             "",
             "TASK:",

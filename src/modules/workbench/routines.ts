@@ -32,6 +32,42 @@ async function headSha(repoPath: string): Promise<string | null> {
   }
 }
 
+/** HEAD sha + subject line, for grounding a routine run in the actual commit. */
+async function headCommit(repoPath: string): Promise<{ sha: string; subject: string } | null> {
+  try {
+    const { stdout } = await exec(
+      "git",
+      ["log", "-1", "--format=%H %s"],
+      { cwd: repoPath },
+    );
+    const _line = stdout.trim();
+    const _sha = _line.slice(0, 40);
+    return /^[0-9a-f]{40}$/i.test(_sha) ? { sha: _sha, subject: _line.slice(41) } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Turn a routine's STANDING ask ("on each commit, update the docs") into a
+ * concrete, imperative per-run instruction ("this commit just landed — do it
+ * now"). Without this the executor reads the future-tense standing wording and
+ * builds a git hook to handle future commits instead of doing the work now.
+ */
+function runPromptFor(ask: string, commit: { sha: string; subject: string } | null): string {
+  const head = commit
+    ? `A new commit just landed on this project's repository:\n  ${commit.sha.slice(0, 10)} — ${commit.subject}`
+    : "This project's repository has a new commit.";
+  return [
+    head,
+    "",
+    "Act on THIS commit and the CURRENT state of the repo, right now. Edit the target files directly in this working copy. Do NOT create git hooks, CI, or any automation to run 'on future commits' — just do the work this run.",
+    "",
+    "The standing instruction is:",
+    ask,
+  ].join("\n");
+}
+
 /**
  * Fire one routine: spawn a Workbench task from its ask and hand it to the
  * engine. Tagged `routines:<id>` so the engine knows to queue a PR on a pass.
@@ -45,11 +81,15 @@ export async function fireRoutine(routineId: string): Promise<void> {
   }
 
   const taskType = LOCAL_EXECUTORS.has(r.executorId) ? "code-local" : "code";
+  // Ground the run in the actual commit and make it imperative-now, so the
+  // executor edits the files instead of building a hook for "future commits".
+  const commit = await headCommit(r.repoPath);
+  const runPrompt = runPromptFor(r.prompt, commit);
   const [task] = await db
     .insert(workbenchTasks)
     .values({
       title: `${r.name}`.slice(0, 90),
-      prompt: r.prompt,
+      prompt: runPrompt,
       taskType,
       repoPath: r.repoPath,
       createdFrom: `routines:${r.id}`,
