@@ -182,6 +182,10 @@ export async function executeRun(runId: string): Promise<void> {
           tools,
           toolCtx: { db, agentRunId: runId, ledger },
           model: mdl,
+          // Per-agent tool-loop budget; undefined falls back to the provider
+          // default. Lets a many-item agent finish the list instead of
+          // truncating at the default cap.
+          maxTurns: agent.turnBudget ?? undefined,
           signal: controller.signal,
         })) {
           await appendEvent(runId, event);

@@ -61,6 +61,8 @@ export interface AgentTemplate {
    * — so a routine can't falsely report success without its effect landing.
    */
   defaultSuccessTool?: string;
+  /** Tool-loop budget per run; omit for the provider default (see agents.turnBudget). */
+  defaultTurnBudget?: number;
 }
 
 export interface ModuleWidget {

@@ -173,8 +173,17 @@ export async function scanSlackInbox(
         if (row) captured++;
       }
 
-      const newest = messages.at(-1)?.ts;
-      if (newest) await setSetting(cursorKey, newest);
+      // Advance the cursor past EVERYTHING fetched — including messages we skip
+      // (AIOS's own bot posts, joins/leaves, thread replies) — not just the
+      // human ones we captured. Otherwise a channel dominated by non-human
+      // noise leaves the cursor stuck, re-scanning the same window every run.
+      let newestSeen = lastTs ?? "";
+      for (const m of history.messages ?? []) {
+        if (!newestSeen || Number(m.ts) > Number(newestSeen)) newestSeen = m.ts;
+      }
+      if (newestSeen && newestSeen !== lastTs) {
+        await setSetting(cursorKey, newestSeen);
+      }
     } catch (e) {
       log(`slack inbox ${channel} failed: ${String(e).slice(0, 160)}`);
     }

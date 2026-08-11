@@ -156,7 +156,15 @@ export async function queuePrApproval(taskId: string): Promise<void> {
       runId: task.id,
       agentName: r.name,
       toolName: "workbench.openPR",
-      input: { taskId, title, body },
+      // One stable branch per routine → one PR that updates each run, instead
+      // of a fresh PR per commit piling up.
+      input: {
+        taskId,
+        title,
+        body,
+        prBranch: `aios/routine-${r.id}`,
+        routineId: r.id,
+      },
     })
     .returning();
   await sql.notify("approvals_changed", row.id);

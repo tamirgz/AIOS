@@ -62,9 +62,20 @@ export const workbenchTools: AiToolDef[] = [
       taskId: z.string().uuid(),
       title: z.string().min(1).describe("PR title"),
       body: z.string().describe("PR description (markdown)"),
+      prBranch: z
+        .string()
+        .optional()
+        .describe("Stable head branch to reuse (a routine coalesces onto one)"),
+      routineId: z.string().uuid().optional(),
     }),
     risk: "approval",
-    execute: async (i: { taskId: string; title: string; body: string }) => {
+    execute: async (i: {
+      taskId: string;
+      title: string;
+      body: string;
+      prBranch?: string;
+      routineId?: string;
+    }) => {
       const [task] = await db
         .select()
         .from(workbenchTasks)
@@ -79,18 +90,30 @@ export const workbenchTools: AiToolDef[] = [
         .limit(1);
       if (!attempt?.branch) return { error: "no branch on the latest attempt" };
       try {
-        const { url, slug } = await openPullRequest({
+        const { url, slug, updated } = await openPullRequest({
           repoPath: task.repoPath,
           branch: attempt.branch,
           title: i.title,
           body: i.body,
+          // A routine reuses one stable branch → force-push regenerates it, and
+          // the open PR is updated instead of a duplicate being opened.
+          prBranch: i.prBranch,
+          force: !!i.prBranch,
         });
         await db
           .update(workbenchTasks)
           .set({ prUrl: url || null, updatedAt: new Date() })
           .where(eq(workbenchTasks.id, i.taskId));
         await sql.notify("workbench_changed", i.taskId);
-        return { opened: true, url, repo: slug };
+        if (i.routineId) {
+          const { routines } = await import("./schema");
+          await db
+            .update(routines)
+            .set({ prUrl: url || null, updatedAt: new Date() })
+            .where(eq(routines.id, i.routineId));
+          await sql.notify("routines_changed", i.routineId);
+        }
+        return { opened: !updated, updated, url, repo: slug };
       } catch (e) {
         return { error: e instanceof Error ? e.message : String(e) };
       }

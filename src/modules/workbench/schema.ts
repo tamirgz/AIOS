@@ -202,6 +202,8 @@ export const routines = pgTable(
     lastSeenSha: text("last_seen_sha"),
     lastFiredAt: timestamp("last_fired_at", { withTimezone: true }),
     lastTaskId: uuid("last_task_id"),
+    /** The single open PR this routine coalesces onto (one PR, updated each run). */
+    prUrl: text("pr_url"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
