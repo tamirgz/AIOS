@@ -72,6 +72,8 @@ export const workbenchTasks = pgTable(
     judgeStatus: text("judge_status"),
     /** {pass, score, gaps[], rationale, attemptSeq} — the ask↔result verdict. */
     judgeVerdict: jsonb("judge_verdict"),
+    /** The PR opened for this task's branch (approval-gated). Null until opened. */
+    prUrl: text("pr_url"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -157,6 +159,57 @@ export const attemptEvents = pgTable(
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("attempt_events_attempt").on(t.attemptId, t.at)],
+);
+
+/**
+ * Routines (A1 · Work Kernel) — a delegation that recurs on a trigger.
+ *
+ * A routine is the standing "what I want done, on every X": a saved ask + the
+ * repo it acts on + a trigger (a new commit, a schedule, or both) + a brain.
+ * When it fires it spawns an ordinary Workbench task, so it inherits the whole
+ * engine: git isolation, the verifying judge, and — because delegated work
+ * must never touch the repo directly — approval-gated PR delivery.
+ *
+ * Idempotency is the global rule: `lastSeenSha` is the processed-ledger for the
+ * commit trigger, so a routine fires once per new commit, never re-derives
+ * "what did I already do" from a full rescan.
+ */
+export const TRIGGER_KINDS = ["commit", "schedule", "both"] as const;
+export type TriggerKind = (typeof TRIGGER_KINDS)[number];
+
+export const routines = pgTable(
+  "routines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    /** Project whose repo this routine watches/acts on ("projects:<uuid>" ref). */
+    projectId: uuid("project_id"),
+    /** Resolved repo path the delegation runs against (the read-only cache). */
+    repoPath: text("repo_path"),
+    /** The standing ask handed to each run. */
+    prompt: text("prompt").notNull(),
+    executorId: text("executor_id").notNull().default("opencode"),
+    model: text("model"),
+    triggerKind: text("trigger_kind", { enum: TRIGGER_KINDS })
+      .notNull()
+      .default("commit"),
+    /** Cron, when the trigger includes "schedule". */
+    schedule: text("schedule"),
+    /** Deliver changes as an approval-gated PR (vs. leave the branch). */
+    deliverPr: text("deliver_pr").notNull().default("true"),
+    enabled: text("enabled").notNull().default("true"),
+    /** Commit-trigger ledger: the last HEAD this routine has already acted on. */
+    lastSeenSha: text("last_seen_sha"),
+    lastFiredAt: timestamp("last_fired_at", { withTimezone: true }),
+    lastTaskId: uuid("last_task_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("routines_enabled").on(t.enabled)],
 );
 
 /**

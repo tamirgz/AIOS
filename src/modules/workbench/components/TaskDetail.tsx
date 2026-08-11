@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Check,
   FileDiff,
+  GitPullRequest,
   Pencil,
   Play,
   RotateCcw,
@@ -25,6 +26,7 @@ import {
   archiveTask,
   cancelTask,
   deleteTask,
+  requestPR,
   retryTask,
   unarchiveTask,
   updateTaskPrompt,
@@ -290,6 +292,33 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
               <Check className="size-3" />
               accept
             </button>
+          )}
+          {task.prUrl ? (
+            <a
+              href={task.prUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-lg border border-plasma/30 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-plasma transition hover:bg-plasma/10"
+            >
+              <GitPullRequest className="size-3" />
+              PR opened
+            </a>
+          ) : (
+            !live &&
+            task.repoPath &&
+            diff &&
+            diff.files.length > 0 && (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => start(async () => void (await requestPR(task.id)))}
+                title="Queue a PR for approval — pushes only after you approve"
+                className="flex items-center gap-1.5 rounded-lg border border-ion/30 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-ion transition hover:bg-ion/10 disabled:opacity-40"
+              >
+                <GitPullRequest className="size-3" />
+                request PR
+              </button>
+            )
           )}
           {task.archivedAt ? (
             <>

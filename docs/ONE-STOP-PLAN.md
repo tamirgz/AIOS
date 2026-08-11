@@ -237,12 +237,12 @@ From here the roadmap is **horizontal OS layers, with projects/work as the prima
 
 | # | Layer | One line | Status |
 |---|---|---|---|
-| **A1** | **Work Kernel — routines** | `trigger + steps + brain + success-check + destination` — the unit of autonomous work | 🟡 **first routine shipped 2026-08-10** (Repo-watcher: per-project code digest, free/local). Remaining: first-class Routine object, per-agent turn budget, more routines |
+| **A1** | **Work Kernel — routines** | `trigger + steps + brain + success-check + destination` — the unit of autonomous work | ✅ **Routine object shipped 2026-08-11** — `routines` table + Workbench panel: standing ask + repo + trigger (new-commit HEAD-poll w/ CAS ledger, and/or cron) → spawns a judged Workbench task → destination = **approval-gated PR** (never a direct write). Remaining: per-agent turn budget |
 | **A2** | **Trust & permissions** | Verification + an approval queue for every outward act — what makes autonomy safe to leave on | ✅ **shipped 2026-08-10** — `successTool` verification gate + the outward-action approval queue (`slack.post` drafts → "Needs you" → approve/reject inline → worker runs/drops). Remaining: more outward tools on the same spine |
 | **A3** | **Senses — ingest & route** | `#tldr`/`#my-today` → the project they affect; email triage + approval-gated drafts; files | ⬜ |
 | **A4** | **Attention scheduler** | AIOS pings *you*: stalls, deadlines, waiting-triggers, decisions | 🟡 attention atom + queue exist |
 | **A5** | **World model — grounding** | Project advisor + code repos ✅; extend to people, decisions, knowledge | ✅ shipped 2026-08-09 (breadth pending) |
-| **A6** | **Deliverable factory** | Workbench → real work products, repo-grounded and verified | 🟡 Workbench + repo grounding done |
+| **A6** | **Deliverable factory** | Workbench → real work products, repo-grounded and verified | 🟡 Workbench + repo grounding + judge + **approval-gated PR delivery** (2026-08-11) done; AIOS proposes, never merges |
 | **A7** | **Brain-trust router + governor** | Claude / GPT-5 (Codex) / Gemini / free-local per task; quota + cost ceilings | 🟡 4 brains wired; routing missing |
 | **A8** | **Control room** | Ran · running · cost · pending approval · failed | ⬜ |
 | **A9** | **Reliability spine** | Heartbeat ✅, catch-up on missed runs, idempotency, self-healing | 🟡 |

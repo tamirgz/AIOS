@@ -239,6 +239,13 @@
       "when": 1786443565969,
       "tag": "0033_jazzy_manta",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786444757934,
+      "tag": "0034_overjoyed_crusher_hogan",
+      "breakpoints": true
     }
   ]
 }
