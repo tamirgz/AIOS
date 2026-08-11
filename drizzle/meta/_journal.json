@@ -253,6 +253,13 @@
       "when": 1786446237578,
       "tag": "0035_far_hercules",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786463067671,
+      "tag": "0036_organic_scorpion",
+      "breakpoints": true
     }
   ]
 }

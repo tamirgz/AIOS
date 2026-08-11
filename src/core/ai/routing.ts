@@ -70,6 +70,10 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
     provider: "anthropic",
     model: "claude-haiku-4-5-20251001",
   },
+  // The source relevance gate: cheaply decides whether an incoming item (a
+  // Telegram post, etc.) is worth an expensive routine run. A free LOCAL model
+  // by default — it runs on every post, so it must never bill. Configurable.
+  { taskKey: "source.relevance", provider: "ollama", model: "qwen3:8b" },
   // Per-project advisor read + the on-demand "different angle" re-read.
   {
     taskKey: "project.advisor",
