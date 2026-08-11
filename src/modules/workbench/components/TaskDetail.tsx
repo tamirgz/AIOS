@@ -8,11 +8,15 @@ import {
   ArrowLeft,
   Check,
   FileDiff,
+  Pencil,
+  Play,
   RotateCcw,
   RotateCw,
+  Scale,
   Square,
   Terminal,
   Trash2,
+  X,
 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { useLiveEvents } from "@/core/ui/useLiveEvents";
@@ -23,6 +27,7 @@ import {
   deleteTask,
   retryTask,
   unarchiveTask,
+  updateTaskPrompt,
 } from "../actions";
 import type { TaskDetail as Detail } from "../queries";
 import { STATUS_META } from "./TaskBoard";
@@ -139,10 +144,73 @@ function DiffPane({ diff }: { diff: NonNullable<Detail["diff"]> }) {
   );
 }
 
+interface Verdict {
+  pass?: boolean;
+  score?: number;
+  gaps?: string[];
+  rationale?: string;
+}
+
+/** The delegation judge's ruling — the automated ask↔result gate (A2 · Trust). */
+function JudgePanel({
+  status,
+  verdict,
+}: {
+  status: string | null;
+  verdict: Verdict | null;
+}) {
+  if (!status) return null;
+  const meta =
+    status === "pass"
+      ? { color: "var(--color-plasma)", label: "verified — matches your ask" }
+      : status === "retrying"
+        ? { color: "var(--color-gold)", label: "judge flagged gaps — retrying with feedback" }
+        : status === "fail"
+          ? { color: "var(--color-flare)", label: "held — didn't meet the ask after a retry" }
+          : { color: "var(--color-ink-faint)", label: status };
+
+  return (
+    <section
+      className="glass rounded-2xl p-4"
+      style={{ borderColor: `color-mix(in oklab, ${meta.color} 30%, transparent)` }}
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <Scale className="size-3.5" style={{ color: meta.color }} />
+        <p
+          className="font-mono text-[10px] uppercase tracking-[0.3em]"
+          style={{ color: meta.color }}
+        >
+          verifying judge · {meta.label}
+        </p>
+        {typeof verdict?.score === "number" && (
+          <span className="ml-auto font-mono text-[10px] tabular-nums text-ink-faint">
+            {verdict.score}/100
+          </span>
+        )}
+      </div>
+      {verdict?.rationale && (
+        <p className="text-sm leading-relaxed text-ink-dim">{verdict.rationale}</p>
+      )}
+      {verdict?.gaps && verdict.gaps.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-1">
+          {verdict.gaps.map((g, i) => (
+            <li key={i} className="flex gap-2 text-xs leading-relaxed text-ink-dim">
+              <span style={{ color: meta.color }}>•</span>
+              <span>{g}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export function TaskDetailView({ detail }: { detail: Detail }) {
   const { task, attempts, events, diff } = detail;
   const [pending, start] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingAsk, setEditingAsk] = useState(false);
+  const [askDraft, setAskDraft] = useState(task.prompt);
   const router = useRouter();
   const live = task.status === "running" || task.status === "queued";
   useLiveEvents(["workbench_changed"]);
@@ -281,6 +349,11 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
         </div>
       </div>
 
+      <JudgePanel
+        status={task.judgeStatus}
+        verdict={task.judgeVerdict as Verdict | null}
+      />
+
       {latest?.result && (
         <section className="glass rounded-2xl p-5 sm:p-6">
           <ReportPanel
@@ -299,12 +372,82 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <section className="glass rounded-2xl p-4 lg:col-span-2">
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
-            the ask
-          </p>
-          <p dir="auto" className="whitespace-pre-wrap text-sm leading-relaxed text-ink-dim">
-            {task.prompt}
-          </p>
+          <div className="mb-2 flex items-center gap-2">
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
+              the ask
+            </p>
+            {!editingAsk && !live && (
+              <button
+                type="button"
+                title="Edit the request"
+                onClick={() => {
+                  setAskDraft(task.prompt);
+                  setEditingAsk(true);
+                }}
+                className="rounded-md p-1 text-ink-faint transition hover:text-ion"
+              >
+                <Pencil className="size-3" />
+              </button>
+            )}
+          </div>
+
+          {editingAsk ? (
+            <div className="flex flex-col gap-2">
+              <textarea
+                dir="auto"
+                value={askDraft}
+                onChange={(e) => setAskDraft(e.target.value)}
+                rows={8}
+                className="w-full resize-y rounded-lg border border-ion/25 bg-void/50 p-3 text-sm leading-relaxed text-ink outline-none focus:border-ion/50"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={pending || !askDraft.trim()}
+                  onClick={() =>
+                    start(async () => {
+                      await updateTaskPrompt(task.id, askDraft);
+                      setEditingAsk(false);
+                    })
+                  }
+                  className="flex items-center gap-1.5 rounded-lg bg-ion/15 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-ion transition hover:bg-ion/25 disabled:opacity-40"
+                >
+                  <Check className="size-3" />
+                  save
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => setEditingAsk(false)}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/8 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-ink-faint transition hover:text-ink disabled:opacity-40"
+                >
+                  <X className="size-3" />
+                  cancel
+                </button>
+                <span className="font-mono text-[9px] text-ink-faint">
+                  saving only — re-run when you&apos;re ready
+                </span>
+              </div>
+            </div>
+          ) : (
+            <p dir="auto" className="whitespace-pre-wrap text-sm leading-relaxed text-ink-dim">
+              {task.prompt}
+            </p>
+          )}
+
+          {!editingAsk && !live && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => start(async () => void (await retryTask(task.id)))}
+              title="Run the delegation again with the current request"
+              className="mt-3 flex items-center gap-1.5 rounded-lg border border-ion/25 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-ion transition hover:bg-ion/10 disabled:opacity-40"
+            >
+              <Play className="size-3" />
+              re-run with this request
+            </button>
+          )}
+
           {task.repoPath && (
             <p className="mt-3 font-mono text-[10px] text-ink-faint">
               {task.repoPath}

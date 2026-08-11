@@ -29,6 +29,23 @@ function titleFrom(prompt: string) {
   return first.length > 90 ? `${first.slice(0, 88)}…` : first;
 }
 
+/**
+ * Edit the *initiate request* — the ask itself, not just what came back. The
+ * title tracks the first line so the card stays recognizable. This only saves;
+ * re-running is an explicit, separate action (the "Re-run" button) so a typo
+ * mid-edit never spends a run.
+ */
+export async function updateTaskPrompt(taskId: string, prompt: string) {
+  const next = prompt.trim();
+  if (!next) throw new Error("the ask can't be empty");
+  await db
+    .update(workbenchTasks)
+    .set({ prompt: next, title: titleFrom(next), updatedAt: new Date() })
+    .where(eq(workbenchTasks.id, taskId));
+  await sql.notify("workbench_changed", taskId);
+  revalidate(taskId);
+}
+
 /** Edit the report text of an attempt (the "what came back" panel). */
 export async function updateAttemptResult(
   attemptId: string,

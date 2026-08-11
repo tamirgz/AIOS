@@ -232,6 +232,13 @@
       "when": 1786351470236,
       "tag": "0032_breezy_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786443565969,
+      "tag": "0033_jazzy_manta",
+      "breakpoints": true
     }
   ]
 }
