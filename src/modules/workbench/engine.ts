@@ -518,6 +518,14 @@ export async function runAttempt(attemptId: string): Promise<void> {
           judgeStatus: "pass",
           judgeVerdict: verdict,
         });
+        // Routine-spawned work that produced changes is delivered as a PR —
+        // never a direct write. Queue it for the user's approval (A2).
+        if (changedFiles > 0 && task.createdFrom?.startsWith("routines:")) {
+          const { queuePrApproval } = await import("./routines");
+          await queuePrApproval(task.id).catch((e) =>
+            log(`queuePrApproval failed: ${e}`),
+          );
+        }
         log(`attempt ${attempt.id.slice(0, 8)} → PASS (${verdict.score}) released`);
       } else if (!attempt.feedback) {
         // First miss → auto-retry once, feeding the critique back so the retry

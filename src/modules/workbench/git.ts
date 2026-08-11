@@ -218,6 +218,86 @@ export async function deleteBranchIfMerged(
   }
 }
 
+/**
+ * Follow `origin` until it lands on a GitHub URL. AIOS works on a cache clone
+ * whose origin is the user's local folder, whose own origin is GitHub — so PR
+ * delivery has to hop through the chain. Returns null for a local-only repo
+ * (no GitHub anywhere upstream), which is an honest "can't open a PR here".
+ */
+export async function resolveGithubRemote(repoPath: string): Promise<string | null> {
+  let cur = repoPath;
+  for (let i = 0; i < 4; i++) {
+    let url: string;
+    try {
+      url = (await git(cur, ["remote", "get-url", "origin"])).trim();
+    } catch {
+      return null;
+    }
+    if (/github\.com/i.test(url)) return url;
+    // A local-path origin: hop into it and keep looking upstream.
+    if (url.startsWith("/") || url.startsWith("file:")) {
+      cur = url.replace(/^file:\/\//, "");
+      continue;
+    }
+    return null; // some non-GitHub remote — nothing to open a PR against
+  }
+  return null;
+}
+
+/** owner/repo from a GitHub URL (https or ssh), for `gh --repo`. */
+function githubSlug(url: string): string {
+  return url
+    .replace(/^git@github\.com:/i, "")
+    .replace(/^https?:\/\/github\.com\//i, "")
+    .replace(/\.git$/i, "")
+    .trim();
+}
+
+/**
+ * Push an attempt's branch to GitHub and open a PR. This is the ONLY path by
+ * which AIOS's work reaches the repo, and it never merges — it proposes. Called
+ * exclusively through the approval queue, so the push happens only on an
+ * explicit human yes.
+ */
+export async function openPullRequest(input: {
+  repoPath: string;
+  branch: string;
+  title: string;
+  body: string;
+}): Promise<{ url: string; slug: string }> {
+  const ghUrl = await resolveGithubRemote(input.repoPath);
+  if (!ghUrl) {
+    throw new Error(
+      "no GitHub remote upstream of this repo — it's local-only, so there's nothing to open a PR against",
+    );
+  }
+  const slug = githubSlug(ghUrl);
+
+  // Push the branch straight to GitHub from wherever it lives (the cache clone).
+  await git(input.repoPath, ["push", ghUrl, `${input.branch}:${input.branch}`]);
+
+  // gh prints the PR URL on success. --head is the branch we just pushed; base
+  // defaults to the repo's default branch. No auto-merge, ever.
+  const { stdout } = await exec(
+    "gh",
+    [
+      "pr",
+      "create",
+      "--repo",
+      slug,
+      "--head",
+      input.branch,
+      "--title",
+      input.title,
+      "--body",
+      input.body,
+    ],
+    { cwd: input.repoPath, maxBuffer: 4 * 1024 * 1024 },
+  );
+  const url = stdout.trim().split("\n").filter(Boolean).pop() ?? "";
+  return { url, slug };
+}
+
 /** Remove the worktree; the branch stays so nothing is lost by archiving. */
 export async function removeWorktree(
   repoPath: string,

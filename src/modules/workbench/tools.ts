@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db, sql } from "@/core/db/client";
 import type { AiToolDef } from "@/core/modules/types.server";
 import { TYPE_DEFAULT_EXECUTOR } from "./defaults";
+import { openPullRequest } from "./git";
 import { TASK_TYPES, taskAttempts, workbenchTasks } from "./schema";
 
 /**
@@ -51,6 +52,48 @@ export const workbenchTools: AiToolDef[] = [
         .returning();
       await sql.notify("workbench_run", attempt.id);
       return { taskId: task.id, status: "queued", url: `/m/workbench/${task.id}` };
+    },
+  },
+  {
+    name: "workbench.openPR",
+    description:
+      "Open a pull request for a Workbench task's branch — push the branch to GitHub and create the PR. This is an outward action: it is queued for the user's approval and pushes only once approved. Never merges.",
+    input: z.object({
+      taskId: z.string().uuid(),
+      title: z.string().min(1).describe("PR title"),
+      body: z.string().describe("PR description (markdown)"),
+    }),
+    risk: "approval",
+    execute: async (i: { taskId: string; title: string; body: string }) => {
+      const [task] = await db
+        .select()
+        .from(workbenchTasks)
+        .where(eq(workbenchTasks.id, i.taskId));
+      if (!task) return { error: "task not found" };
+      if (!task.repoPath) return { error: "task has no repo — nothing to PR" };
+      const [attempt] = await db
+        .select()
+        .from(taskAttempts)
+        .where(eq(taskAttempts.taskId, i.taskId))
+        .orderBy(desc(taskAttempts.seq))
+        .limit(1);
+      if (!attempt?.branch) return { error: "no branch on the latest attempt" };
+      try {
+        const { url, slug } = await openPullRequest({
+          repoPath: task.repoPath,
+          branch: attempt.branch,
+          title: i.title,
+          body: i.body,
+        });
+        await db
+          .update(workbenchTasks)
+          .set({ prUrl: url || null, updatedAt: new Date() })
+          .where(eq(workbenchTasks.id, i.taskId));
+        await sql.notify("workbench_changed", i.taskId);
+        return { opened: true, url, repo: slug };
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : String(e) };
+      }
     },
   },
   {

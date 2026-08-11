@@ -348,6 +348,110 @@ export async function updateExecutor(
   revalidatePath("/m/workbench");
 }
 
+// ── Routines (A1) ──────────────────────────────────────────────────────────
+
+/** Create a recurring routine bound to a project's repo. */
+export async function createRoutine(input: {
+  name: string;
+  projectId: string;
+  prompt: string;
+  executorId?: string;
+  model?: string | null;
+  triggerKind?: "commit" | "schedule" | "both";
+  schedule?: string | null;
+  deliverPr?: boolean;
+}) {
+  const { routines } = await import("./schema");
+  const { projects } = await import("@/modules/projects/schema");
+  const { usableRepoPath } = await import("@/modules/projects/repo");
+
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, input.projectId));
+  if (!project) throw new Error("project not found");
+  const repoPath = usableRepoPath(project.id, project.repoUrl);
+  if (!repoPath) {
+    throw new Error("that project has no code repo attached — add one first");
+  }
+
+  const [row] = await db
+    .insert(routines)
+    .values({
+      name: input.name.trim() || "Untitled routine",
+      projectId: input.projectId,
+      repoPath,
+      prompt: input.prompt.trim(),
+      executorId: input.executorId ?? "opencode",
+      model: input.model ?? null,
+      triggerKind: input.triggerKind ?? "commit",
+      schedule: input.schedule?.trim() || null,
+      deliverPr: input.deliverPr === false ? "false" : "true",
+    })
+    .returning();
+  await sql.notify("routines_changed", row.id);
+  revalidate();
+  return row;
+}
+
+export async function setRoutineEnabled(id: string, enabled: boolean) {
+  const { routines } = await import("./schema");
+  await db
+    .update(routines)
+    .set({ enabled: enabled ? "true" : "false", updatedAt: new Date() })
+    .where(eq(routines.id, id));
+  await sql.notify("routines_changed", id);
+  revalidate();
+}
+
+export async function deleteRoutine(id: string) {
+  const { routines } = await import("./schema");
+  await db.delete(routines).where(eq(routines.id, id));
+  await sql.notify("routines_changed", id);
+  revalidate();
+}
+
+/** Fire a routine now (the worker owns the actual run). */
+export async function runRoutineNow(id: string) {
+  await sql.notify("routines_run", id);
+  revalidate();
+}
+
+/**
+ * Manually request a PR for any task's branch — queues the SAME approval-gated
+ * openPR the routines use, so a hand-run delegation lands the same way: draft →
+ * approve → push+open. Never a direct write.
+ */
+export async function requestPR(taskId: string) {
+  const [task] = await db
+    .select()
+    .from(workbenchTasks)
+    .where(eq(workbenchTasks.id, taskId));
+  if (!task) throw new Error("task not found");
+  if (!task.repoPath) throw new Error("task has no repo");
+
+  const { approvals } = await import("@/core/db/schema/approvals");
+  const title = `AIOS: ${task.title}`.slice(0, 120);
+  const body = [
+    `Proposed by AIOS from the Workbench task "${task.title}".`,
+    task.summary ? `\n**What changed:** ${task.summary}` : "",
+    "\n_Review before merge — AIOS proposes, it never merges._",
+  ].join("");
+  const [row] = await db
+    .insert(approvals)
+    .values({
+      agentId: task.id, // no agent run for a manual PR — the task stands in
+      runId: task.id,
+      agentName: "Workbench",
+      toolName: "workbench.openPR",
+      input: { taskId, title, body },
+    })
+    .returning();
+  await sql.notify("approvals_changed", row.id);
+  revalidate(taskId);
+  return row;
+}
+
 /** "I've looked at the diff" — closes the card without touching the branch. */
 export async function acceptTask(taskId: string) {
   await db
