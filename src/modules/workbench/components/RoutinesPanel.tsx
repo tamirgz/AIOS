@@ -133,6 +133,15 @@ function RoutineRow({
       {openDetail && (
         <div className="flex flex-col gap-3 border-t border-white/6 p-3">
           <label className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+            title
+          </label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Routine title"
+            className="rounded-lg border border-white/8 bg-void/50 px-3 py-2 text-sm text-ink outline-none focus:border-ion/40"
+          />
+          <label className="mt-1 font-mono text-[9px] uppercase tracking-widest text-ink-faint">
             the ask
           </label>
           <textarea
@@ -142,11 +151,6 @@ function RoutineRow({
             className="resize-y rounded-lg border border-white/8 bg-void/50 px-3 py-2 text-sm leading-relaxed text-ink outline-none focus:border-ion/40"
           />
           <div className="flex flex-wrap gap-2">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="rounded-lg border border-white/8 bg-void/50 px-3 py-2 text-sm text-ink outline-none focus:border-ion/40"
-            />
             <select
               value={executorId}
               onChange={(e) => setExecutorId(e.target.value)}
