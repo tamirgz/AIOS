@@ -52,32 +52,38 @@ export async function ingestChannel(channelId: string): Promise<void> {
   let relevantCount = 0;
   for (const p of posts) {
     if (existing.has(p.postId)) continue;
-    // Enrich with the first link's readable text (ift.tt → real article).
-    const linkedText = p.urls[0] ? await fetchUrlText(p.urls[0]) : "";
-    const verdict = await classifyRelevance({
-      text: p.text,
-      linkedText,
-      criteria: ch.criteria,
-    });
-    const [row] = await db
-      .insert(telegramPosts)
-      .values({
-        channel: ch.username,
-        postId: p.postId,
-        postedAt: p.postedAt,
+    try {
+      // Enrich with the first link's readable text (ift.tt → real article).
+      const linkedText = p.urls[0] ? await fetchUrlText(p.urls[0]) : "";
+      const verdict = await classifyRelevance({
         text: p.text,
-        urls: p.urls,
-        linkedText: linkedText || null,
-        relevant: verdict.relevant ? "yes" : "no",
-        relevanceWhy: verdict.why,
-      })
-      .onConflictDoNothing()
-      .returning();
-    if (verdict.relevant && row) {
-      relevantCount++;
-      // Fires the (Phase-2) source trigger — a routine bound to this channel
-      // runs on this post. Nothing listens yet; harmless until then.
-      await sql.notify("telegram_new_post", row.id);
+        linkedText,
+        criteria: ch.criteria,
+      });
+      const [row] = await db
+        .insert(telegramPosts)
+        .values({
+          channel: ch.username,
+          postId: p.postId,
+          postedAt: p.postedAt,
+          text: p.text,
+          urls: p.urls,
+          linkedText: linkedText || null,
+          relevant: verdict.relevant ? "yes" : "no",
+          relevanceWhy: verdict.why,
+        })
+        .onConflictDoNothing()
+        .returning();
+      if (verdict.relevant && row) {
+        relevantCount++;
+        // Fires the (Phase-2) source trigger — a routine bound to this channel
+        // runs on this post. Nothing listens yet; harmless until then.
+        await sql.notify("telegram_new_post", row.id);
+      }
+    } catch (e) {
+      // One bad post (a hung link fetch, a gate hiccup) must not abort the
+      // whole channel's ingest — skip it and keep going.
+      log(`${ch.username} post ${p.postId} skipped: ${String(e).slice(0, 120)}`);
     }
   }
 
