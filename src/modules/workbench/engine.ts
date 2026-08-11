@@ -413,6 +413,13 @@ export async function runAttempt(attemptId: string): Promise<void> {
         env: {
           OPENCODE_CONFIG: AIOS_OPENCODE_CONFIG,
           OPENCODE_DISABLE_AUTOUPDATE: "1",
+          // Isolate opencode's DATA dir (its sqlite DB, sessions, snapshots) to
+          // an AIOS-owned location. opencode keeps this under XDG_DATA_HOME, and
+          // sharing the user's global `~/.local/share/opencode` means a corrupt
+          // migration there (observed: an `ollama launch` run left the DB
+          // unmigratable) takes AIOS down with it — and vice versa. A dedicated,
+          // persistent dir decouples the two completely.
+          XDG_DATA_HOME: join(homedir(), ".aios", "opencode-data"),
           // Read the model DB from the local cache instead of fetching it from
           // models.dev at init — a blocking network call that intermittently
           // stalled startup. The provider SDK is pre-installed too, so opencode
