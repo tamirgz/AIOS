@@ -46,8 +46,19 @@ const MAX_CONCURRENT = 2;
  * a malformed payload fails cleanly instead of corrupting the query params. */
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** An attempt whose last event is older than this after a restart is dead. */
-const STALL_MS = 5 * 60 * 1000;
+/** No progress (no event) for this long = the run is genuinely stuck, not slow. */
+const STALL_LIMIT_MS = 60 * 60 * 1000; // 1 hour
+
+/** True if a process with this pid is still alive (a cheap signal-0 probe). */
+function pidAlive(pid: number | null): boolean {
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const ADAPTERS: Record<string, Adapter> = {
   "claude-headless": claudeHeadlessAdapter,
@@ -230,16 +241,6 @@ export async function ensureExecutors() {
         dsql`${executors.commandTemplate} like '%--model ollama/{{model}}%'`,
       ),
     );
-
-  // Keep the local cli executors' timeout in sync with TIMEOUTS. A row seeded
-  // when code-local was 10 min otherwise stays stale forever (onConflictDoNothing
-  // never updates it), silently capping a slow local model mid-run — observed:
-  // a 30B reasoning model that loads in ~2min + reasons for several more was
-  // killed at the stale 10-min mark before it could make its edit.
-  await db
-    .update(executors)
-    .set({ timeoutMs: TIMEOUTS["code-local"] })
-    .where(inArray(executors.id, ["opencode", "pi", "aider"]));
 }
 
 async function emitEvent(attemptId: string, e: AdapterEvent) {
@@ -312,9 +313,22 @@ export async function runAttempt(attemptId: string): Promise<void> {
     .where(eq(executors.id, attempt.executorId));
   const adapter = ADAPTERS[executor?.kind ?? attempt.executorId];
 
+  // Stall-based, not wall-clock: a run is only killed when it stops making
+  // progress. As long as the executor keeps emitting events (tool calls, text,
+  // steps), it may run as long as it likes — a slow local model that loads for
+  // minutes and reasons for several more is working, not stuck. Only genuine
+  // silence for STALL_LIMIT_MS (no event at all) counts as stuck.
   const controller = new AbortController();
-  const timeoutMs = executor?.timeoutMs ?? TIMEOUTS[task.taskType];
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let lastProgressAt = Date.now();
+  const watchdog = setInterval(() => {
+    const idleMs = Date.now() - lastProgressAt;
+    if (idleMs > STALL_LIMIT_MS) {
+      log(
+        `attempt ${attempt.id.slice(0, 8)} stuck — no progress for ${Math.round(idleMs / 60000)}min, aborting`,
+      );
+      controller.abort();
+    }
+  }, 60_000);
 
   try {
     if (!adapter) throw new Error(`no adapter for "${attempt.executorId}"`);
@@ -415,7 +429,6 @@ export async function runAttempt(attemptId: string): Promise<void> {
         prompt,
         workdir,
         model: attempt.model ?? executor?.defaultModel ?? null,
-        timeoutMs,
         taskType: task.taskType,
         signal: controller.signal,
         commandTemplate: executor?.commandTemplate ?? undefined,
@@ -451,6 +464,7 @@ export async function runAttempt(attemptId: string): Promise<void> {
         },
       },
       async (e) => {
+        lastProgressAt = Date.now(); // any event = progress; resets the stall clock
         await emitEvent(attempt.id, e);
         await notifyChanged(task.id);
       },
@@ -599,7 +613,7 @@ export async function runAttempt(attemptId: string): Promise<void> {
     await setTask(task.id, { status: "failed", summary: message.slice(0, 500) });
     log(`attempt ${attempt.id.slice(0, 8)} failed: ${message}`);
   } finally {
-    clearTimeout(timer);
+    clearInterval(watchdog);
     await notifyChanged(task.id);
   }
 }
@@ -610,25 +624,35 @@ export async function runAttempt(attemptId: string): Promise<void> {
  * don't leave a card spinning forever.
  */
 export async function reconcile(): Promise<void> {
-  const cutoff = new Date(Date.now() - STALL_MS);
-  const stale = await db
-    .update(taskAttempts)
-    .set({
-      status: "failed",
-      error: "interrupted (worker restarted or the executor died)",
-      endedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(taskAttempts.status, "running"),
-        dsql`coalesce(${taskAttempts.heartbeatAt}, ${taskAttempts.startedAt}) < ${cutoff.toISOString()}::timestamptz`,
-      ),
-    )
-    .returning({ id: taskAttempts.id, taskId: taskAttempts.taskId });
-  for (const s of stale) {
-    await setTask(s.taskId, { status: "failed" });
+  // A running attempt is dead only if its process is GONE (crashed / restart)
+  // or it made no progress for a full hour — NOT merely because it went quiet
+  // for a few minutes (a slow local model loading + reasoning is silent but
+  // very much alive). This mirrors the in-run stall watchdog so the sweep can't
+  // kill a run the run itself would keep.
+  const running = await db
+    .select()
+    .from(taskAttempts)
+    .where(eq(taskAttempts.status, "running"));
+  const now = Date.now();
+  const dead = running.filter((a) => {
+    const idleMs = now - +new Date(a.heartbeatAt ?? a.startedAt ?? a.createdAt);
+    if (idleMs > STALL_LIMIT_MS) return true; // stuck for an hour → dead
+    // A cli attempt has a real pid: trust liveness, not the clock. An in-process
+    // attempt (no pid) dies with the worker, so quiet-for-a-while means gone.
+    return a.pid ? !pidAlive(a.pid) : idleMs > 5 * 60 * 1000;
+  });
+  for (const a of dead) {
+    await db
+      .update(taskAttempts)
+      .set({
+        status: "failed",
+        error: "interrupted (worker restarted or the executor died)",
+        endedAt: new Date(),
+      })
+      .where(eq(taskAttempts.id, a.id));
+    await setTask(a.taskId, { status: "failed" });
   }
-  if (stale.length) log(`reconciled ${stale.length} interrupted attempt(s)`);
+  if (dead.length) log(`reconciled ${dead.length} dead attempt(s)`);
 
   // Then pick up anything queued (missed NOTIFY, or freed capacity).
   const queued = await db
