@@ -18,6 +18,7 @@ const KEY_LABELS: Record<string, string> = {
   "project.advisor": "Project advisor (per-project read + re-angle)",
   "workbench.native": "Workbench · docs tasks (AIOS data + module tools)",
   "workbench.judge": "Workbench · delegation judge (ask ↔ result gate)",
+  "routine.builder": "Routines · builder (composes a routine from your description)",
 };
 
 function RouteRow({ route }: { route: AiRoute }) {

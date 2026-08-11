@@ -60,6 +60,16 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   // (A2 · Trust). A capable brain by default — this is the correctness gate,
   // not the cheap path. Editable in Settings.
   { taskKey: "workbench.judge", provider: "anthropic", model: "claude-sonnet-5" },
+  // The routine BUILDER — composes a routine from a plain-English description
+  // (title, trigger, target files) and keeps the ask faithful. Runs ONCE per
+  // routine at create time, so a cheap metered model is fine (and it doesn't
+  // break the free-model rule, which only governs PERIODIC agents). Settings
+  // only — never exposed on the routine card. Default: cheap Haiku.
+  {
+    taskKey: "routine.builder",
+    provider: "anthropic",
+    model: "claude-haiku-4-5-20251001",
+  },
   // Per-project advisor read + the on-demand "different angle" re-read.
   {
     taskKey: "project.advisor",

@@ -10,9 +10,11 @@ import {
   GitPullRequest,
   ChevronDown,
   Check,
+  Sparkles,
 } from "lucide-react";
 import { useLiveEvents } from "@/core/ui/useLiveEvents";
 import {
+  composeRoutine,
   createRoutine,
   deleteRoutine,
   runRoutineNow,
@@ -263,6 +265,11 @@ export function RoutinesPanel({
   const [trigger, setTrigger] = useState<"commit" | "schedule" | "both">("commit");
   const [schedule, setSchedule] = useState("0 8 * * 1-5");
 
+  // builder: describe → cheap model composes the config (keeps your ask)
+  const [describe, setDescribe] = useState("");
+  const [composing, setComposing] = useState(false);
+  const [builderNote, setBuilderNote] = useState<string | null>(null);
+
   const canSave = name.trim() && projectId && prompt.trim().length > 10;
 
   return (
@@ -285,6 +292,51 @@ export function RoutinesPanel({
 
       {open && (
         <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-ion/20 bg-void/40 p-4">
+          {/* Builder: describe it → a cheap model fills in the config below. */}
+          <div className="flex flex-col gap-2 rounded-xl border border-gold/20 bg-gold/[0.03] p-3">
+            <label className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-widest text-gold/80">
+              <Sparkles className="size-3" />
+              describe it — AI fills in the setup (keeps your wording)
+            </label>
+            <textarea
+              value={describe}
+              onChange={(e) => setDescribe(e.target.value)}
+              rows={2}
+              placeholder="e.g. On each commit to NoClick, update the docs HTML if the change affects them; flag the investor deck but don't edit it."
+              className="resize-y rounded-lg border border-white/8 bg-void/50 px-3 py-2 text-sm leading-relaxed text-ink outline-none focus:border-gold/40"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={composing || describe.trim().length < 10}
+                onClick={() =>
+                  start(async () => {
+                    setComposing(true);
+                    setBuilderNote(null);
+                    const res = await composeRoutine(describe);
+                    setComposing(false);
+                    if (res.ok) {
+                      setName(res.draft.name);
+                      setPrompt(res.draft.ask);
+                      setTrigger(res.draft.triggerKind);
+                      if (res.draft.schedule) setSchedule(res.draft.schedule);
+                      setBuilderNote(res.draft.note ?? "Filled in below — review and save.");
+                    } else {
+                      setBuilderNote(res.error);
+                    }
+                  })
+                }
+                className="flex items-center gap-1.5 rounded-lg bg-gold/15 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-gold transition hover:bg-gold/25 disabled:opacity-40"
+              >
+                <Sparkles className="size-3" />
+                {composing ? "composing…" : "compose with AI"}
+              </button>
+              {builderNote && (
+                <span className="font-mono text-[9px] text-ink-faint">{builderNote}</span>
+              )}
+            </div>
+          </div>
+
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
