@@ -47,6 +47,12 @@ export const agents = pgTable("agents", {
    * `failed` — so a routine can't report "done" without producing its effect.
    */
   successTool: text("success_tool"),
+  /**
+   * Tool-loop budget for one run. Null = the provider default (ollama/nvidia/
+   * gemini 8, anthropic 12) — fine for single-shot agents, but a many-item run
+   * (e.g. digest N projects, edit N files) needs more or it truncates mid-list.
+   */
+  turnBudget: integer("turn_budget"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

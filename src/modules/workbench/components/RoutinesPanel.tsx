@@ -197,6 +197,16 @@ export function RoutinesPanel({
                         last run
                       </Link>
                     )}
+                    {r.prUrl && (
+                      <a
+                        href={r.prUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-0.5 text-plasma underline hover:text-plasma/80"
+                      >
+                        <GitPullRequest className="size-2.5" /> open PR
+                      </a>
+                    )}
                   </div>
                 </div>
                 <button

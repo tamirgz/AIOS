@@ -155,6 +155,9 @@ export function AgentDetail({
   const [provider, setProvider] = useState<AIProviderId | "">(agent.provider ?? "");
   const [model, setModel] = useState(agent.model ?? "");
   const [fallbackModel, setFallbackModel] = useState(agent.fallbackModel ?? "");
+  const [turnBudget, setTurnBudget] = useState(
+    agent.turnBudget != null ? String(agent.turnBudget) : "",
+  );
 
   useLiveEvents(["agent_runs"]);
 
@@ -172,7 +175,8 @@ export function AgentDetail({
     JSON.stringify(tools) !== JSON.stringify(agent.tools) ||
     provider !== (agent.provider ?? "") ||
     model !== (agent.model ?? "") ||
-    fallbackModel !== (agent.fallbackModel ?? "");
+    fallbackModel !== (agent.fallbackModel ?? "") ||
+    turnBudget !== (agent.turnBudget != null ? String(agent.turnBudget) : "");
 
   const grouped = allTools.reduce<Record<string, string[]>>((acc, t) => {
     const mod = t.split(".")[0];
@@ -329,6 +333,23 @@ export function AgentDetail({
               </select>
             </div>
           )}
+          <div className="mt-2.5">
+            <p className="mb-1.5 font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+              turn budget — tool-loop steps per run (blank = provider default)
+            </p>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={turnBudget}
+              onChange={(e) => setTurnBudget(e.target.value)}
+              placeholder="default"
+              className="h-9 w-32 rounded-lg border border-white/8 bg-abyss/50 px-3 font-mono text-xs text-ink outline-none focus:border-flare/30"
+            />
+            <span className="ml-2 font-mono text-[9px] text-ink-faint">
+              raise for many-item runs (digest N projects, edit N files)
+            </span>
+          </div>
         </div>
         <div>
           <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.25em] text-ink-faint">
@@ -385,6 +406,7 @@ export function AgentDetail({
                   model: provider ? model : null,
                   // Only meaningful with a cloud primary — clear it otherwise.
                   fallbackModel: showFallback ? fallbackModel || null : null,
+                  turnBudget: turnBudget.trim() ? Number(turnBudget) : null,
                 });
                 setScheduleError(null);
               } catch (e) {

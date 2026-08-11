@@ -264,7 +264,11 @@ export async function openPullRequest(input: {
   branch: string;
   title: string;
   body: string;
-}): Promise<{ url: string; slug: string }> {
+  /** Stable target branch to push onto (a routine reuses one). Default = branch. */
+  prBranch?: string;
+  /** Force-push the target (safe for an AIOS-owned routine branch it regenerates). */
+  force?: boolean;
+}): Promise<{ url: string; slug: string; updated: boolean }> {
   const ghUrl = await resolveGithubRemote(input.repoPath);
   if (!ghUrl) {
     throw new Error(
@@ -272,6 +276,7 @@ export async function openPullRequest(input: {
     );
   }
   const slug = githubSlug(ghUrl);
+  const target = input.prBranch ?? input.branch;
 
   // Push the branch straight to GitHub from wherever it lives (the cache clone).
   // Authenticate through gh's own credential helper for THIS push only — no
@@ -284,30 +289,30 @@ export async function openPullRequest(input: {
     "-c",
     "credential.helper=!gh auth git-credential",
     "push",
+    ...(input.force ? ["--force"] : []),
     ghUrl,
-    `${input.branch}:${input.branch}`,
+    `${input.branch}:${target}`,
   ]);
+
+  // Coalesce: if an open PR already exists for this (stable) head branch, the
+  // push above just updated it — reuse it instead of opening a duplicate.
+  const existing = await exec(
+    "gh",
+    ["pr", "list", "--repo", slug, "--head", target, "--state", "open", "--json", "url", "--jq", ".[0].url"],
+    { cwd: input.repoPath, maxBuffer: 4 * 1024 * 1024 },
+  ).catch(() => ({ stdout: "" }));
+  const existingUrl = existing.stdout.trim();
+  if (existingUrl) return { url: existingUrl, slug, updated: true };
 
   // gh prints the PR URL on success. --head is the branch we just pushed; base
   // defaults to the repo's default branch. No auto-merge, ever.
   const { stdout } = await exec(
     "gh",
-    [
-      "pr",
-      "create",
-      "--repo",
-      slug,
-      "--head",
-      input.branch,
-      "--title",
-      input.title,
-      "--body",
-      input.body,
-    ],
+    ["pr", "create", "--repo", slug, "--head", target, "--title", input.title, "--body", input.body],
     { cwd: input.repoPath, maxBuffer: 4 * 1024 * 1024 },
   );
   const url = stdout.trim().split("\n").filter(Boolean).pop() ?? "";
-  return { url, slug };
+  return { url, slug, updated: false };
 }
 
 /** Remove the worktree; the branch stays so nothing is lost by archiving. */
