@@ -63,6 +63,15 @@ export const workbenchTasks = pgTable(
     createdFrom: text("created_from"),
     /** Headline of the finished work — what you read before the transcript. */
     summary: text("summary"),
+    /**
+     * The verifying judge's gate on the latest settled attempt (A2 · Trust,
+     * for delegated work): null = not judged; "pending"/"retrying" = mid-loop;
+     * "pass" = the result satisfies the ask, released; "fail" = it did not,
+     * held for the user after the auto-retry also fell short.
+     */
+    judgeStatus: text("judge_status"),
+    /** {pass, score, gaps[], rationale, attemptSeq} — the ask↔result verdict. */
+    judgeVerdict: jsonb("judge_verdict"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -96,6 +105,14 @@ export const taskAttempts = pgTable(
     error: text("error"),
     /** The executor's own last word (result event / final assistant text). */
     result: text("result"),
+    /**
+     * Steering for an auto-retry: when the judge fails an attempt, the next
+     * sibling attempt carries the critique here, injected into its prompt so
+     * the retry actually addresses the gaps. Null = a fresh (non-retry) run.
+     */
+    feedback: text("feedback"),
+    /** This attempt's own ask↔result verdict, kept per-attempt for history. */
+    judgeVerdict: jsonb("judge_verdict"),
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
     costUsd: text("cost_usd"),

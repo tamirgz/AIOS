@@ -369,6 +369,17 @@ export async function runAttempt(attemptId: string): Promise<void> {
     // hint just gets mangled (observed: the model turned the workdir into a
     // bogus out-of-project path and got blocked). Keep the preamble about
     // *behaviour*, not *location*.
+    // A judge-triggered retry carries the critique of the previous attempt.
+    // Feed it back so the retry actually closes the gaps rather than repeating
+    // the same confident-but-empty output.
+    const feedbackBlock = attempt.feedback
+      ? [
+          "",
+          "A PREVIOUS ATTEMPT AT THIS TASK FELL SHORT. The verifying judge found these gaps — you MUST address them, and do NOT repeat the same mistake (no scaffolds, stubs, or 'framework in place'; produce the real deliverable):",
+          attempt.feedback,
+        ].join("\n")
+      : "";
+
     const prompt =
       executor?.kind === "cli"
         ? [
@@ -378,8 +389,9 @@ export async function runAttempt(attemptId: string): Promise<void> {
             "",
             "TASK:",
             task.prompt,
+            feedbackBlock,
           ].join("\n")
-        : task.prompt;
+        : task.prompt + feedbackBlock;
 
     const result = await adapter.run(
       {
@@ -423,6 +435,8 @@ export async function runAttempt(attemptId: string): Promise<void> {
 
     // ── settle ─────────────────────────────────────────────────────────
     let changedFiles = 0;
+    let diffFiles: { path: string }[] = [];
+    let diffPatch: string | null = null;
     if (branch && baseSha) {
       await commitCheckpoint(workdir, `aios: ${task.title}`.slice(0, 200));
       // A clone's branch lives in the clone; bring it into the user's repo so
@@ -433,6 +447,8 @@ export async function runAttempt(attemptId: string): Promise<void> {
       }
       const diff = await diffSince(workdir, baseSha);
       changedFiles = diff.files.length;
+      diffFiles = diff.files;
+      diffPatch = diff.patch ?? null;
       await emitEvent(attempt.id, {
         type: "status",
         payload: { phase: "diff", files: diff.files },
@@ -469,14 +485,79 @@ export async function runAttempt(attemptId: string): Promise<void> {
       })
       .where(eq(taskAttempts.id, attempt.id));
 
-    await setTask(task.id, {
-      status:
-        status !== "succeeded" ? "failed" : changedFiles > 0 ? "review" : "done",
-      summary: noOp
-        ? `No files changed. The executor's last words: ${(result.result ?? "(nothing)").slice(0, 600)}`
-        : (result.result ?? result.error ?? "").slice(0, 1000) || null,
-    });
-    log(`attempt ${attempt.id.slice(0, 8)} → ${status} (${changedFiles} file(s))`);
+    if (status !== "succeeded") {
+      await setTask(task.id, {
+        status: "failed",
+        summary: noOp
+          ? `No files changed. The executor's last words: ${(result.result ?? "(nothing)").slice(0, 600)}`
+          : (result.result ?? result.error ?? "").slice(0, 1000) || null,
+      });
+      log(`attempt ${attempt.id.slice(0, 8)} → ${status} (${changedFiles} file(s))`);
+    } else {
+      // ── verify (A2 · Trust): the judge gates release ──────────────────
+      // A succeeded attempt has only cleared the executor's own bar. Before it
+      // reaches the user as a result, a second brain checks it against the ask.
+      const { judgeAttempt } = await import("./judge");
+      const verdict = await judgeAttempt({
+        ask: task.prompt,
+        result: result.result ?? null,
+        changedFiles: diffFiles.map((f) => f.path),
+        patch: diffPatch,
+        taskType: task.taskType,
+      });
+      verdict.attemptSeq = attempt.seq;
+      await db
+        .update(taskAttempts)
+        .set({ judgeVerdict: verdict })
+        .where(eq(taskAttempts.id, attempt.id));
+
+      if (verdict.pass) {
+        await setTask(task.id, {
+          status: changedFiles > 0 ? "review" : "done",
+          summary: (result.result ?? "").slice(0, 1000) || null,
+          judgeStatus: "pass",
+          judgeVerdict: verdict,
+        });
+        log(`attempt ${attempt.id.slice(0, 8)} → PASS (${verdict.score}) released`);
+      } else if (!attempt.feedback) {
+        // First miss → auto-retry once, feeding the critique back so the retry
+        // addresses the gaps instead of repeating them.
+        const feedback = [verdict.rationale, ...verdict.gaps.map((g) => `- ${g}`)]
+          .join("\n")
+          .slice(0, 4000);
+        const [retry] = await db
+          .insert(taskAttempts)
+          .values({
+            taskId: task.id,
+            seq: attempt.seq + 1,
+            executorId: attempt.executorId,
+            model: attempt.model,
+            feedback,
+          })
+          .returning();
+        await setTask(task.id, {
+          status: "running",
+          summary: `The judge flagged gaps — retrying once with feedback:\n${verdict.gaps
+            .map((g) => `• ${g}`)
+            .join("\n")}`.slice(0, 1000),
+          judgeStatus: "retrying",
+          judgeVerdict: verdict,
+        });
+        await sql.notify("workbench_run", retry.id);
+        log(`attempt ${attempt.id.slice(0, 8)} → FAIL (${verdict.score}) auto-retrying`);
+      } else {
+        // The retry also fell short → hold it for the user (Needs-you queue).
+        await setTask(task.id, {
+          status: "needs_input",
+          summary: `Held: the result still doesn't meet the ask after a retry.\n${verdict.rationale}\nGaps:\n${verdict.gaps
+            .map((g) => `• ${g}`)
+            .join("\n")}`.slice(0, 1000),
+          judgeStatus: "fail",
+          judgeVerdict: verdict,
+        });
+        log(`attempt ${attempt.id.slice(0, 8)} → FAIL (${verdict.score}) held for user`);
+      }
+    }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await emitEvent(attempt.id, { type: "error", payload: { message } });

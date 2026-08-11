@@ -55,6 +55,11 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   // Workbench "docs"/native tasks (AIOS's own data + module tools). Previously
   // fell through to agent.default; §4's target for this job is a local model.
   { taskKey: "workbench.native", provider: "anthropic", model: "claude-sonnet-5" },
+  // The verifying judge that gates delegated work: it reads the ask + the
+  // produced result and decides whether the result actually satisfies the ask
+  // (A2 · Trust). A capable brain by default — this is the correctness gate,
+  // not the cheap path. Editable in Settings.
+  { taskKey: "workbench.judge", provider: "anthropic", model: "claude-sonnet-5" },
   // Per-project advisor read + the on-demand "different angle" re-read.
   {
     taskKey: "project.advisor",
