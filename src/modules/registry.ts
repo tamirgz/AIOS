@@ -17,6 +17,7 @@ import { peopleManifest } from "./people/manifest";
 import { gmailManifest } from "./gmail/manifest";
 import { askManifest } from "./ask/manifest";
 import { notionManifest } from "./notion/manifest";
+import { telegramManifest } from "./telegram/manifest";
 
 export const modules: ModuleManifest[] = [
   todayManifest,
@@ -33,6 +34,7 @@ export const modules: ModuleManifest[] = [
   knowledgeManifest,
   obsidianManifest,
   notionManifest,
+  telegramManifest,
   agentsManifest,
   settingsManifest,
 ];
