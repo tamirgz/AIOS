@@ -264,6 +264,7 @@ export function RoutinesPanel({
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
   const [prompt, setPrompt] = useState("");
   const [executorId, setExecutorId] = useState("opencode");
+  const [newModel, setNewModel] = useState("");
   const [trigger, setTrigger] = useState<"commit" | "schedule" | "both" | "source">("commit");
   const [schedule, setSchedule] = useState("0 8 * * 1-5");
   const [sourceRef, setSourceRef] = useState(sources[0]?.ref ?? "");
@@ -369,6 +370,12 @@ export function RoutinesPanel({
                 </option>
               ))}
             </select>
+            <input
+              value={newModel}
+              onChange={(e) => setNewModel(e.target.value)}
+              placeholder="model (blank = executor default, e.g. ollama/qwen3-coder:30b)"
+              className="w-64 rounded-lg border border-white/8 bg-void/50 px-3 py-2 font-mono text-xs text-ink-dim outline-none focus:border-ion/40"
+            />
             <select
               value={trigger}
               onChange={(e) => setTrigger(e.target.value as typeof trigger)}
@@ -417,6 +424,7 @@ export function RoutinesPanel({
                     projectId,
                     prompt,
                     executorId,
+                    model: newModel.trim() || null,
                     triggerKind: trigger,
                     schedule: trigger === "schedule" || trigger === "both" ? schedule : null,
                     sourceRef: trigger === "source" ? sourceRef : null,
