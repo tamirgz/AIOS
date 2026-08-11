@@ -230,6 +230,16 @@ export async function ensureExecutors() {
         dsql`${executors.commandTemplate} like '%--model ollama/{{model}}%'`,
       ),
     );
+
+  // Keep the local cli executors' timeout in sync with TIMEOUTS. A row seeded
+  // when code-local was 10 min otherwise stays stale forever (onConflictDoNothing
+  // never updates it), silently capping a slow local model mid-run — observed:
+  // a 30B reasoning model that loads in ~2min + reasons for several more was
+  // killed at the stale 10-min mark before it could make its edit.
+  await db
+    .update(executors)
+    .set({ timeoutMs: TIMEOUTS["code-local"] })
+    .where(inArray(executors.id, ["opencode", "pi", "aider"]));
 }
 
 async function emitEvent(attemptId: string, e: AdapterEvent) {
