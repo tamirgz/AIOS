@@ -350,6 +350,75 @@ export async function updateExecutor(
 
 // ── Routines (A1) ──────────────────────────────────────────────────────────
 
+export interface RoutineDraft {
+  name: string;
+  ask: string;
+  triggerKind: "commit" | "schedule" | "both";
+  schedule: string | null;
+  note?: string;
+}
+
+/**
+ * The routine BUILDER: turn a plain-English description into a routine draft
+ * (title + trigger + a faithful ask). Runs the cheap `routine.builder` model
+ * ONCE — it configures, it does NOT rewrite the user's intent. The caller
+ * reviews the draft and picks the task executor before saving.
+ */
+export async function composeRoutine(description: string): Promise<
+  { ok: true; draft: RoutineDraft } | { ok: false; error: string }
+> {
+  const desc = description.trim();
+  if (desc.length < 10) return { ok: false, error: "describe it in a bit more detail" };
+
+  const { resolveRoute } = await import("@/core/ai/routing");
+  const route = await resolveRoute("routine.builder");
+
+  const system =
+    "You configure an AIOS 'routine' — a standing instruction that re-runs automatically. " +
+    "You do NOT do the work and you do NOT rewrite the user's instruction: preserve their wording and intent, only lifting it into a clean standing 'ask'. " +
+    "Decide the trigger from their words: 'on each commit'/'when I push' → commit; 'daily'/'every morning'/a time → schedule (give a cron); both if they say both. " +
+    "Respond with ONLY a JSON object: " +
+    `{"name": string (a short 2-5 word title), "ask": string (their instruction, faithful), "triggerKind": "commit"|"schedule"|"both", "schedule": string|null (cron, only if scheduled), "note": string (one line on any assumption you made)}.`;
+
+  let text = "";
+  try {
+    for await (const ev of route.provider.run({
+      system,
+      messages: [{ role: "user", content: `Compose a routine from this:\n\n${desc}` }],
+      tools: [],
+      toolCtx: { db },
+      model: route.model,
+      maxTurns: 1,
+    })) {
+      if (ev.type === "text") text += ev.text;
+      else if (ev.type === "done" && ev.text) text = ev.text;
+      else if (ev.type === "error") throw new Error(ev.message);
+    }
+  } catch (e) {
+    return { ok: false, error: `builder failed: ${e instanceof Error ? e.message : String(e)}` };
+  }
+
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return { ok: false, error: "the builder didn't return a usable draft" };
+  try {
+    const o = JSON.parse(match[0]) as Partial<RoutineDraft>;
+    const triggerKind =
+      o.triggerKind === "schedule" || o.triggerKind === "both" ? o.triggerKind : "commit";
+    return {
+      ok: true,
+      draft: {
+        name: String(o.name ?? "Untitled routine").slice(0, 90),
+        ask: String(o.ask ?? desc),
+        triggerKind,
+        schedule: triggerKind === "commit" ? null : (o.schedule ? String(o.schedule) : "0 8 * * 1-5"),
+        note: o.note ? String(o.note).slice(0, 200) : undefined,
+      },
+    };
+  } catch {
+    return { ok: false, error: "the builder's draft wasn't valid JSON" };
+  }
+}
+
 /** Create a recurring routine bound to a project's repo. */
 export async function createRoutine(input: {
   name: string;
