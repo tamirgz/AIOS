@@ -132,10 +132,20 @@ export async function commitCheckpoint(
   workdir: string,
   message: string,
 ): Promise<boolean> {
-  // Everything the agent touched, except our own scaffolding: `.aios/task.md`
-  // is written into the worktree so a run can be reproduced by hand, and it
-  // has no business showing up as a changed file in the review diff.
-  await git(workdir, ["add", "-A", "--", ".", ":(exclude).aios"]);
+  // Everything the agent touched, EXCEPT tool scaffolding that isn't part of
+  // the requested work: `.aios/task.md` (our reproducibility copy), `.opencode/`
+  // (opencode's per-run session/state dir), and aider's history files. These
+  // are runtime artifacts of the executor, not changes to the project — they
+  // must never land in the review diff or the PR.
+  await git(workdir, [
+    "add",
+    "-A",
+    "--",
+    ".",
+    ":(exclude).aios",
+    ":(exclude).opencode",
+    ":(exclude,glob).aider*",
+  ]);
   const staged = await git(workdir, ["diff", "--cached", "--name-only"]);
   if (!staged.trim()) return false;
   await git(workdir, [
