@@ -57,18 +57,40 @@ async function headCommit(repoPath: string): Promise<{ sha: string; subject: str
  * guard is NOT repeated here; it already lives in the CLI executor preamble
  * where local models need it, and Claude never needed it.
  */
-function runPromptFor(ask: string, commit: { sha: string; subject: string } | null): string {
-  const head = commit
-    ? `The latest commit on this repository just landed — ${commit.sha.slice(0, 10)} "${commit.subject}". Inspect its changes and carry out the following now, over the current state of the repo:`
-    : "A new commit just landed. Inspect it and carry out the following now:";
+/** What fired this run — a commit, or an incoming source item (a post). */
+export type TriggerCtx =
+  | { kind: "commit"; sha: string; subject: string }
+  | { kind: "post"; text: string; linkedText?: string | null; url?: string | null }
+  | null;
+
+function runPromptFor(ask: string, ctx: TriggerCtx): string {
+  let head: string;
+  if (ctx?.kind === "commit") {
+    head = `The latest commit on this repository just landed — ${ctx.sha.slice(0, 10)} "${ctx.subject}". Inspect its changes and carry out the following now, over the current state of the repo:`;
+  } else if (ctx?.kind === "post") {
+    head =
+      "A new post arrived from the source you watch. Act on THIS post now, over the current state of the repo.\n\n" +
+      "--- POST ---\n" +
+      ctx.text +
+      (ctx.url ? `\n(link: ${ctx.url})` : "") +
+      (ctx.linkedText ? `\n\n--- LINKED ARTICLE ---\n${ctx.linkedText}` : "") +
+      "\n--- END ---\n\nCarry out the following for this post:";
+  } else {
+    head = "Carry out the following now, over the current state of the repo:";
+  }
   return `${head}\n\n${ask}`;
 }
 
 /**
  * Fire one routine: spawn a Workbench task from its ask and hand it to the
  * engine. Tagged `routines:<id>` so the engine knows to queue a PR on a pass.
+ * `ctx` is the trigger payload (a commit or a source post); for a plain
+ * commit-triggered run it's derived from HEAD if not supplied.
  */
-export async function fireRoutine(routineId: string): Promise<void> {
+export async function fireRoutine(
+  routineId: string,
+  ctx?: TriggerCtx,
+): Promise<void> {
   const [r] = await db.select().from(routines).where(eq(routines.id, routineId));
   if (!r || r.enabled !== "true") return;
   if (!r.repoPath) {
@@ -77,10 +99,14 @@ export async function fireRoutine(routineId: string): Promise<void> {
   }
 
   const taskType = LOCAL_EXECUTORS.has(r.executorId) ? "code-local" : "code";
-  // Ground the run in the actual commit and make it imperative-now, so the
-  // executor edits the files instead of building a hook for "future commits".
-  const commit = await headCommit(r.repoPath);
-  const runPrompt = runPromptFor(r.prompt, commit);
+  // Ground the run in what fired it. A source routine is handed its post; a
+  // commit routine falls back to HEAD. Either way it's imperative-now.
+  let runCtx: TriggerCtx = ctx ?? null;
+  if (!runCtx) {
+    const c = await headCommit(r.repoPath);
+    runCtx = c ? { kind: "commit", sha: c.sha, subject: c.subject } : null;
+  }
+  const runPrompt = runPromptFor(r.prompt, runCtx);
   const [task] = await db
     .insert(workbenchTasks)
     .values({
@@ -226,6 +252,36 @@ export async function latestRoutineTask(routineId: string) {
   return t ?? null;
 }
 
+/**
+ * Source trigger: a relevance-passed post just arrived. Fire every enabled
+ * "source" routine bound to that post's channel, handing it the post as the
+ * run context. The channel binding is a text ref ("telegram:<channel>"), so
+ * workbench stays loosely coupled to the telegram module.
+ */
+export async function fireSourceRoutines(postId: string): Promise<void> {
+  const { telegramPosts } = await import("@/modules/telegram/schema");
+  const [post] = await db
+    .select()
+    .from(telegramPosts)
+    .where(eq(telegramPosts.id, postId));
+  if (!post) return;
+
+  const ref = `telegram:${post.channel}`;
+  const rows = await db
+    .select()
+    .from(routines)
+    .where(and(eq(routines.triggerKind, "source"), eq(routines.sourceRef, ref)));
+  for (const r of rows) {
+    if (r.enabled !== "true") continue;
+    await fireRoutine(r.id, {
+      kind: "post",
+      text: post.text,
+      linkedText: post.linkedText,
+      url: post.urls[0] ?? null,
+    }).catch((e) => log(`source routine ${r.id} failed: ${e}`));
+  }
+}
+
 export const routineJobs: ModuleJob[] = [
   {
     // NOTIFY-driven "run now" for a routine.
@@ -240,6 +296,13 @@ export const routineJobs: ModuleJob[] = [
     schedule: "*/5 * * * *",
     handle: async () => {
       await checkCommitTriggers();
+    },
+  },
+  {
+    // A relevance-passed Telegram post → fire the source routine(s) for it.
+    channel: "telegram_new_post",
+    handle: async (payload) => {
+      if (payload) await fireSourceRoutines(payload);
     },
   },
 ];

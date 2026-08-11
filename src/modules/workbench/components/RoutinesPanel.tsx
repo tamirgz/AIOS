@@ -248,10 +248,12 @@ export function RoutinesPanel({
   routines,
   projects,
   executors,
+  sources = [],
 }: {
   routines: Routine[];
   projects: ProjectOpt[];
   executors: ExecutorOpt[];
+  sources?: { ref: string; label: string }[];
 }) {
   useLiveEvents(["routines_changed"]);
   const [open, setOpen] = useState(false);
@@ -262,8 +264,9 @@ export function RoutinesPanel({
   const [projectId, setProjectId] = useState(projects[0]?.id ?? "");
   const [prompt, setPrompt] = useState("");
   const [executorId, setExecutorId] = useState("opencode");
-  const [trigger, setTrigger] = useState<"commit" | "schedule" | "both">("commit");
+  const [trigger, setTrigger] = useState<"commit" | "schedule" | "both" | "source">("commit");
   const [schedule, setSchedule] = useState("0 8 * * 1-5");
+  const [sourceRef, setSourceRef] = useState(sources[0]?.ref ?? "");
 
   // builder: describe → cheap model composes the config (keeps your ask)
   const [describe, setDescribe] = useState("");
@@ -374,14 +377,26 @@ export function RoutinesPanel({
               <option value="commit">on each commit</option>
               <option value="schedule">on a schedule</option>
               <option value="both">commit + schedule</option>
+              {sources.length > 0 && <option value="source">on a new source post</option>}
             </select>
-            {trigger !== "commit" && (
+            {(trigger === "schedule" || trigger === "both") && (
               <input
                 value={schedule}
                 onChange={(e) => setSchedule(e.target.value)}
                 placeholder="cron e.g. 0 8 * * 1-5"
                 className="w-40 rounded-lg border border-white/8 bg-void/50 px-3 py-2 font-mono text-xs text-ink-dim outline-none focus:border-ion/40"
               />
+            )}
+            {trigger === "source" && (
+              <select
+                value={sourceRef}
+                onChange={(e) => setSourceRef(e.target.value)}
+                className="rounded-lg border border-white/8 bg-void/50 px-3 py-2 text-sm text-ink-dim outline-none"
+              >
+                {sources.map((s) => (
+                  <option key={s.ref} value={s.ref}>{s.label}</option>
+                ))}
+              </select>
             )}
           </div>
           <textarea
@@ -403,7 +418,8 @@ export function RoutinesPanel({
                     prompt,
                     executorId,
                     triggerKind: trigger,
-                    schedule: trigger === "commit" ? null : schedule,
+                    schedule: trigger === "schedule" || trigger === "both" ? schedule : null,
+                    sourceRef: trigger === "source" ? sourceRef : null,
                   });
                   setName("");
                   setPrompt("");

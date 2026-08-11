@@ -426,8 +426,9 @@ export async function createRoutine(input: {
   prompt: string;
   executorId?: string;
   model?: string | null;
-  triggerKind?: "commit" | "schedule" | "both";
+  triggerKind?: "commit" | "schedule" | "both" | "source";
   schedule?: string | null;
+  sourceRef?: string | null;
   deliverPr?: boolean;
 }) {
   const { routines } = await import("./schema");
@@ -455,6 +456,7 @@ export async function createRoutine(input: {
       model: input.model ?? null,
       triggerKind: input.triggerKind ?? "commit",
       schedule: input.schedule?.trim() || null,
+      sourceRef: input.sourceRef?.trim() || null,
       deliverPr: input.deliverPr === false ? "false" : "true",
     })
     .returning();
@@ -471,8 +473,9 @@ export async function updateRoutine(
     prompt?: string;
     executorId?: string;
     model?: string | null;
-    triggerKind?: "commit" | "schedule" | "both";
+    triggerKind?: "commit" | "schedule" | "both" | "source";
     schedule?: string | null;
+    sourceRef?: string | null;
     deliverPr?: boolean;
   },
 ) {
@@ -486,6 +489,7 @@ export async function updateRoutine(
       ...(patch.model !== undefined ? { model: patch.model } : {}),
       ...(patch.triggerKind !== undefined ? { triggerKind: patch.triggerKind } : {}),
       ...(patch.schedule !== undefined ? { schedule: patch.schedule?.trim() || null } : {}),
+      ...(patch.sourceRef !== undefined ? { sourceRef: patch.sourceRef?.trim() || null } : {}),
       ...(patch.deliverPr !== undefined ? { deliverPr: patch.deliverPr ? "true" : "false" } : {}),
       updatedAt: new Date(),
     })

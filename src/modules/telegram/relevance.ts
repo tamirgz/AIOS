@@ -25,9 +25,13 @@ export async function classifyRelevance(input: {
   const route = await resolveRoute("source.relevance");
 
   const system =
-    `You filter posts for relevance to a specific domain. RELEVANT means: ${input.criteria}\n` +
-    "Everything outside that domain — even if it's still cybersecurity (generic ransomware infrastructure, " +
-    "OT/ICS attacks, unrelated CVEs), and anything off-topic (memes, promos, hardware news) — is NOT relevant. " +
+    "You classify a news post by whether it matches a target topic set — decide by the post's SUBJECT.\n" +
+    `A post is RELEVANT if it is about ANY of these topics:\n${input.criteria}\n` +
+    "It is NOT relevant if its subject is something else — even when it's still cybersecurity: server-side " +
+    "vulnerabilities/CVEs (RCE, SQL-injection, router/VPN/appliance bugs), OT/ICS attacks, or breaches that " +
+    "don't involve the topics above; and never for off-topic items (company/policy/hardware/AI-model news, " +
+    "memes, promos). Match against the topic list literally; if the post's core subject is one of the listed " +
+    "topics, it is relevant even if other details differ.\n" +
     'Reply with ONLY compact JSON: {"relevant": true|false, "why": "<=8 words"}.';
 
   const body =
