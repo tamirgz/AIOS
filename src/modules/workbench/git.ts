@@ -274,7 +274,19 @@ export async function openPullRequest(input: {
   const slug = githubSlug(ghUrl);
 
   // Push the branch straight to GitHub from wherever it lives (the cache clone).
-  await git(input.repoPath, ["push", ghUrl, `${input.branch}:${input.branch}`]);
+  // Authenticate through gh's own credential helper for THIS push only — no
+  // global git config change, no token in argv, and it works headlessly in the
+  // launchd worker (osxkeychain access from a background agent is unreliable;
+  // gh's token is the same auth `gh pr create` already uses successfully).
+  await git(input.repoPath, [
+    "-c",
+    "credential.helper=",
+    "-c",
+    "credential.helper=!gh auth git-credential",
+    "push",
+    ghUrl,
+    `${input.branch}:${input.branch}`,
+  ]);
 
   // gh prints the PR URL on success. --head is the branch we just pushed; base
   // defaults to the repo's default branch. No auto-merge, ever.
