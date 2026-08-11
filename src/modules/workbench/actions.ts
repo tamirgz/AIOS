@@ -394,6 +394,37 @@ export async function createRoutine(input: {
   return row;
 }
 
+/** Edit a routine's fields in place (the ask, brain, trigger, schedule, PR). */
+export async function updateRoutine(
+  id: string,
+  patch: {
+    name?: string;
+    prompt?: string;
+    executorId?: string;
+    model?: string | null;
+    triggerKind?: "commit" | "schedule" | "both";
+    schedule?: string | null;
+    deliverPr?: boolean;
+  },
+) {
+  const { routines } = await import("./schema");
+  await db
+    .update(routines)
+    .set({
+      ...(patch.name !== undefined ? { name: patch.name.trim() || "Untitled routine" } : {}),
+      ...(patch.prompt !== undefined ? { prompt: patch.prompt.trim() } : {}),
+      ...(patch.executorId !== undefined ? { executorId: patch.executorId } : {}),
+      ...(patch.model !== undefined ? { model: patch.model } : {}),
+      ...(patch.triggerKind !== undefined ? { triggerKind: patch.triggerKind } : {}),
+      ...(patch.schedule !== undefined ? { schedule: patch.schedule?.trim() || null } : {}),
+      ...(patch.deliverPr !== undefined ? { deliverPr: patch.deliverPr ? "true" : "false" } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(routines.id, id));
+  await sql.notify("routines_changed", id);
+  revalidate();
+}
+
 export async function setRoutineEnabled(id: string, enabled: boolean) {
   const { routines } = await import("./schema");
   await db

@@ -49,23 +49,19 @@ async function headCommit(repoPath: string): Promise<{ sha: string; subject: str
 }
 
 /**
- * Turn a routine's STANDING ask ("on each commit, update the docs") into a
- * concrete, imperative per-run instruction ("this commit just landed — do it
- * now"). Without this the executor reads the future-tense standing wording and
- * builds a git hook to handle future commits instead of doing the work now.
+ * A routine's ask is a STANDING, recurring instruction ("on each commit …").
+ * A single run needs to know WHICH commit and that it acts NOW — so we prepend
+ * only that: the just-landed commit to analyze, then the user's ask verbatim.
+ * This is the one addition that's actually load-bearing (it's why the user
+ * never has to name a commit — AIOS supplies it). The "don't build a git hook"
+ * guard is NOT repeated here; it already lives in the CLI executor preamble
+ * where local models need it, and Claude never needed it.
  */
 function runPromptFor(ask: string, commit: { sha: string; subject: string } | null): string {
   const head = commit
-    ? `A new commit just landed on this project's repository:\n  ${commit.sha.slice(0, 10)} — ${commit.subject}`
-    : "This project's repository has a new commit.";
-  return [
-    head,
-    "",
-    "Act on THIS commit and the CURRENT state of the repo, right now. Edit the target files directly in this working copy. Do NOT create git hooks, CI, or any automation to run 'on future commits' — just do the work this run.",
-    "",
-    "The standing instruction is:",
-    ask,
-  ].join("\n");
+    ? `The latest commit on this repository just landed — ${commit.sha.slice(0, 10)} "${commit.subject}". Inspect its changes and carry out the following now, over the current state of the repo:`
+    : "A new commit just landed. Inspect it and carry out the following now:";
+  return `${head}\n\n${ask}`;
 }
 
 /**
