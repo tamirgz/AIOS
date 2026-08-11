@@ -615,6 +615,10 @@ export async function runAttempt(attemptId: string): Promise<void> {
   } finally {
     clearInterval(watchdog);
     await notifyChanged(task.id);
+    // This attempt just freed a concurrency slot — kick the queue now instead of
+    // making the next task wait for the 2-min sweep. Empty payload → reconcile,
+    // which picks up the oldest queued attempt(s).
+    await sql.notify("workbench_run", "").catch(() => {});
   }
 }
 
