@@ -174,7 +174,7 @@ export const attemptEvents = pgTable(
  * commit trigger, so a routine fires once per new commit, never re-derives
  * "what did I already do" from a full rescan.
  */
-export const TRIGGER_KINDS = ["commit", "schedule", "both"] as const;
+export const TRIGGER_KINDS = ["commit", "schedule", "both", "source"] as const;
 export type TriggerKind = (typeof TRIGGER_KINDS)[number];
 
 export const routines = pgTable(
@@ -195,6 +195,8 @@ export const routines = pgTable(
       .default("commit"),
     /** Cron, when the trigger includes "schedule". */
     schedule: text("schedule"),
+    /** Source binding for a "source" trigger, e.g. "telegram:RedXCyberSecurity". */
+    sourceRef: text("source_ref"),
     /** Deliver changes as an approval-gated PR (vs. leave the branch). */
     deliverPr: text("deliver_pr").notNull().default("true"),
     enabled: text("enabled").notNull().default("true"),
