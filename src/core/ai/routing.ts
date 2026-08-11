@@ -67,8 +67,8 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   // only — never exposed on the routine card. Default: cheap Haiku.
   {
     taskKey: "routine.builder",
-    provider: "anthropic",
-    model: "claude-haiku-4-5-20251001",
+    provider: "ollama",
+    model: "qwen3:8b",
   },
   // The source relevance gate: cheaply decides whether an incoming item (a
   // Telegram post, etc.) is worth an expensive routine run. A free LOCAL model
