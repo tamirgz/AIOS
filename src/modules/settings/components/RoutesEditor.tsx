@@ -20,6 +20,7 @@ const KEY_LABELS: Record<string, string> = {
   "workbench.judge": "Workbench · delegation judge (ask ↔ result gate)",
   "routine.builder": "Routines · builder (composes a routine from your description)",
   "source.relevance": "Sources · relevance gate (is this post worth a run?)",
+  "routine.gate": "Routines · commit gate (does this commit need the executor?)",
 };
 
 function RouteRow({ route }: { route: AiRoute }) {
