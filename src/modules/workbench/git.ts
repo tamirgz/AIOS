@@ -172,6 +172,22 @@ export interface DiffSummary {
 }
 
 /** `baseSha..HEAD` in the attempt's worktree — the review currency. */
+/**
+ * A commit range's changed-file list + truncated patch — cheap input for the
+ * relevance gate (which only needs to see roughly what changed, not the whole
+ * diff). Reads from the cache repo directly; no worktree needed.
+ */
+export async function diffRange(
+  repoPath: string,
+  from: string,
+  to: string,
+): Promise<{ files: string[]; patch: string }> {
+  const names = await git(repoPath, ["diff", "--name-only", from, to]);
+  const files = names.split("\n").filter(Boolean);
+  const patch = files.length ? await git(repoPath, ["diff", from, to]) : "";
+  return { files, patch: truncatePatch(patch, 60_000) };
+}
+
 export async function diffSince(
   workdir: string,
   baseSha: string,

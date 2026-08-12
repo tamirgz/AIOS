@@ -75,10 +75,20 @@ export async function judgeAttempt(input: JudgeInput): Promise<JudgeVerdict> {
         : "(the attempt changed no files)";
     const patch = input.patch ? `\n\nUNIFIED DIFF (truncated):\n${input.patch.slice(0, 12000)}` : "";
 
+    // A zero-diff run is not automatically a fail. Some asks are conditional
+    // ("update X IF the commit affects it"), where a reasoned "nothing to
+    // change" is the correct outcome — but only when the agent actually did the
+    // checking. This tells the judge how to tell a real determination from a
+    // fizzle, so a lying/empty run is still failed.
+    const noChangeGuidance =
+      input.changedFiles.length === 0
+        ? "\n\nTHIS RUN CHANGED NO FILES. If the ask is CONDITIONAL (e.g. \"update X IF the change affects it\", \"keep docs in sync\"), a deliberate NO-CHANGE is a valid PASS — but ONLY if the result shows the agent genuinely did the work: it names what it actually inspected (the specific commit/diff, the specific target files or sections) and gives a concrete, verifiable reason nothing needs updating. If the result is vague, generic, empty, or shows no real inspection, it FAILED (the agent fizzled) — do NOT pass it. If the ask UNCONDITIONALLY required a change and none was made, FAIL."
+        : "";
+
     const user =
       `THE ASK (${input.taskType}):\n${input.ask}\n\n` +
       `WHAT THE AGENT PRODUCED (its final result text):\n${(input.result ?? "(the agent returned no text)").slice(0, 12000)}\n\n` +
-      `FILES THE AGENT ACTUALLY CHANGED:\n${changed}${patch}\n\n` +
+      `FILES THE AGENT ACTUALLY CHANGED:\n${changed}${patch}${noChangeGuidance}\n\n` +
       "Rule on whether the produced result satisfies the ask. Respond with ONLY a JSON object: " +
       `{"pass": boolean, "score": 0-100, "gaps": string[], "rationale": string}. ` +
       "gaps must be concrete and actionable — what is missing or wrong — and empty only on a clean pass.";

@@ -257,9 +257,15 @@ export const cliAdapter: Adapter = {
       return { ok: false, exitCode, error: "cancelled or timed out" };
     }
     // Whatever the exit code, first ask whether the *model* died on us: a
-    // retired (410) or erroring free model looks like a task failure but isn't.
-    // Record it so the pickers drop it, and tell the user plainly.
-    const health = classifyModelFailure(`${stdoutTail}\n${stderr}`);
+    // retired (410) or erroring free CLOUD model looks like a task failure but
+    // isn't. This ONLY applies to hosted free models — a local `ollama/*` model
+    // is never "retired by a provider", so a local failure (opencode crash, a
+    // corrupt DB, an OOM) must NOT be blamed on the model or pull it from the
+    // picker. For local models, fall through to normal error reporting.
+    const isLocal = (ctx.model ?? "").startsWith("ollama/");
+    const health = isLocal
+      ? null
+      : classifyModelFailure(`${stdoutTail}\n${stderr}`);
     if (health && ctx.model) {
       recordModelHealth(ctx.model, health.status, health.detail);
       const alt = suggestFreeModels();

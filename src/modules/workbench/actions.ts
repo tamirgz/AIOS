@@ -430,6 +430,8 @@ export async function createRoutine(input: {
   schedule?: string | null;
   sourceRef?: string | null;
   deliverPr?: boolean;
+  gateEnabled?: boolean;
+  gateModel?: string | null;
 }) {
   const { routines } = await import("./schema");
   const { projects } = await import("@/modules/projects/schema");
@@ -458,6 +460,8 @@ export async function createRoutine(input: {
       schedule: input.schedule?.trim() || null,
       sourceRef: input.sourceRef?.trim() || null,
       deliverPr: input.deliverPr === false ? "false" : "true",
+      gateEnabled: input.gateEnabled === false ? "false" : "true",
+      gateModel: input.gateModel?.trim() || null,
     })
     .returning();
   await sql.notify("routines_changed", row.id);
@@ -477,6 +481,8 @@ export async function updateRoutine(
     schedule?: string | null;
     sourceRef?: string | null;
     deliverPr?: boolean;
+    gateEnabled?: boolean;
+    gateModel?: string | null;
   },
 ) {
   const { routines } = await import("./schema");
@@ -491,6 +497,8 @@ export async function updateRoutine(
       ...(patch.schedule !== undefined ? { schedule: patch.schedule?.trim() || null } : {}),
       ...(patch.sourceRef !== undefined ? { sourceRef: patch.sourceRef?.trim() || null } : {}),
       ...(patch.deliverPr !== undefined ? { deliverPr: patch.deliverPr ? "true" : "false" } : {}),
+      ...(patch.gateEnabled !== undefined ? { gateEnabled: patch.gateEnabled ? "true" : "false" } : {}),
+      ...(patch.gateModel !== undefined ? { gateModel: patch.gateModel?.trim() || null } : {}),
       updatedAt: new Date(),
     })
     .where(eq(routines.id, id));

@@ -11,7 +11,7 @@
  * Auth is the Max subscription via ~/.claude — no API key is passed.
  */
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { subscriptionEnv } from "@/core/ai/auth";
@@ -166,6 +166,37 @@ export const claudeHeadlessAdapter: Adapter = {
     let buffer = "";
     const pending: Promise<void>[] = [];
 
+    // Sandbox Claude Code's auto-memory: on a delegated run it writes task
+    // notes into ~/.claude/projects/<project>/memory, polluting the user's
+    // real memory store. `--bare` would disable it but forces ANTHROPIC_API_KEY
+    // (never reads OAuth), which breaks subscription auth — and there's no
+    // granular flag. So snapshot that dir from the init event's reported path
+    // and remove whatever the run adds. See the `init` handler below.
+    let memDir: string | null = null;
+    let memPre: Set<string> | null = null;
+    let memDirExisted = false;
+    const cleanupMemory = () => {
+      if (!memDir || !memPre) return;
+      try {
+        if (!memDirExisted) {
+          rmSync(memDir, { recursive: true, force: true });
+          return;
+        }
+        for (const entry of readdirSync(memDir)) {
+          if (!memPre.has(entry)) {
+            rmSync(join(memDir, entry), { recursive: true, force: true });
+          }
+        }
+        // Claude scaffolds an empty memory/ dir at startup even when it writes
+        // nothing; if we didn't have one and it's empty, drop the shell too.
+        if (memPre.size === 0 && readdirSync(memDir).length === 0) {
+          rmSync(memDir, { recursive: true, force: true });
+        }
+      } catch {
+        // best-effort — never fail a run over memory cleanup
+      }
+    };
+
     const onLine = (raw: string) => {
       const text = raw.trim();
       if (!text) return;
@@ -177,9 +208,17 @@ export const claudeHeadlessAdapter: Adapter = {
         pending.push(emit({ type: "text", payload: { text: truncate(text) } }));
         return;
       }
-      // The init line is authoritative for the model Claude Code resolved.
-      if (parsed.type === "system" && parsed.subtype === "init" && parsed.model) {
-        ranModel = parsed.model;
+      // The init line is authoritative for the model Claude Code resolved and
+      // for the auto-memory path (which we snapshot to clean up afterward).
+      if (parsed.type === "system" && parsed.subtype === "init") {
+        if (parsed.model) ranModel = parsed.model;
+        const auto = (parsed as { memory_paths?: { auto?: string } }).memory_paths
+          ?.auto;
+        if (auto && !memDir) {
+          memDir = auto;
+          memDirExisted = existsSync(auto);
+          memPre = memDirExisted ? new Set(readdirSync(auto)) : new Set();
+        }
       }
       for (const e of translate(parsed)) pending.push(emit(e));
       if (parsed.type === "result") {
@@ -242,6 +281,8 @@ export const claudeHeadlessAdapter: Adapter = {
     if (buffer.trim()) onLine(buffer);
     await Promise.allSettled(pending);
     ctx.signal.removeEventListener("abort", kill);
+    // Undo any auto-memory the run left in the user's ~/.claude store.
+    cleanupMemory();
 
     if (ctx.signal.aborted) {
       return { ...final, ok: false, exitCode, error: "cancelled or timed out" };
