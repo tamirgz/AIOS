@@ -13,8 +13,10 @@ function revalidate() {
 export async function addChannel(input: {
   username: string;
   criteria: string;
+  exclude?: string;
   backfillDays?: number;
 }) {
+  const { DEFAULT_EXCLUDE } = await import("./relevance");
   const username = input.username.trim().replace(/^@/, "").replace(/^https?:\/\/t\.me\/(s\/)?/, "");
   if (!username) throw new Error("a channel username is required");
   const [row] = await db
@@ -22,6 +24,8 @@ export async function addChannel(input: {
     .values({
       username,
       criteria: input.criteria.trim(),
+      // Seed the negatives so a new channel starts with sensible guardrails.
+      exclude: (input.exclude ?? DEFAULT_EXCLUDE).trim(),
       backfillDays: input.backfillDays ?? 14,
     })
     .onConflictDoNothing()
@@ -41,6 +45,21 @@ export async function setChannelEnabled(channelId: string, enabled: boolean) {
   await db
     .update(telegramChannels)
     .set({ enabled: enabled ? "true" : "false" })
+    .where(eq(telegramChannels.id, channelId));
+  revalidate();
+}
+
+/** Edit what "relevant" means for this channel — the RELEVANT topics and the
+ *  explicit NOT-RELEVANT topics the gate judges each post against. Takes effect
+ *  on the next ingest/sweep. */
+export async function setChannelCriteria(
+  channelId: string,
+  criteria: string,
+  exclude: string,
+) {
+  await db
+    .update(telegramChannels)
+    .set({ criteria: criteria.trim(), exclude: exclude.trim() })
     .where(eq(telegramChannels.id, channelId));
   revalidate();
 }
