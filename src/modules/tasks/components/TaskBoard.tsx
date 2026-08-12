@@ -260,11 +260,46 @@ export function TaskBoard({
       next.has(status) ? next.delete(status) : next.add(status);
       return next;
     });
+  // Group each column's tasks by their project. On by default; the per-card
+  // project badge is hidden while grouped (the group header names it instead).
+  const [groupByProject, setGroupByProject] = useState(true);
+  // Which project groups are folded — keyed by `${status}::${projectKey}` so a
+  // group folds independently in each column.
+  const [groupCollapsed, setGroupCollapsed] = useState<Set<string>>(new Set());
+  const toggleGroup = (key: string) =>
+    setGroupCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
   const [, startMove] = useTransition();
 
   const projectNames = useMemo(
     () => Object.fromEntries(projectOptions.map((p) => [p.id, p.name])),
     [projectOptions],
+  );
+
+  /** Bucket a column's tasks by project; unassigned tasks sort last. */
+  const groupByProjectFn = useCallback(
+    (items: Task[]) => {
+      const groups = new Map<string, { key: string; name: string; tasks: Task[] }>();
+      for (const t of items) {
+        const pid = t.projectRef?.split(":")[1] ?? null;
+        const key = pid ?? "__none__";
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            name: pid ? (projectNames[pid] ?? "Unknown project") : "No project",
+            tasks: [],
+          });
+        }
+        groups.get(key)!.tasks.push(t);
+      }
+      return [...groups.values()].sort((a, b) =>
+        a.key === "__none__" ? 1 : b.key === "__none__" ? -1 : a.name.localeCompare(b.name),
+      );
+    },
+    [projectNames],
   );
 
   const dragged = dragId ? tasks.find((t) => t.id === dragId) ?? null : null;
@@ -303,6 +338,25 @@ export function TaskBoard({
   return (
     <div>
       {!hideQuickAdd && <QuickAdd projectRef={quickAddProjectRef} />}
+      {!hideProjectBadge && (
+        <div className="mb-3 flex items-center justify-end">
+          <button
+            type="button"
+            onClick={() => setGroupByProject((v) => !v)}
+            aria-pressed={groupByProject}
+            title="Group each column's tasks by project"
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest transition",
+              groupByProject
+                ? "border-ion/40 bg-ion/15 text-ion"
+                : "border-white/8 text-ink-faint hover:border-white/16 hover:text-ink-dim",
+            )}
+          >
+            <FolderKanban className="size-3.5" />
+            group by project
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {COLUMNS.map((col) => {
           const items = tasks.filter((t) => t.status === col.status);
@@ -311,6 +365,22 @@ export function TaskBoard({
           const isTarget = !!dragged && dragged.status !== col.status;
           const active = overStatus === col.status && isTarget;
           const isCollapsed = collapsed.has(col.status);
+          const renderCard = (t: Task) => (
+            <TaskCard
+              key={t.id}
+              task={t}
+              dragging={dragId === t.id}
+              projectName={
+                hideProjectBadge || groupByProject || !t.projectRef
+                  ? null
+                  : (projectNames[t.projectRef.split(":")[1]] ?? null)
+              }
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onEdit={setEditing}
+              onMoved={onMoved}
+            />
+          );
           return (
             <section
               key={col.status}
@@ -364,25 +434,7 @@ export function TaskBoard({
               </header>
               {!isCollapsed && (
                 <div className="flex flex-col gap-2.5">
-                  <AnimatePresence mode="popLayout">
-                    {items.map((t) => (
-                      <TaskCard
-                        key={t.id}
-                        task={t}
-                        dragging={dragId === t.id}
-                        projectName={
-                          hideProjectBadge || !t.projectRef
-                            ? null
-                            : (projectNames[t.projectRef.split(":")[1]] ?? null)
-                        }
-                        onDragStart={onDragStart}
-                        onDragEnd={onDragEnd}
-                        onEdit={setEditing}
-                        onMoved={onMoved}
-                      />
-                    ))}
-                  </AnimatePresence>
-                  {items.length === 0 && (
+                  {items.length === 0 ? (
                     <div
                       className={cn(
                         "rounded-xl border border-dashed py-8 text-center font-mono text-[10px] uppercase tracking-widest transition-colors",
@@ -393,6 +445,47 @@ export function TaskBoard({
                     >
                       {active ? "drop here" : "empty"}
                     </div>
+                  ) : groupByProject ? (
+                    groupByProjectFn(items).map((g) => {
+                      const gkey = `${col.status}::${g.key}`;
+                      const gCollapsed = groupCollapsed.has(gkey);
+                      return (
+                        <div key={g.key} className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(gkey)}
+                            aria-expanded={!gCollapsed}
+                            title={gCollapsed ? `Expand ${g.name}` : `Collapse ${g.name}`}
+                            className="group/g flex w-full items-center gap-1.5 rounded-md px-1 py-1 transition hover:bg-white/[0.03]"
+                          >
+                            <FolderKanban className="size-3 shrink-0 text-ink-faint" />
+                            <span className="truncate font-mono text-[10px] uppercase tracking-widest text-ink-faint transition group-hover/g:text-ink-dim">
+                              {g.name}
+                            </span>
+                            <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-ink-faint">
+                              {g.tasks.length}
+                            </span>
+                            <ChevronDown
+                              className={cn(
+                                "size-3 shrink-0 text-ink-faint transition-transform",
+                                gCollapsed && "-rotate-90",
+                              )}
+                            />
+                          </button>
+                          {!gCollapsed && (
+                            <div className="flex flex-col gap-2.5 border-l border-white/6 pl-2">
+                              <AnimatePresence mode="popLayout">
+                                {g.tasks.map(renderCard)}
+                              </AnimatePresence>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <AnimatePresence mode="popLayout">
+                      {items.map(renderCard)}
+                    </AnimatePresence>
                   )}
                 </div>
               )}
