@@ -90,8 +90,8 @@ export function isMeteredModel(model: string): boolean {
  * local tag (`qwen3-coder:30b`) MUST keep its `ollama/` prefix — otherwise
  * opencode reads it as a hosted model, the call fails, and the free-model
  * health system "retires" it and suggests cloud alternatives (the bug that bit
- * the NoClick routine). pi/aider inject the provider via their own flag
- * (`--provider ollama`, `ollama_chat/{{model}}`), so they want the bare tag.
+ * the NoClick routine). pi injects the provider via its own flag
+ * (`--provider ollama`), so it wants the bare tag.
  *
  * Idempotent: an already-namespaced id (`ollama/…`, `nvidia/…`) or an
  * obviously-hosted bare name (`gpt-…`) is returned unchanged.
@@ -197,8 +197,8 @@ function opencodeCloudFreeModels(): string[] {
 /**
  * The free models a given executor may use, in the namespace its command
  * template expects. opencode runs `--model {{model}}` with a full spec, so it
- * gets `ollama/<tag>` for local plus its $0 cloud models; pi and aider wrap a
- * bare Ollama tag in their own provider flag, so they get the bare local tags.
+ * gets `ollama/<tag>` for local plus its $0 cloud models; pi wraps a
+ * bare Ollama tag in its own provider flag, so it gets the bare local tags.
  */
 export async function listFreeModelsFor(executorId: string): Promise<string[]> {
   const local = await localOllamaModels();

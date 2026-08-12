@@ -110,8 +110,8 @@ export function ExecutorsPanel({
         workbench executors
       </p>
       <p className="mb-4 text-xs text-ink-faint">
-        Who does the work when you delegate. Local executors (opencode, pi,
-        aider) are free — the model field offers each one&apos;s free library
+        Who does the work when you delegate. Local executors (opencode, pi)
+        are free — the model field offers each one&apos;s free library
         ({totalFree} across all of them: local Ollama, plus opencode-zen&apos;s
         free tier and your Nvidia free models for opencode), and only free
         models are allowed to run on them. Claude costs Max quota but handles
