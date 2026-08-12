@@ -6,7 +6,7 @@
  * reconciling attempts that a worker restart left running. Adapters only
  * translate their executor's output into normalized events.
  */
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { and, asc, eq, inArray, sql as dsql } from "drizzle-orm";
@@ -21,7 +21,7 @@ import {
   type CliParser,
 } from "./adapters/cli";
 import { TIMEOUTS } from "./defaults";
-import { assertFreeModel } from "./models";
+import { assertFreeModel, normalizeModelForExecutor } from "./models";
 import { nativeAdapter } from "./adapters/native";
 import type { Adapter, AdapterEvent } from "./adapters/types";
 import {
@@ -109,6 +109,17 @@ async function writeOpencodeConfig(workdir: string): Promise<void> {
             url: "https://n8ntg.vps.webdock.cloud/n8n-mcp/mcp",
             enabled: false,
           },
+        },
+        // Turn off two tools that derail a small local model on a focused edit.
+        // `skill` exposes the user's global ~/.claude/skills — a doc-sync run
+        // burned itself trying to call a `git` skill, then read the skill list
+        // (dockerized-ollama-agent, graphify, …) and wandered off hunting
+        // "Dockerfiles", hallucinated an out-of-repo path, and changed nothing.
+        // `task` spawns subagents AIOS doesn't want here. With both off the
+        // model is left with just the file tools and stays on the actual task.
+        tools: {
+          skill: false,
+          task: false,
         },
         provider: {
           ollama: {
@@ -313,6 +324,13 @@ export async function runAttempt(attemptId: string): Promise<void> {
     .where(eq(executors.id, attempt.executorId));
   const adapter = ADAPTERS[executor?.kind ?? attempt.executorId];
 
+  // Per-attempt opencode data dir. opencode keeps a sqlite DB under
+  // XDG_DATA_HOME; a run that's killed mid-write leaves it unmigratable, which
+  // then breaks EVERY later run that shares it (observed). Giving each attempt
+  // its own throwaway dir means a killed run can only ever poison itself — the
+  // next run starts clean. Removed in `finally`.
+  const openDataDir = join(homedir(), ".aios", "opencode-runs", attempt.id.slice(0, 8));
+
   // Stall-based, not wall-clock: a run is only killed when it stops making
   // progress. As long as the executor keeps emitting events (tool calls, text,
   // steps), it may run as long as it likes — a slow local model that loads for
@@ -379,11 +397,18 @@ export async function runAttempt(attemptId: string): Promise<void> {
     // ── execute ────────────────────────────────────────────────────────
     // A CLI executor is driven entirely by its row: template, parser, and —
     // for opencode — the config file AIOS manages instead of the user's.
+    // Resolve the run model ONCE, in the namespace this executor's template
+    // expects — a bare local tag gets its `ollama/` prefix for opencode so it
+    // can't be misread as a (failing) cloud model.
+    const runModel = normalizeModelForExecutor(
+      attempt.model ?? executor?.defaultModel ?? null,
+      executor?.commandTemplate,
+    );
     if (executor?.kind === "cli") {
       // Free-only guarantee: a local executor may use any model from its
       // library so long as it's free. Refuse a metered spec here rather than
       // let it reach a paid API. The model was already resolved above.
-      assertFreeModel(attempt.model ?? executor.defaultModel ?? null);
+      assertFreeModel(runModel);
       await writeOpencodeConfig(workdir);
     }
 
@@ -428,7 +453,7 @@ export async function runAttempt(attemptId: string): Promise<void> {
         attemptId: attempt.id,
         prompt,
         workdir,
-        model: attempt.model ?? executor?.defaultModel ?? null,
+        model: runModel,
         taskType: task.taskType,
         signal: controller.signal,
         commandTemplate: executor?.commandTemplate ?? undefined,
@@ -436,13 +461,10 @@ export async function runAttempt(attemptId: string): Promise<void> {
         env: {
           OPENCODE_CONFIG: AIOS_OPENCODE_CONFIG,
           OPENCODE_DISABLE_AUTOUPDATE: "1",
-          // Isolate opencode's DATA dir (its sqlite DB, sessions, snapshots) to
-          // an AIOS-owned location. opencode keeps this under XDG_DATA_HOME, and
-          // sharing the user's global `~/.local/share/opencode` means a corrupt
-          // migration there (observed: an `ollama launch` run left the DB
-          // unmigratable) takes AIOS down with it — and vice versa. A dedicated,
-          // persistent dir decouples the two completely.
-          XDG_DATA_HOME: join(homedir(), ".aios", "opencode-data"),
+          // Per-attempt opencode data dir (see openDataDir above): isolated from
+          // the user's global opencode AND from every other AIOS run, so a
+          // killed run's corrupt DB can never brick the next one.
+          XDG_DATA_HOME: openDataDir,
           // Read the model DB from the local cache instead of fetching it from
           // models.dev at init — a blocking network call that intermittently
           // stalled startup. The provider SDK is pre-installed too, so opencode
@@ -493,24 +515,22 @@ export async function runAttempt(attemptId: string): Promise<void> {
     }
 
     const timedOut = controller.signal.aborted;
-    // A repo task that changed nothing is a no-op, not a success: a local
-    // model was observed announcing "written successfully" while the file
-    // never appeared on disk. Calling that "done" would be a lie on the card.
-    const noOp = !timedOut && result.ok && branch !== null && changedFiles === 0;
-    const status = timedOut
-      ? "timed_out"
-      : result.ok && !noOp
-        ? "succeeded"
-        : "failed";
-    const noOpError =
-      "finished without changing any files — the executor reported success but the worktree is untouched";
+    // A clean run is JUDGED whether or not it changed files. For a conditional
+    // ask ("update X IF the commit affects it"), a reasoned "nothing to change"
+    // is a legitimate outcome — the judge, which sees the ask, the analysis and
+    // the empty diff, decides whether that's a real determination or a fizzle
+    // (the old "0 files → hard fail" buried correct no-op runs as red, and a
+    // lying local model is now caught by the judge instead). Only a timeout or a
+    // hard executor error skips the judge.
+    const executorOk = !timedOut && result.ok;
+    const status = timedOut ? "timed_out" : result.ok ? "succeeded" : "failed";
 
     await db
       .update(taskAttempts)
       .set({
         status,
         result: result.result?.slice(0, 8000) ?? null,
-        error: (noOp ? noOpError : result.error)?.slice(0, 2000) ?? null,
+        error: result.error?.slice(0, 2000) ?? null,
         exitCode: result.exitCode ?? null,
         inputTokens: result.inputTokens ?? null,
         outputTokens: result.outputTokens ?? null,
@@ -522,12 +542,10 @@ export async function runAttempt(attemptId: string): Promise<void> {
       })
       .where(eq(taskAttempts.id, attempt.id));
 
-    if (status !== "succeeded") {
+    if (!executorOk) {
       await setTask(task.id, {
         status: "failed",
-        summary: noOp
-          ? `No files changed. The executor's last words: ${(result.result ?? "(nothing)").slice(0, 600)}`
-          : (result.result ?? result.error ?? "").slice(0, 1000) || null,
+        summary: (result.result ?? result.error ?? "").slice(0, 1000) || null,
       });
       log(`attempt ${attempt.id.slice(0, 8)} → ${status} (${changedFiles} file(s))`);
     } else {
@@ -614,6 +632,9 @@ export async function runAttempt(attemptId: string): Promise<void> {
     log(`attempt ${attempt.id.slice(0, 8)} failed: ${message}`);
   } finally {
     clearInterval(watchdog);
+    // Discard this attempt's throwaway opencode data dir — even if the run was
+    // killed, its (possibly corrupt) DB dies with it and never affects others.
+    await rm(openDataDir, { recursive: true, force: true }).catch(() => {});
     await notifyChanged(task.id);
     // This attempt just freed a concurrency slot — kick the queue now instead of
     // making the next task wait for the 2-min sweep. Empty payload → reconcile,

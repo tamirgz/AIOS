@@ -190,6 +190,21 @@ export const routines = pgTable(
     prompt: text("prompt").notNull(),
     executorId: text("executor_id").notNull().default("opencode"),
     model: text("model"),
+    /**
+     * The attention filter. On a commit trigger a cheap/free model first judges
+     * whether the change touches anything this routine cares about; only then
+     * does the (possibly expensive) executor run. `gateEnabled=false` always
+     * runs. `gateModel` is a per-routine override (a free ollama tag) over the
+     * global `routine.gate` route.
+     */
+    gateEnabled: text("gate_enabled").notNull().default("true"),
+    gateModel: text("gate_model"),
+    /** Last gate decision, surfaced on the routine card. */
+    lastGateRelevant: text("last_gate_relevant"),
+    lastGateWhy: text("last_gate_why"),
+    /** Tallies for the card: "skipped N · ran M". */
+    gateSkipped: integer("gate_skipped").notNull().default(0),
+    gateRan: integer("gate_ran").notNull().default(0),
     triggerKind: text("trigger_kind", { enum: TRIGGER_KINDS })
       .notNull()
       .default("commit"),

@@ -51,6 +51,7 @@ export async function WorkbenchPage() {
         routines={routines}
         projects={projectRepoRows.map((p) => ({ id: p.id, name: p.name }))}
         executors={executors.map((x) => ({ id: x.id, name: x.name }))}
+        freeModels={freeModels}
         sources={tgChannels.map((c) => ({ ref: `telegram:${c.username}`, label: `Telegram · @${c.username}` }))}
       />
       <ArchivedTasks tasks={archived} />

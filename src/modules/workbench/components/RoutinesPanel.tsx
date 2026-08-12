@@ -36,9 +36,13 @@ interface ExecutorOpt {
 function RoutineRow({
   r,
   executors,
+  freeModels,
 }: {
   r: Routine;
   executors: ExecutorOpt[];
+  /** Free models per executor id — the picker options, already namespaced
+   *  (`ollama/<tag>` for opencode) so a pick can't drop the provider prefix. */
+  freeModels: Record<string, string[]>;
 }) {
   const [pending, start] = useTransition();
   const [openDetail, setOpenDetail] = useState(false);
@@ -52,6 +56,8 @@ function RoutineRow({
   const [trigger, setTrigger] = useState(r.triggerKind);
   const [schedule, setSchedule] = useState(r.schedule ?? "");
   const [deliverPr, setDeliverPr] = useState(r.deliverPr === "true");
+  const [gateEnabled, setGateEnabled] = useState(r.gateEnabled === "true");
+  const [gateModel, setGateModel] = useState(r.gateModel ?? "");
 
   const dirty =
     name !== r.name ||
@@ -60,7 +66,9 @@ function RoutineRow({
     model !== (r.model ?? "") ||
     trigger !== r.triggerKind ||
     schedule !== (r.schedule ?? "") ||
-    deliverPr !== (r.deliverPr === "true");
+    deliverPr !== (r.deliverPr === "true") ||
+    gateEnabled !== (r.gateEnabled === "true") ||
+    gateModel !== (r.gateModel ?? "");
 
   const triggerLabel =
     r.triggerKind === "commit"
@@ -167,9 +175,17 @@ function RoutineRow({
             <input
               value={model}
               onChange={(e) => setModel(e.target.value)}
+              list={`rt-models-${r.id}`}
               placeholder="model (blank = executor default)"
               className="w-56 rounded-lg border border-white/8 bg-void/50 px-3 py-2 font-mono text-xs text-ink-dim outline-none focus:border-ion/40"
             />
+            {/* Same free-model catalog as the one-shot box — picking one keeps
+                the `ollama/` prefix, so a local model can't be misread as cloud. */}
+            <datalist id={`rt-models-${r.id}`}>
+              {(freeModels[executorId] ?? []).map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
             <select
               value={trigger}
               onChange={(e) => setTrigger(e.target.value as typeof trigger)}
@@ -197,10 +213,58 @@ function RoutineRow({
             </label>
           </div>
 
+          {/* Attention filter: a cheap/free model decides per commit whether the
+              change is worth the executor. Only meaningful for commit triggers. */}
+          {(trigger === "commit" || trigger === "both") && (
+            <div className="flex flex-col gap-2 rounded-xl border border-ion/15 bg-ion/[0.03] p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-ink-dim">
+                  <input
+                    type="checkbox"
+                    checked={gateEnabled}
+                    onChange={(e) => setGateEnabled(e.target.checked)}
+                  />
+                  relevance gate
+                </label>
+                {gateEnabled && (
+                  <>
+                    <input
+                      value={gateModel}
+                      onChange={(e) => setGateModel(e.target.value)}
+                      list={`rt-gate-models-${r.id}`}
+                      placeholder="gate model (blank = default routine.gate)"
+                      className="w-64 rounded-lg border border-white/8 bg-void/50 px-3 py-1.5 font-mono text-[11px] text-ink-dim outline-none focus:border-ion/40"
+                    />
+                    <datalist id={`rt-gate-models-${r.id}`}>
+                      {(freeModels[executorId] ?? freeModels.opencode ?? []).map((m) => (
+                        <option key={m} value={m} />
+                      ))}
+                    </datalist>
+                  </>
+                )}
+              </div>
+              <p className="font-mono text-[9px] leading-relaxed text-ink-faint">
+                {gateEnabled
+                  ? "Free per-commit check — the executor runs only on commits it flags relevant. Fail-closed (skips on doubt). “Run now” bypasses it."
+                  : "Off — the executor runs on every commit."}
+              </p>
+              {r.lastGateRelevant && (
+                <p className="font-mono text-[9px] text-ink-faint">
+                  last gate:{" "}
+                  <span className={r.lastGateRelevant === "true" ? "text-plasma/80" : "text-ink-dim"}>
+                    {r.lastGateRelevant === "true" ? "relevant → ran" : "skipped"}
+                  </span>
+                  {r.lastGateWhy ? ` — ${r.lastGateWhy}` : ""}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-[10px] text-ink-faint sm:grid-cols-3">
             <span>repo: <span className="text-ink-dim">{r.repoPath?.split("/").pop() ?? "—"}</span></span>
             <span>last commit seen: <span className="text-ink-dim">{r.lastSeenSha?.slice(0, 8) ?? "—"}</span></span>
             <span>last fired: <span className="text-ink-dim">{fmt(r.lastFiredAt)}</span></span>
+            <span>gate: <span className="text-ink-dim">skipped {r.gateSkipped} · ran {r.gateRan}</span></span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -217,6 +281,8 @@ function RoutineRow({
                     triggerKind: trigger,
                     schedule: trigger === "commit" ? null : schedule,
                     deliverPr,
+                    gateEnabled,
+                    gateModel: gateModel.trim() || null,
                   });
                 })
               }
@@ -248,11 +314,14 @@ export function RoutinesPanel({
   routines,
   projects,
   executors,
+  freeModels,
   sources = [],
 }: {
   routines: Routine[];
   projects: ProjectOpt[];
   executors: ExecutorOpt[];
+  /** Free models per executor id — namespaced (`ollama/<tag>` for opencode). */
+  freeModels: Record<string, string[]>;
   sources?: { ref: string; label: string }[];
 }) {
   useLiveEvents(["routines_changed"]);
@@ -373,9 +442,17 @@ export function RoutinesPanel({
             <input
               value={newModel}
               onChange={(e) => setNewModel(e.target.value)}
+              list="rt-models-new"
               placeholder="model (blank = executor default, e.g. ollama/qwen3-coder:30b)"
               className="w-64 rounded-lg border border-white/8 bg-void/50 px-3 py-2 font-mono text-xs text-ink-dim outline-none focus:border-ion/40"
             />
+            {/* This executor's free models — same list as the one-shot box, so a
+                pick lands with its provider prefix (`ollama/…`) intact. */}
+            <datalist id="rt-models-new">
+              {(freeModels[executorId] ?? []).map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
             <select
               value={trigger}
               onChange={(e) => setTrigger(e.target.value as typeof trigger)}
@@ -453,7 +530,7 @@ export function RoutinesPanel({
       ) : (
         <div className="flex flex-col gap-2">
           {routines.map((r) => (
-            <RoutineRow key={r.id} r={r} executors={executors} />
+            <RoutineRow key={r.id} r={r} executors={executors} freeModels={freeModels} />
           ))}
         </div>
       )}

@@ -74,6 +74,11 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   // Telegram post, etc.) is worth an expensive routine run. A free LOCAL model
   // by default — it runs on every post, so it must never bill. Configurable.
   { taskKey: "source.relevance", provider: "ollama", model: "qwen3:8b" },
+  // The COMMIT relevance gate: on a commit trigger, cheaply decides whether the
+  // change touches anything a routine documents before spending the (possibly
+  // expensive) executor. Free LOCAL default — it runs on every commit. A routine
+  // may override it per-row; this is the global default.
+  { taskKey: "routine.gate", provider: "ollama", model: "qwen3:8b" },
   // Per-project advisor read + the on-demand "different angle" re-read.
   {
     taskKey: "project.advisor",

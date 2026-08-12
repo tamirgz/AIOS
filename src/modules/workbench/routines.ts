@@ -171,6 +171,7 @@ export async function checkCommitTriggers(): Promise<void> {
       continue;
     }
     if (head !== r.lastSeenSha) {
+      const oldSha = r.lastSeenSha;
       // Compare-and-swap the ledger: only the caller that actually advances it
       // from the sha we observed fires. Two concurrent sweeps that saw the same
       // old sha can't both win, so a new commit fires exactly one run.
@@ -179,7 +180,45 @@ export async function checkCommitTriggers(): Promise<void> {
         .set({ lastSeenSha: head, updatedAt: new Date() })
         .where(and(eq(routines.id, r.id), eq(routines.lastSeenSha, r.lastSeenSha)))
         .returning({ id: routines.id });
-      if (claimed.length) await fireRoutine(r.id);
+      if (!claimed.length) continue;
+
+      // Attention filter: a free/local model judges whether this change touches
+      // anything the routine documents before the (possibly expensive) executor
+      // runs. gateEnabled=false always runs; a manual "run now" bypasses this.
+      if (r.gateEnabled === "true") {
+        const { diffRange } = await import("./git");
+        const { classifyCommitRelevance } = await import("./gate");
+        const diff = await diffRange(r.repoPath, oldSha, head).catch(() => ({
+          files: [] as string[],
+          patch: "",
+        }));
+        const verdict = await classifyCommitRelevance(r, diff);
+        if (!verdict.relevant) {
+          await db
+            .update(routines)
+            .set({
+              lastGateRelevant: "false",
+              lastGateWhy: verdict.why,
+              gateSkipped: r.gateSkipped + 1,
+              updatedAt: new Date(),
+            })
+            .where(eq(routines.id, r.id));
+          log(`gate SKIP "${r.name}" @ ${head.slice(0, 8)}: ${verdict.why}`);
+          await sql.notify("routines_changed", r.id);
+          continue;
+        }
+        await db
+          .update(routines)
+          .set({
+            lastGateRelevant: "true",
+            lastGateWhy: verdict.why,
+            gateRan: r.gateRan + 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(routines.id, r.id));
+        log(`gate PASS "${r.name}" @ ${head.slice(0, 8)}: ${verdict.why} → running`);
+      }
+      await fireRoutine(r.id);
     }
   }
 }
