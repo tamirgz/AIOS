@@ -50,7 +50,13 @@ export async function ingestChannel(channelId: string): Promise<void> {
   );
 
   let relevantCount = 0;
+  // Advance the cursor as we go and checkpoint it periodically, so an
+  // interrupted backfill (worker restart, crash) resumes from where it left off
+  // instead of re-scanning the whole window next run (the state-ledger rule).
+  let cursor = ch.lastSeenId ?? 0;
+  let processed = 0;
   for (const p of posts) {
+    cursor = Math.max(cursor, p.postId);
     if (existing.has(p.postId)) continue;
     try {
       // Enrich with the first link's readable text (ift.tt → real article).
@@ -58,7 +64,8 @@ export async function ingestChannel(channelId: string): Promise<void> {
       const verdict = await classifyRelevance({
         text: p.text,
         linkedText,
-        criteria: ch.criteria,
+        include: ch.criteria,
+        exclude: ch.exclude,
       });
       const [row] = await db
         .insert(telegramPosts)
@@ -85,15 +92,21 @@ export async function ingestChannel(channelId: string): Promise<void> {
       // whole channel's ingest — skip it and keep going.
       log(`${ch.username} post ${p.postId} skipped: ${String(e).slice(0, 120)}`);
     }
+    // Checkpoint every 10 new posts so progress survives an interruption.
+    if (++processed % 10 === 0) {
+      await db
+        .update(telegramChannels)
+        .set({ lastSeenId: cursor, lastRunAt: new Date() })
+        .where(eq(telegramChannels.id, ch.id));
+    }
   }
 
-  const maxId = posts.reduce((mx, p) => Math.max(mx, p.postId), ch.lastSeenId ?? 0);
   await db
     .update(telegramChannels)
-    .set({ lastSeenId: maxId, lastRunAt: new Date() })
+    .set({ lastSeenId: cursor, lastRunAt: new Date() })
     .where(eq(telegramChannels.id, ch.id));
   await sql.notify("telegram_changed", ch.id);
-  log(`${ch.username}: ingested ${posts.length}, ${relevantCount} relevant, cursor @ ${maxId}`);
+  log(`${ch.username}: ingested ${posts.length}, ${relevantCount} relevant, cursor @ ${cursor}`);
 }
 
 export async function ingestAll(): Promise<void> {

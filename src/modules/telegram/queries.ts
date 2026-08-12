@@ -11,7 +11,9 @@ export async function listChannels() {
 
 export async function recentPosts(
   channel: string,
-  limit = 40,
+  // High enough that keyword search covers the whole ingested window, not just
+  // the newest handful; a channel holds a bounded backfill, not years of posts.
+  limit = 200,
 ): Promise<TelegramPost[]> {
   return db
     .select()

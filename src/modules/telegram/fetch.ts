@@ -117,16 +117,36 @@ export async function fetchUrlText(url: string): Promise<string> {
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) return "";
-    const html = await res.text();
-    // Prefer article/main; fall back to body.
-    const body =
-      html.match(/<article[\s\S]*?<\/article>/i)?.[0] ??
-      html.match(/<main[\s\S]*?<\/main>/i)?.[0] ??
+    let html = await res.text();
+    // Drop non-content so it can neither pollute nor shadow the real article.
+    html = html.replace(/<(script|style|noscript|template|svg)[\s\S]*?<\/\1>/gi, " ");
+
+    // Pages routinely carry several <article>/<main> blocks — promo cards,
+    // "related", newsletter widgets — and the real body is the LONGEST one, not
+    // the first. (Observed: The Hacker News has 5 <article>s; grabbing the first
+    // returned only a "11 Real Stories…" promo.) So pick the longest match.
+    const longest = (re: RegExp): string | undefined =>
+      [...html.matchAll(re)]
+        .map((m) => m[0])
+        .sort((a, b) => b.length - a.length)[0];
+    const container =
+      longest(/<article[\s\S]*?<\/article>/gi) ??
+      longest(/<main[\s\S]*?<\/main>/gi) ??
       html;
-    const paras = [...body.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
-      .map((m) => stripTags(m[1]))
-      .filter((t) => t.length > 40);
-    const text = (paras.length ? paras.join("\n\n") : stripTags(body)).slice(0, 4000);
+
+    const paras = (src: string) =>
+      [...src.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
+        .map((m) => stripTags(m[1]))
+        .filter((t) => t.length > 40)
+        .join("\n\n");
+
+    let text = (paras(container) || stripTags(container)).slice(0, 4000);
+    // If the chosen container was thin (a mis-pick or a JS-rendered page), fall
+    // back to every paragraph on the page and keep whichever is richer.
+    if (text.length < 300) {
+      const all = paras(html).slice(0, 4000);
+      if (all.length > text.length) text = all;
+    }
     return text;
   } catch {
     return "";

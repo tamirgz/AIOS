@@ -16,22 +16,55 @@ export interface Verdict {
   why: string;
 }
 
+/**
+ * The default EXCLUDE list — the "not relevant even if it's cybersecurity"
+ * cases that used to be hard-coded in the prompt. Now they seed a new channel's
+ * editable exclude list, so the boundary is visible and tunable per channel.
+ */
+export const DEFAULT_EXCLUDE = [
+  "server-side vulnerabilities / CVEs (RCE, SQL-injection, router / VPN / appliance bugs)",
+  "OT / ICS (industrial control) attacks",
+  "data breaches that don't involve the relevant topics above",
+  "company, funding, policy or legal news",
+  "hardware or AI-model news",
+  "memes, promotions, advertisements",
+].join("\n");
+
+/** One topic per line (or ';'-separated), rendered as a clean bullet list. */
+function toBullets(text: string): string {
+  return text
+    .split(/[\n;]+/)
+    .map((s) => s.trim().replace(/^[-*•]\s*/, ""))
+    .filter(Boolean)
+    .map((s) => `- ${s}`)
+    .join("\n");
+}
+
 export async function classifyRelevance(input: {
   text: string;
   linkedText?: string | null;
-  criteria: string;
+  /** Relevant topics — one per line (the channel's include list). */
+  include: string;
+  /** Not-relevant topics, even if cybersecurity — one per line. */
+  exclude?: string | null;
 }): Promise<Verdict> {
   const { resolveRoute } = await import("@/core/ai/routing");
   const route = await resolveRoute("source.relevance");
 
+  const includeList = toBullets(input.include) || "- (nothing specified)";
+  const excludeList = toBullets(input.exclude ?? "");
+
   const system =
-    "You classify a news post by whether it matches a target topic set — decide by the post's SUBJECT.\n" +
-    `A post is RELEVANT if it is about ANY of these topics:\n${input.criteria}\n` +
-    "It is NOT relevant if its subject is something else — even when it's still cybersecurity: server-side " +
-    "vulnerabilities/CVEs (RCE, SQL-injection, router/VPN/appliance bugs), OT/ICS attacks, or breaches that " +
-    "don't involve the topics above; and never for off-topic items (company/policy/hardware/AI-model news, " +
-    "memes, promos). Match against the topic list literally; if the post's core subject is one of the listed " +
-    "topics, it is relevant even if other details differ.\n" +
+    "You are a strict relevance gate. Classify a post by its CORE SUBJECT only — not by a keyword that merely appears in passing.\n\n" +
+    "RELEVANT — mark true ONLY if the post's core subject is one of these:\n" +
+    includeList +
+    "\n\n" +
+    (excludeList
+      ? "NOT RELEVANT — mark false if the core subject is one of these, even if it is still cybersecurity:\n" +
+        excludeList +
+        "\n\n"
+      : "") +
+    "Also mark false for anything whose core subject is none of the RELEVANT items above.\n" +
     'Reply with ONLY compact JSON: {"relevant": true|false, "why": "<=8 words"}.';
 
   const body =

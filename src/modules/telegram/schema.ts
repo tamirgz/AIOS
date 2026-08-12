@@ -20,8 +20,11 @@ export const telegramChannels = pgTable("telegram_channels", {
   /** Public @username, without the @ (e.g. "RedXCyberSecurity"). */
   username: text("username").notNull().unique(),
   enabled: text("enabled").notNull().default("true"),
-  /** What "relevant" means for this source — the domain the gate judges against. */
+  /** Relevant topics — one per line. A post's core subject must match one. */
   criteria: text("criteria").notNull().default(""),
+  /** Not-relevant topics, even if cybersecurity — one per line. Explicit
+   *  negatives give the small gate model far less room to over-fire. */
+  exclude: text("exclude").notNull().default(""),
   /** How far back to reach on the very first ingest. */
   backfillDays: integer("backfill_days").notNull().default(14),
   /** Ledger: the highest telegram message id already ingested (idempotency). */
