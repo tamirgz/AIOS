@@ -55,7 +55,7 @@ export async function createWorktree(
  * Isolation for a CLI executor — a local clone, NOT a linked worktree.
  *
  * A linked worktree's `.git` is a *file* pointing back at the main repo, so
- * external CLI agents (opencode, aider…) resolve their "project root" to the
+ * external CLI agents (opencode, pi…) resolve their "project root" to the
  * main repo and load ITS context/permissions — the model ends up editing the
  * wrong tree entirely. Measured: the same opencode+model that fails in a
  * worktree of a repo succeeds in a standalone clone of it. A clone has a real
@@ -133,10 +133,10 @@ export async function commitCheckpoint(
   message: string,
 ): Promise<boolean> {
   // Everything the agent touched, EXCEPT tool scaffolding that isn't part of
-  // the requested work: `.aios/task.md` (our reproducibility copy), `.opencode/`
-  // (opencode's per-run session/state dir), and aider's history files. These
-  // are runtime artifacts of the executor, not changes to the project — they
-  // must never land in the review diff or the PR.
+  // the requested work: `.aios/task.md` (our reproducibility copy) and
+  // `.opencode/` (opencode's per-run session/state dir). These are runtime
+  // artifacts of the executor, not changes to the project — they must never
+  // land in the review diff or the PR.
   await git(workdir, [
     "add",
     "-A",
@@ -144,7 +144,6 @@ export async function commitCheckpoint(
     ".",
     ":(exclude).aios",
     ":(exclude).opencode",
-    ":(exclude,glob).aider*",
   ]);
   const staged = await git(workdir, ["diff", "--cached", "--name-only"]);
   if (!staged.trim()) return false;

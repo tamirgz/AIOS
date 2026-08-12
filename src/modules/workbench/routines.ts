@@ -21,7 +21,7 @@ const exec = promisify(execFile);
 const log = (m: string) =>
   console.log(`[routines ${new Date().toISOString()}] ${m}`);
 
-const LOCAL_EXECUTORS = new Set(["opencode", "pi", "aider"]);
+const LOCAL_EXECUTORS = new Set(["opencode", "pi"]);
 
 async function headSha(repoPath: string): Promise<string | null> {
   try {

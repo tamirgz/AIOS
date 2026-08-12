@@ -1,7 +1,7 @@
 /**
  * Generic CLI executor — the point of W2.
  *
- * opencode, pi, aider and anything that comes next are *rows in the executors
+ * opencode, pi and anything that comes next are *rows in the executors
  * table*, not new code paths: a command template, a parser, a timeout. The
  * engine still owns the worktree, the timeout and the process-group kill; all
  * this adapter does is substitute the template, spawn, and translate output
@@ -11,7 +11,7 @@
  * Parsers:
  *   jsonl   — one JSON object per line (opencode `run --format json`)
  *   pi-json — pi `--mode json`
- *   text    — plain stdout, kept as text events (aider)
+ *   text    — plain stdout, kept as text events (text-only CLIs)
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";

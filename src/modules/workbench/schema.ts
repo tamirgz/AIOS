@@ -233,7 +233,7 @@ export const routines = pgTable(
 
 /**
  * Executors are configuration, not code paths: W1 seeds claude-headless and
- * native, and W2 adds opencode/pi/aider as rows against the generic adapter.
+ * native, and W2 adds opencode/pi as rows against the generic adapter.
  */
 export const EXECUTOR_KINDS = [
   "claude-headless",

@@ -218,21 +218,14 @@ export async function ensureExecutors() {
         gitMode: "worktree" as const,
         timeoutMs: TIMEOUTS["code-local"],
       },
-      {
-        id: "aider",
-        name: "aider + local model",
-        kind: "cli" as const,
-        // aider has no structured output, but it auto-commits every edit —
-        // which the worktree diff picks up regardless of what it printed.
-        commandTemplate:
-          "aider --yes --no-stream --model ollama_chat/{{model}} --message {{prompt}}",
-        parser: "text" as const,
-        defaultModel: "qwen3-coder:30b",
-        gitMode: "worktree" as const,
-        timeoutMs: TIMEOUTS["code-local"],
-      },
     ])
     .onConflictDoNothing();
+
+  // aider was removed: it's a SEARCH/REPLACE editor, not an agentic loop, so it
+  // can't analyze a commit the way this delegation needs; it also loads whole
+  // files (these docs are ~57k tokens of embedded font → request timeouts) and
+  // pulls its own commit-message model. opencode fills the local-CLI-agent role.
+  await db.delete(executors).where(eq(executors.id, "aider"));
 
   // Migrate an opencode row seeded before full-spec models: the old template
   // hardcoded `ollama/{{model}}` and stored a bare tag, which can't reach the
