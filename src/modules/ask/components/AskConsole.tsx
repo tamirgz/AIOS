@@ -17,6 +17,7 @@ import {
   Download,
   FileText,
   FolderKanban,
+  Globe,
   History,
   Lightbulb,
   Paperclip,
@@ -38,6 +39,7 @@ const KIND_ICON: Record<string, typeof FileText> = {
   file: Paperclip,
   project: FolderKanban,
   attention: Bell,
+  web: Globe,
 };
 
 /**
@@ -355,12 +357,13 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
                   </p>
                   {result.sources.map((s) => {
                     const Icon = KIND_ICON[s.kind] ?? FileText;
-                    return (
-                      <Link
-                        key={s.n}
-                        href={s.href}
-                        className="glass group flex items-center gap-3 rounded-xl p-3 transition hover:bg-white/4"
-                      >
+                    // Web sources are absolute URLs → open in a new tab; internal
+                    // sources use client-side routing.
+                    const external = /^https?:\/\//.test(s.href);
+                    const rowClass =
+                      "glass group flex items-center gap-3 rounded-xl p-3 transition hover:bg-white/4";
+                    const inner = (
+                      <>
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-plasma/10 font-mono text-[10px] text-plasma">
                           {s.n}
                         </span>
@@ -371,6 +374,21 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
                         <span className={cn("shrink-0 font-mono text-[9px] uppercase tracking-widest text-ink-faint")}>
                           {s.kind}
                         </span>
+                      </>
+                    );
+                    return external ? (
+                      <a
+                        key={s.n}
+                        href={s.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={rowClass}
+                      >
+                        {inner}
+                      </a>
+                    ) : (
+                      <Link key={s.n} href={s.href} className={rowClass}>
+                        {inner}
                       </Link>
                     );
                   })}
