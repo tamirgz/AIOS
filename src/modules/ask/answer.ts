@@ -19,6 +19,8 @@ import { tasks } from "@/modules/tasks/schema";
 import { notes } from "@/modules/notes/schema";
 import { attentionItems } from "@/modules/today/schema";
 import type { AskSource } from "./schema";
+import { verifyExternalLinks } from "./links";
+import { webSearchEnabled, webSearchSources } from "./websearch";
 export type { AskSource } from "./schema";
 
 export interface AskAnswer {
@@ -149,72 +151,17 @@ async function buildProjectDossier(
   return { sources, seen, matchedNames: matched.map((p) => p.name) };
 }
 
-/** Domains that return 200 but wall their content behind a login/subscription. */
-const GATED_DOMAIN =
-  /(^|\.)(gartner|forrester|idc|statista|wsj|ft|bloomberg|nytimes|economist|hbr|nature|sciencedirect|springer|ieee|academia)\.(com|org|net|edu)$/i;
-
-/**
- * Crowd-sourced, blog, forum and SEO domains — reachable, but not the
- * primary/authoritative sources a professional answer should cite. Demoted to
- * plain text just like paywalls: Wikipedia et al. are tertiary references, not
- * a source you'd stand behind. Enrichment should point at standards bodies,
- * official docs and government/vendor primary sources instead.
- */
-const LOW_AUTHORITY_DOMAIN =
-  /(^|\.)(wikipedia|wikimedia|wiktionary|medium|substack|blogspot|wordpress|quora|reddit|stackoverflow|stackexchange|geeksforgeeks|w3schools|tutorialspoint|javatpoint|baeldung|dev\.to|hackernoon|freecodecamp|simplilearn|guru99|educative|programiz|towardsdatascience)\.(com|org|net|io)$/i;
-
-/** A publicly-reachable, free-to-read, authoritative page? Fails closed on any doubt. */
-async function linkAccessible(url: string): Promise<boolean> {
-  let u: URL;
-  try {
-    u = new URL(url);
-  } catch {
-    return false;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return false;
-  if (GATED_DOMAIN.test(u.hostname)) return false;
-  if (LOW_AUTHORITY_DOMAIN.test(u.hostname)) return false;
-  try {
-    const res = await fetch(url, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(6000),
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-      },
-    });
-    if (!res.ok) return false; // 4xx/5xx, incl. 401/403 gates
-    // Redirected to a login/subscribe/consent page ⇒ not really accessible.
-    const finalPath = new URL(res.url).pathname;
-    if (/\/(login|sign[_-]?in|subscribe|register|account|paywall|consent)\b/i.test(finalPath))
-      return false;
-    return true;
-  } catch {
-    return false; // timeout, DNS, TLS, network — treat as inaccessible
-  }
-}
-
-/**
- * Verify every external markdown link in the answer and demote the unreachable
- * or gated ones to plain text (keeping the label). Runs the checks concurrently
- * over the distinct URLs so it adds a fixed ~few seconds, not per-link.
- */
-async function verifyExternalLinks(answer: string): Promise<string> {
-  const linkRe = /\[([^\]]+)\]\(((?:https?:)?\/\/[^)\s]+)\)/gi;
-  const urls = [...new Set([...answer.matchAll(linkRe)].map((m) => m[2]))];
-  if (urls.length === 0) return answer;
-  const ok = new Map<string, boolean>();
-  await Promise.all(
-    urls.map(async (u) => ok.set(u, await linkAccessible(u))),
-  );
-  return answer.replace(linkRe, (whole, label, url) =>
-    ok.get(url) ? whole : label,
-  );
-}
-
 export async function answerQuestion(query: string): Promise<AskAnswer> {
   const q = query.trim();
   if (!q) return { answer: "", sources: [], model: "" };
+
+  // Kick web enrichment off in parallel with local retrieval — it only needs
+  // the question. Discarded below if the corpus turns up nothing (we never
+  // answer from the web alone; it enriches the user's own data, never replaces
+  // it). Fail-open: any search/fetch trouble just yields no web sources.
+  const webPromise = webSearchEnabled()
+    ? webSearchSources(q, { max: 3 }).catch(() => [] as AskSource[])
+    : Promise.resolve([] as AskSource[]);
 
   const { sources: dossier, seen, matchedNames } = await buildProjectDossier(q);
 
@@ -238,8 +185,8 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
     return true;
   });
 
-  const combined = [...dossier, ...hits];
-  if (combined.length === 0) {
+  const ownData = [...dossier, ...hits];
+  if (ownData.length === 0) {
     return {
       answer:
         "I couldn't find anything in your saved data (notes, knowledge, vault, ideas, tasks, files) about that.",
@@ -248,11 +195,15 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
     };
   }
 
-  const numbered = combined.map((h, i) => ({ ...h, n: i + 1 }));
+  // The corpus is the backbone; web results (if any) are appended after it as
+  // authoritative, current enrichment — already filtered + page-fetched.
+  const web = await webPromise;
+  const numbered = [...ownData, ...web].map((h, i) => ({ ...h, n: i + 1 }));
   const context = numbered
     .map((h) => `[${h.n}] (${h.kind}) ${h.title}\n${h.snippet ?? ""}`)
     .join("\n\n");
 
+  const ownCount = ownData.length;
   const route = await resolveRoute("ask");
   const material = [
     `QUESTION: ${q}`,
@@ -262,9 +213,15 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
       : "SOURCES (from the user's own saved data):",
     context,
     "",
-    "Answer the question using ONLY these sources for the substance, and cite them inline as [1], [2], etc. If the sources don't actually answer it, say so plainly rather than guessing. Be thorough when the sources are a complete project dossier — surface everything relevant, not just one line.",
-    "You MAY add a few high-quality EXTERNAL links to enrich the answer, but hold them to a professional bar: link ONLY to PRIMARY, AUTHORITATIVE, publicly-readable sources — standards bodies and frameworks (NIST, ISO, IETF/RFCs, OWASP, MITRE ATT&CK/CVE, CISA), official product/vendor documentation, government or inter-governmental pages (.gov, europa.eu), and reputable technical primary sources. Do NOT link to tertiary or crowd/SEO sources (Wikipedia, Medium, blogs, Reddit, StackOverflow, W3Schools/GeeksforGeeks-style tutorial sites) or to paywalled/login-gated pages (Gartner, Forrester, IDC, WSJ, etc.). Use real markdown links `[label](https://…)`. These enrich; the [n] citations to the user's own data remain the backbone. If you can't name a genuinely authoritative source, add no link rather than a weak one.",
-  ].join("\n");
+    web.length > 0
+      ? `SOURCES ${ownCount + 1}-${ownCount + web.length} (kind "web") are CURRENT, AUTHORITATIVE pages fetched from the live web to enrich the answer. Use them for up-to-date, professional context and cite them inline as [n] like any other source, and link to them with markdown \`[label](their url)\`. But sources 1-${ownCount} — the user's own data — remain the source of truth; the web sources support and enrich, they don't override it.`
+      : null,
+    web.length > 0 ? "" : null,
+    `Answer the question using these sources for the substance, and cite them inline as [1], [2], etc. Sources 1-${ownCount} are the user's own data and are the backbone of the answer; don't invent facts beyond what the sources support. If they don't actually answer it, say so plainly rather than guessing. Be thorough when the sources are a complete project dossier — surface everything relevant, not just one line.`,
+    "You MAY add a few high-quality EXTERNAL links to enrich the answer, but hold them to a professional bar: prefer the provided \"web\" sources, and otherwise link ONLY to PRIMARY, AUTHORITATIVE, publicly-readable pages — standards bodies and frameworks (NIST, ISO, IETF/RFCs, OWASP, MITRE ATT&CK/CVE, CISA), official product/vendor documentation, government or inter-governmental pages (.gov, europa.eu), and reputable technical primary sources. Do NOT link to tertiary or crowd/SEO sources (Wikipedia, Medium, blogs, Reddit, StackOverflow, W3Schools/GeeksforGeeks-style tutorial sites) or to paywalled/login-gated pages (Gartner, Forrester, IDC, WSJ, etc.). Use real markdown links `[label](https://…)`. These enrich; the [n] citations to the user's own data remain the backbone. If you can't name a genuinely authoritative source, add no link rather than a weak one.",
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
 
   let answer = "";
   for await (const ev of route.provider.run({
