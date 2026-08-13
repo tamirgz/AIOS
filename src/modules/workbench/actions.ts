@@ -29,6 +29,23 @@ function titleFrom(prompt: string) {
   return first.length > 90 ? `${first.slice(0, 88)}…` : first;
 }
 
+/**
+ * Edit the *initiate request* — the ask itself, not just what came back. The
+ * title tracks the first line so the card stays recognizable. This only saves;
+ * re-running is an explicit, separate action (the "Re-run" button) so a typo
+ * mid-edit never spends a run.
+ */
+export async function updateTaskPrompt(taskId: string, prompt: string) {
+  const next = prompt.trim();
+  if (!next) throw new Error("the ask can't be empty");
+  await db
+    .update(workbenchTasks)
+    .set({ prompt: next, title: titleFrom(next), updatedAt: new Date() })
+    .where(eq(workbenchTasks.id, taskId));
+  await sql.notify("workbench_changed", taskId);
+  revalidate(taskId);
+}
+
 /** Edit the report text of an attempt (the "what came back" panel). */
 export async function updateAttemptResult(
   attemptId: string,
@@ -329,6 +346,222 @@ export async function updateExecutor(
     .where(eq(executors.id, id));
   revalidatePath("/m/settings");
   revalidatePath("/m/workbench");
+}
+
+// ── Routines (A1) ──────────────────────────────────────────────────────────
+
+export interface RoutineDraft {
+  name: string;
+  ask: string;
+  triggerKind: "commit" | "schedule" | "both";
+  schedule: string | null;
+  note?: string;
+}
+
+/**
+ * The routine BUILDER: turn a plain-English description into a routine draft
+ * (title + trigger + a faithful ask). Runs the cheap `routine.builder` model
+ * ONCE — it configures, it does NOT rewrite the user's intent. The caller
+ * reviews the draft and picks the task executor before saving.
+ */
+export async function composeRoutine(description: string): Promise<
+  { ok: true; draft: RoutineDraft } | { ok: false; error: string }
+> {
+  const desc = description.trim();
+  if (desc.length < 10) return { ok: false, error: "describe it in a bit more detail" };
+
+  const { resolveRoute } = await import("@/core/ai/routing");
+  const route = await resolveRoute("routine.builder");
+
+  const system =
+    "You configure an AIOS 'routine' — a standing instruction that re-runs automatically. " +
+    "You do NOT do the work and you do NOT rewrite the user's instruction: preserve their wording and intent, only lifting it into a clean standing 'ask'. " +
+    "Decide the trigger from their words: 'on each commit'/'when I push' → commit; 'daily'/'every morning'/a time → schedule (give a cron); both if they say both. " +
+    "Respond with ONLY a JSON object: " +
+    `{"name": string (a short 2-5 word title), "ask": string (their instruction, faithful), "triggerKind": "commit"|"schedule"|"both", "schedule": string|null (cron, only if scheduled), "note": string (one line on any assumption you made)}.`;
+
+  let text = "";
+  try {
+    for await (const ev of route.provider.run({
+      system,
+      messages: [{ role: "user", content: `Compose a routine from this:\n\n${desc}` }],
+      tools: [],
+      toolCtx: { db },
+      model: route.model,
+      maxTurns: 1,
+    })) {
+      if (ev.type === "text") text += ev.text;
+      else if (ev.type === "done" && ev.text) text = ev.text;
+      else if (ev.type === "error") throw new Error(ev.message);
+    }
+  } catch (e) {
+    return { ok: false, error: `builder failed: ${e instanceof Error ? e.message : String(e)}` };
+  }
+
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return { ok: false, error: "the builder didn't return a usable draft" };
+  try {
+    const o = JSON.parse(match[0]) as Partial<RoutineDraft>;
+    const triggerKind =
+      o.triggerKind === "schedule" || o.triggerKind === "both" ? o.triggerKind : "commit";
+    return {
+      ok: true,
+      draft: {
+        name: String(o.name ?? "Untitled routine").slice(0, 90),
+        ask: String(o.ask ?? desc),
+        triggerKind,
+        schedule: triggerKind === "commit" ? null : (o.schedule ? String(o.schedule) : "0 8 * * 1-5"),
+        note: o.note ? String(o.note).slice(0, 200) : undefined,
+      },
+    };
+  } catch {
+    return { ok: false, error: "the builder's draft wasn't valid JSON" };
+  }
+}
+
+/** Create a recurring routine bound to a project's repo. */
+export async function createRoutine(input: {
+  name: string;
+  projectId: string;
+  prompt: string;
+  executorId?: string;
+  model?: string | null;
+  triggerKind?: "commit" | "schedule" | "both" | "source";
+  schedule?: string | null;
+  sourceRef?: string | null;
+  deliverPr?: boolean;
+  gateEnabled?: boolean;
+  gateModel?: string | null;
+}) {
+  const { routines } = await import("./schema");
+  const { projects } = await import("@/modules/projects/schema");
+  const { usableRepoPath } = await import("@/modules/projects/repo");
+
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, input.projectId));
+  if (!project) throw new Error("project not found");
+  const repoPath = usableRepoPath(project.id, project.repoUrl);
+  if (!repoPath) {
+    throw new Error("that project has no code repo attached — add one first");
+  }
+
+  const [row] = await db
+    .insert(routines)
+    .values({
+      name: input.name.trim() || "Untitled routine",
+      projectId: input.projectId,
+      repoPath,
+      prompt: input.prompt.trim(),
+      executorId: input.executorId ?? "opencode",
+      model: input.model ?? null,
+      triggerKind: input.triggerKind ?? "commit",
+      schedule: input.schedule?.trim() || null,
+      sourceRef: input.sourceRef?.trim() || null,
+      deliverPr: input.deliverPr === false ? "false" : "true",
+      gateEnabled: input.gateEnabled === false ? "false" : "true",
+      gateModel: input.gateModel?.trim() || null,
+    })
+    .returning();
+  await sql.notify("routines_changed", row.id);
+  revalidate();
+  return row;
+}
+
+/** Edit a routine's fields in place (the ask, brain, trigger, schedule, PR). */
+export async function updateRoutine(
+  id: string,
+  patch: {
+    name?: string;
+    prompt?: string;
+    executorId?: string;
+    model?: string | null;
+    triggerKind?: "commit" | "schedule" | "both" | "source";
+    schedule?: string | null;
+    sourceRef?: string | null;
+    deliverPr?: boolean;
+    gateEnabled?: boolean;
+    gateModel?: string | null;
+  },
+) {
+  const { routines } = await import("./schema");
+  await db
+    .update(routines)
+    .set({
+      ...(patch.name !== undefined ? { name: patch.name.trim() || "Untitled routine" } : {}),
+      ...(patch.prompt !== undefined ? { prompt: patch.prompt.trim() } : {}),
+      ...(patch.executorId !== undefined ? { executorId: patch.executorId } : {}),
+      ...(patch.model !== undefined ? { model: patch.model } : {}),
+      ...(patch.triggerKind !== undefined ? { triggerKind: patch.triggerKind } : {}),
+      ...(patch.schedule !== undefined ? { schedule: patch.schedule?.trim() || null } : {}),
+      ...(patch.sourceRef !== undefined ? { sourceRef: patch.sourceRef?.trim() || null } : {}),
+      ...(patch.deliverPr !== undefined ? { deliverPr: patch.deliverPr ? "true" : "false" } : {}),
+      ...(patch.gateEnabled !== undefined ? { gateEnabled: patch.gateEnabled ? "true" : "false" } : {}),
+      ...(patch.gateModel !== undefined ? { gateModel: patch.gateModel?.trim() || null } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(routines.id, id));
+  await sql.notify("routines_changed", id);
+  revalidate();
+}
+
+export async function setRoutineEnabled(id: string, enabled: boolean) {
+  const { routines } = await import("./schema");
+  await db
+    .update(routines)
+    .set({ enabled: enabled ? "true" : "false", updatedAt: new Date() })
+    .where(eq(routines.id, id));
+  await sql.notify("routines_changed", id);
+  revalidate();
+}
+
+export async function deleteRoutine(id: string) {
+  const { routines } = await import("./schema");
+  await db.delete(routines).where(eq(routines.id, id));
+  await sql.notify("routines_changed", id);
+  revalidate();
+}
+
+/** Fire a routine now (the worker owns the actual run). */
+export async function runRoutineNow(id: string) {
+  await sql.notify("routines_run", id);
+  revalidate();
+}
+
+/**
+ * Manually request a PR for any task's branch — queues the SAME approval-gated
+ * openPR the routines use, so a hand-run delegation lands the same way: draft →
+ * approve → push+open. Never a direct write.
+ */
+export async function requestPR(taskId: string) {
+  const [task] = await db
+    .select()
+    .from(workbenchTasks)
+    .where(eq(workbenchTasks.id, taskId));
+  if (!task) throw new Error("task not found");
+  if (!task.repoPath) throw new Error("task has no repo");
+
+  const { approvals } = await import("@/core/db/schema/approvals");
+  const title = `AIOS: ${task.title}`.slice(0, 120);
+  const body = [
+    `Proposed by AIOS from the Workbench task "${task.title}".`,
+    task.summary ? `\n**What changed:** ${task.summary}` : "",
+    "\n_Review before merge — AIOS proposes, it never merges._",
+  ].join("");
+  const [row] = await db
+    .insert(approvals)
+    .values({
+      agentId: task.id, // no agent run for a manual PR — the task stands in
+      runId: task.id,
+      agentName: "Workbench",
+      toolName: "workbench.openPR",
+      input: { taskId, title, body },
+    })
+    .returning();
+  await sql.notify("approvals_changed", row.id);
+  revalidate(taskId);
+  return row;
 }
 
 /** "I've looked at the diff" — closes the card without touching the branch. */

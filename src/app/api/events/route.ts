@@ -71,6 +71,9 @@ export async function GET(req: Request) {
         "attention_changed",
         "project_files_changed",
         "projects_changed",
+        "workbench_changed",
+        "routines_changed",
+        "telegram_changed",
       ]) {
         if (closed) return;
         await listener.listen(channel, (payload) =>

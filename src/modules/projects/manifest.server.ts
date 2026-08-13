@@ -114,6 +114,10 @@ export const projectsServerManifest: ModuleServerManifest = {
       // Read + summarize on the free bench-winner; never bills.
       defaultProvider: "ollama",
       defaultModel: "qwen3-coder:30b",
+      // One list → one project per (readRepo + recordRepoDigest) pair, so N
+      // projects need ~2N+2 turns. The default 8 truncated at ~2 of 7; give it
+      // room to finish the whole list.
+      defaultTurnBudget: 28,
     },
   ],
 };

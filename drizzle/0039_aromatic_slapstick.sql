@@ -1,0 +1,1 @@
+ALTER TABLE "telegram_channels" ADD COLUMN "exclude" text DEFAULT '' NOT NULL;

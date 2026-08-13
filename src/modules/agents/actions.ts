@@ -39,6 +39,7 @@ export async function createAgent(input: {
   model?: string | null;
   fallbackModel?: string | null;
   successTool?: string | null;
+  turnBudget?: number | null;
 }) {
   const [row] = await db
     .insert(agents)
@@ -55,6 +56,7 @@ export async function createAgent(input: {
       // Local Ollama model to retry on if a cloud primary fails on connectivity.
       fallbackModel: input.fallbackModel ?? null,
       successTool: input.successTool ?? null,
+      turnBudget: input.turnBudget ?? null,
     })
     .returning();
   await notifyChanged(row.id);
@@ -76,6 +78,7 @@ export async function createFromTemplate(templateId: string) {
     model: template.defaultModel ?? null,
     fallbackModel: template.defaultFallbackModel ?? null,
     successTool: template.defaultSuccessTool ?? null,
+    turnBudget: template.defaultTurnBudget ?? null,
   });
 }
 
@@ -91,6 +94,8 @@ export async function updateAgent(
     provider: AIProviderId | null;
     model: string | null;
     fallbackModel: string | null;
+    successTool: string | null;
+    turnBudget: number | null;
   }>,
 ) {
   if ("schedule" in patch) patch.schedule = validateSchedule(patch.schedule);

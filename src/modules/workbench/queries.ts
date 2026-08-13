@@ -4,12 +4,20 @@ import { diffSince, type DiffSummary } from "./git";
 import {
   attemptEvents,
   executors,
+  routines,
   taskAttempts,
   workbenchTasks,
   type AttemptEvent,
   type TaskAttempt,
   type WorkbenchTask,
 } from "./schema";
+
+export type Routine = typeof routines.$inferSelect;
+
+/** All routines, newest first — for the Workbench routines panel. */
+export async function listRoutines(): Promise<Routine[]> {
+  return db.select().from(routines).orderBy(desc(routines.createdAt));
+}
 
 export interface TaskWithAttempt extends WorkbenchTask {
   latest: TaskAttempt | null;

@@ -84,6 +84,35 @@ export function isMeteredModel(model: string): boolean {
 }
 
 /**
+ * Give a model the namespace its executor's command template expects.
+ *
+ * opencode runs `--model {{model}}` with a FULL provider/model spec, so a bare
+ * local tag (`qwen3-coder:30b`) MUST keep its `ollama/` prefix — otherwise
+ * opencode reads it as a hosted model, the call fails, and the free-model
+ * health system "retires" it and suggests cloud alternatives (the bug that bit
+ * the NoClick routine). pi injects the provider via its own flag
+ * (`--provider ollama`), so it wants the bare tag.
+ *
+ * Idempotent: an already-namespaced id (`ollama/…`, `nvidia/…`) or an
+ * obviously-hosted bare name (`gpt-…`) is returned unchanged.
+ */
+export function normalizeModelForExecutor(
+  model: string | null | undefined,
+  commandTemplate: string | null | undefined,
+): string | null {
+  if (!model) return null;
+  if (model.includes("/")) return model; // already namespaced
+  if (PAID_BARE.test(model)) return model; // hosted paid model typed bare — leave it
+  const tmpl = commandTemplate ?? "";
+  // Templates that supply the provider themselves want the bare Ollama tag.
+  if (/ollama_chat\/\{\{model\}\}/.test(tmpl) || /--provider\s+ollama/.test(tmpl)) {
+    return model;
+  }
+  // Full-spec template (opencode): a bare tag is a local Ollama model.
+  return `ollama/${model}`;
+}
+
+/**
  * Execution/save-time guard. A local executor's model must be free; a metered
  * spec is refused with a message rather than silently billed.
  */
@@ -168,8 +197,8 @@ function opencodeCloudFreeModels(): string[] {
 /**
  * The free models a given executor may use, in the namespace its command
  * template expects. opencode runs `--model {{model}}` with a full spec, so it
- * gets `ollama/<tag>` for local plus its $0 cloud models; pi and aider wrap a
- * bare Ollama tag in their own provider flag, so they get the bare local tags.
+ * gets `ollama/<tag>` for local plus its $0 cloud models; pi wraps a
+ * bare Ollama tag in its own provider flag, so it gets the bare local tags.
  */
 export async function listFreeModelsFor(executorId: string): Promise<string[]> {
   const local = await localOllamaModels();

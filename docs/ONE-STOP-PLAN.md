@@ -237,12 +237,12 @@ From here the roadmap is **horizontal OS layers, with projects/work as the prima
 
 | # | Layer | One line | Status |
 |---|---|---|---|
-| **A1** | **Work Kernel — routines** | `trigger + steps + brain + success-check + destination` — the unit of autonomous work | 🟡 **first routine shipped 2026-08-10** (Repo-watcher: per-project code digest, free/local). Remaining: first-class Routine object, per-agent turn budget, more routines |
+| **A1** | **Work Kernel — routines** | `trigger + steps + brain + success-check + destination` — the unit of autonomous work | ✅ **Routine object shipped 2026-08-11** — `routines` table + Workbench panel: standing ask + repo + trigger (new-commit HEAD-poll w/ CAS ledger, and/or cron) → spawns a judged Workbench task → destination = **approval-gated PR** (never a direct write); per-commit PRs **coalesce** onto one stable branch. **Per-agent turn budget** shipped (`agents.turn_budget`, fixes the "2 of 7" truncation). Remaining: watch GitHub for remote-only commits |
 | **A2** | **Trust & permissions** | Verification + an approval queue for every outward act — what makes autonomy safe to leave on | ✅ **shipped 2026-08-10** — `successTool` verification gate + the outward-action approval queue (`slack.post` drafts → "Needs you" → approve/reject inline → worker runs/drops). Remaining: more outward tools on the same spine |
 | **A3** | **Senses — ingest & route** | `#tldr`/`#my-today` → the project they affect; email triage + approval-gated drafts; files | ⬜ |
 | **A4** | **Attention scheduler** | AIOS pings *you*: stalls, deadlines, waiting-triggers, decisions | 🟡 attention atom + queue exist |
 | **A5** | **World model — grounding** | Project advisor + code repos ✅; extend to people, decisions, knowledge | ✅ shipped 2026-08-09 (breadth pending) |
-| **A6** | **Deliverable factory** | Workbench → real work products, repo-grounded and verified | 🟡 Workbench + repo grounding done |
+| **A6** | **Deliverable factory** | Workbench → real work products, repo-grounded and verified | ✅ **core shipped 2026-08-11** — repo grounding + **editable ask** (edit the request, not just the result) + a **verifying judge** on every delegation (correlates ask↔result, auto-retries once with the critique fed back, then holds in "Needs you") + **approval-gated PR delivery** (`workbench.openPR`, cache→local→GitHub, gh credential-helper push; routine PRs coalesce onto one branch). AIOS proposes, never merges. Remaining: deliverable breadth (PRD/analysis templates) |
 | **A7** | **Brain-trust router + governor** | Claude / GPT-5 (Codex) / Gemini / free-local per task; quota + cost ceilings | 🟡 4 brains wired; routing missing |
 | **A8** | **Control room** | Ran · running · cost · pending approval · failed | ⬜ |
 | **A9** | **Reliability spine** | Heartbeat ✅, catch-up on missed runs, idempotency, self-healing | 🟡 |
@@ -251,7 +251,7 @@ From here the roadmap is **horizontal OS layers, with projects/work as the prima
 
 **Parked — deferred, not killed:** phone reach (PWA / Telegram bridge + Tailscale) and mobile/share-sheet capture; the **auth gate** (ships *with* exposure, never after — localhost-only today); the old Phase-9 "consolidate & subtract" pass (Notes-vs-Vault, module graveyards, agent 👍/👎 evals) — worth doing, just not ahead of A1–A3.
 
-**Also dropped by the 2026-08-09 full-backlog audit** (see EXECUTION-PLAN for the ledger): the **Habits/Metrics tracker** and the **CRM/Sales module** from the original plan's future-modules list (the `people` CRM-lite covers the project-ops need), and the **`pi`/`aider` executor tails** (parser rebuild, install, cloud tiers — opencode + claude-headless + codex cover it). The **Connector agent** is *absorbed* into A3, and the never-built **Workbench merge/PR button** is *folded into A6* — an agent's branch is currently reviewed in-app but merged outside AIOS, which is a real hole in the loop.
+**Also dropped by the 2026-08-09 full-backlog audit** (see EXECUTION-PLAN for the ledger): the **Habits/Metrics tracker** and the **CRM/Sales module** from the original plan's future-modules list (the `people` CRM-lite covers the project-ops need), and the **`pi`/`aider` executor tails** (parser rebuild, install, cloud tiers — opencode + claude-headless + codex cover it). The **Connector agent** is *absorbed* into A3, and the **Workbench merge/PR button** — folded into A6 — **shipped 2026-08-11** as approval-gated PR delivery (AIOS opens the PR on your approval; you merge). No longer a hole.
 
 *Sequencing note: each layer is independently useful. A1+A2 ship together (a routine without a success-check is exactly the autonomy you'd leave switched off); A3 then feeds them, and A4/A8 close the loop back to you.*
 

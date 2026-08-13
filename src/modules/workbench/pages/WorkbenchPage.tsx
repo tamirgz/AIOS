@@ -2,17 +2,21 @@ import { isNotNull } from "drizzle-orm";
 import { db } from "@/core/db/client";
 import { projects } from "@/modules/projects/schema";
 import { usableRepoPath } from "@/modules/projects/repo";
-import { listExecutors, listTasks } from "../queries";
+import { listChannels } from "@/modules/telegram/queries";
+import { listExecutors, listRoutines, listTasks } from "../queries";
 import { listFreeModelsByExecutor } from "../models";
 import { NewTaskBox } from "../components/NewTaskBox";
 import { TaskBoard } from "../components/TaskBoard";
 import { ArchivedTasks } from "../components/ArchivedTasks";
+import { RoutinesPanel } from "../components/RoutinesPanel";
 
 export async function WorkbenchPage() {
-  const [tasks, archived, executors] = await Promise.all([
+  const [tasks, archived, executors, routines, tgChannels] = await Promise.all([
     listTasks(),
     listTasks(true),
     listExecutors(),
+    listRoutines(),
+    listChannels(),
   ]);
   // Free models per executor — opencode gets its cloud free tier too.
   const freeModels = await listFreeModelsByExecutor(executors.map((x) => x.id));
@@ -43,6 +47,13 @@ export async function WorkbenchPage() {
         projectRepos={projectRepos}
       />
       <TaskBoard tasks={tasks} />
+      <RoutinesPanel
+        routines={routines}
+        projects={projectRepoRows.map((p) => ({ id: p.id, name: p.name }))}
+        executors={executors.map((x) => ({ id: x.id, name: x.name }))}
+        freeModels={freeModels}
+        sources={tgChannels.map((c) => ({ ref: `telegram:${c.username}`, label: `Telegram · @${c.username}` }))}
+      />
       <ArchivedTasks tasks={archived} />
     </div>
   );

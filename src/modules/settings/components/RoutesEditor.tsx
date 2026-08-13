@@ -17,6 +17,10 @@ const KEY_LABELS: Record<string, string> = {
   ask: "Ask (cited Q&A)",
   "project.advisor": "Project advisor (per-project read + re-angle)",
   "workbench.native": "Workbench · docs tasks (AIOS data + module tools)",
+  "workbench.judge": "Workbench · delegation judge (ask ↔ result gate)",
+  "routine.builder": "Routines · builder (composes a routine from your description)",
+  "source.relevance": "Sources · relevance gate (is this post worth a run?)",
+  "routine.gate": "Routines · commit gate (does this commit need the executor?)",
 };
 
 function RouteRow({ route }: { route: AiRoute }) {
