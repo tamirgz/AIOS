@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { motion } from "motion/react";
+import ReactMarkdown, {
+  defaultUrlTransform,
+  type Components,
+} from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ArrowUp,
   Bell,
@@ -12,6 +17,7 @@ import {
   Download,
   FileText,
   FolderKanban,
+  Globe,
   History,
   Lightbulb,
   Paperclip,
@@ -33,33 +39,122 @@ const KIND_ICON: Record<string, typeof FileText> = {
   file: Paperclip,
   project: FolderKanban,
   attention: Bell,
+  web: Globe,
 };
 
-/** Render answer text with [n] turned into clickable citation chips. */
+/**
+ * Render the answer as real markdown (headings, bold, lists, rules, links) with
+ * inline `[n]` citations turned into clickable source chips. The model returns
+ * rich markdown; showing it raw (the old behaviour) surfaced literal `###`/`**`.
+ * Standalone `[n]` become `cite:n` links so the markdown parser keeps them
+ * inline; a `[n](url)` markdown link is left alone (negative lookahead).
+ */
 function CitedAnswer({ text, sources }: { text: string; sources: AskSource[] }) {
   const byN = new Map(sources.map((s) => [s.n, s]));
-  const parts = text.split(/(\[\d+\])/g);
+  // The generator now HTTP-verifies external enrichment links, so keep them.
+  // As a fast client-side net (also covers answers stored before verification),
+  // demote to plain text any link that isn't a professional source:
+  //   - paywalled/login-gated domains — a Gartner link 200s but walls its
+  //     content, so a live check can't catch it, but the domain can;
+  //   - tertiary/crowd/blog/SEO domains (Wikipedia, Medium, Reddit…) — reachable
+  //     but not authoritative enough to cite in a professional answer.
+  const lowQuality =
+    /\[([^\]]+)\]\((?:https?:)?\/\/(?:www\.)?(?:gartner|forrester|idc|statista|wsj|ft|bloomberg|nytimes|economist|hbr|wikipedia|wikimedia|wiktionary|medium|substack|blogspot|wordpress|quora|reddit|stackoverflow|stackexchange|geeksforgeeks|w3schools|tutorialspoint|javatpoint|baeldung|hackernoon|freecodecamp|simplilearn|guru99|educative|programiz|towardsdatascience)\.[a-z.]+[^)\s]*\)/gi;
+  const cleaned = text.replace(lowQuality, "$1");
+  const withCitations = cleaned.replace(/\[(\d+)\](?!\()/g, (whole, n) =>
+    byN.has(Number(n)) ? `[${n}](cite:${n})` : whole,
+  );
+
+  const components: Components = {
+    h1: ({ node: _n, ...p }) => (
+      <h1 className="mt-5 mb-2 font-display text-xl font-semibold text-ink first:mt-0" {...p} />
+    ),
+    h2: ({ node: _n, ...p }) => (
+      <h2 className="mt-5 mb-2 font-display text-lg font-semibold text-ink first:mt-0" {...p} />
+    ),
+    h3: ({ node: _n, ...p }) => (
+      <h3 className="mt-4 mb-1.5 font-display text-base font-medium text-ink first:mt-0" {...p} />
+    ),
+    p: ({ node: _n, ...p }) => (
+      <p className="mb-3 text-[15px] leading-relaxed text-ink-dim" {...p} />
+    ),
+    strong: ({ node: _n, ...p }) => <strong className="font-semibold text-ink" {...p} />,
+    em: ({ node: _n, ...p }) => <em className="text-ink-dim/90" {...p} />,
+    ul: ({ node: _n, ...p }) => (
+      <ul className="mb-3 list-disc space-y-1.5 pl-5 text-[15px] leading-relaxed text-ink-dim marker:text-ink-faint" {...p} />
+    ),
+    ol: ({ node: _n, ...p }) => (
+      <ol className="mb-3 list-decimal space-y-1.5 pl-5 text-[15px] leading-relaxed text-ink-dim marker:text-ink-faint" {...p} />
+    ),
+    li: ({ node: _n, ...p }) => <li className="pl-1 leading-relaxed" {...p} />,
+    code: ({ node: _n, ...p }) => (
+      <code className="rounded bg-white/5 px-1 py-0.5 font-mono text-[12px] text-ion" {...p} />
+    ),
+    pre: ({ node: _n, ...p }) => (
+      <pre className="mb-3 overflow-x-auto rounded-lg border border-white/6 bg-black/30 p-3 font-mono text-[12px] leading-relaxed [&_code]:bg-transparent [&_code]:p-0" {...p} />
+    ),
+    blockquote: ({ node: _n, ...p }) => (
+      <blockquote className="mb-3 border-l-2 border-violet/40 pl-3 text-[15px] italic text-ink-dim" {...p} />
+    ),
+    hr: () => <hr className="my-4 border-white/8" />,
+    table: ({ node: _n, ...p }) => (
+      <div className="mb-3 overflow-x-auto rounded-lg border border-white/8">
+        <table className="w-full border-collapse text-[13px]" {...p} />
+      </div>
+    ),
+    thead: ({ node: _n, ...p }) => <thead className="bg-white/[0.04]" {...p} />,
+    tr: ({ node: _n, ...p }) => <tr {...p} />,
+    th: ({ node: _n, ...p }) => (
+      <th className="border-b border-white/10 px-3 py-2 text-left align-top font-mono text-[10px] uppercase tracking-widest text-ink-dim" {...p} />
+    ),
+    td: ({ node: _n, ...p }) => (
+      <td className="border-b border-white/6 px-3 py-2 align-top leading-relaxed text-ink-dim [&:not(:last-child)]:border-r [&:not(:last-child)]:border-white/6" {...p} />
+    ),
+    a: ({ node: _n, href, children }) => {
+      const m = /^cite:(\d+)$/.exec(href ?? "");
+      if (m) {
+        const s = byN.get(Number(m[1]));
+        if (s)
+          return (
+            <Link
+              href={s.href}
+              title={s.title}
+              className="mx-0.5 rounded bg-plasma/15 px-1 align-super font-mono text-[11px] leading-none text-plasma no-underline transition hover:bg-plasma/30"
+            >
+              {children}
+            </Link>
+          );
+      }
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="text-ion underline decoration-ion/40 underline-offset-2 transition hover:decoration-ion"
+        >
+          {children}
+        </a>
+      );
+    },
+  };
+
+  // `dir="auto"` so a Hebrew answer reads RTL and an English one LTR.
   return (
-    <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-ink">
-      {parts.map((part, i) => {
-        const m = part.match(/^\[(\d+)\]$/);
-        if (m) {
-          const s = byN.get(Number(m[1]));
-          if (s)
-            return (
-              <Link
-                key={i}
-                href={s.href}
-                title={s.title}
-                className="mx-0.5 rounded bg-plasma/15 px-1 font-mono text-[11px] text-plasma align-super transition hover:bg-plasma/30"
-              >
-                {m[1]}
-              </Link>
-            );
+    <div dir="auto" className="ask-answer">
+      <ReactMarkdown
+        // GFM for tables (the answer uses them), strikethrough and task lists.
+        remarkPlugins={[remarkGfm]}
+        components={components}
+        // Keep default URL sanitization for real links, but allow our internal
+        // `cite:n` scheme through (otherwise it's stripped and citations lose
+        // their href, falling back to plain external links).
+        urlTransform={(url) =>
+          url.startsWith("cite:") ? url : defaultUrlTransform(url)
         }
-        return <span key={i}>{part}</span>;
-      })}
-    </p>
+      >
+        {withCitations}
+      </ReactMarkdown>
+    </div>
   );
 }
 
@@ -262,12 +357,13 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
                   </p>
                   {result.sources.map((s) => {
                     const Icon = KIND_ICON[s.kind] ?? FileText;
-                    return (
-                      <Link
-                        key={s.n}
-                        href={s.href}
-                        className="glass group flex items-center gap-3 rounded-xl p-3 transition hover:bg-white/4"
-                      >
+                    // Web sources are absolute URLs → open in a new tab; internal
+                    // sources use client-side routing.
+                    const external = /^https?:\/\//.test(s.href);
+                    const rowClass =
+                      "glass group flex items-center gap-3 rounded-xl p-3 transition hover:bg-white/4";
+                    const inner = (
+                      <>
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-plasma/10 font-mono text-[10px] text-plasma">
                           {s.n}
                         </span>
@@ -278,6 +374,21 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
                         <span className={cn("shrink-0 font-mono text-[9px] uppercase tracking-widest text-ink-faint")}>
                           {s.kind}
                         </span>
+                      </>
+                    );
+                    return external ? (
+                      <a
+                        key={s.n}
+                        href={s.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={rowClass}
+                      >
+                        {inner}
+                      </a>
+                    ) : (
+                      <Link key={s.n} href={s.href} className={rowClass}>
+                        {inner}
                       </Link>
                     );
                   })}

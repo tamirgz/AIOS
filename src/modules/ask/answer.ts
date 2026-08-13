@@ -19,6 +19,8 @@ import { tasks } from "@/modules/tasks/schema";
 import { notes } from "@/modules/notes/schema";
 import { attentionItems } from "@/modules/today/schema";
 import type { AskSource } from "./schema";
+import { verifyExternalLinks } from "./links";
+import { webSearchEnabled, webSearchSources } from "./websearch";
 export type { AskSource } from "./schema";
 
 export interface AskAnswer {
@@ -153,6 +155,14 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
   const q = query.trim();
   if (!q) return { answer: "", sources: [], model: "" };
 
+  // Kick web enrichment off in parallel with local retrieval — it only needs
+  // the question. Discarded below if the corpus turns up nothing (we never
+  // answer from the web alone; it enriches the user's own data, never replaces
+  // it). Fail-open: any search/fetch trouble just yields no web sources.
+  const webPromise = webSearchEnabled()
+    ? webSearchSources(q, { max: 3 }).catch(() => [] as AskSource[])
+    : Promise.resolve([] as AskSource[]);
+
   const { sources: dossier, seen, matchedNames } = await buildProjectDossier(q);
 
   // The dossier already carries the bulk for an entity-specific question;
@@ -175,8 +185,8 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
     return true;
   });
 
-  const combined = [...dossier, ...hits];
-  if (combined.length === 0) {
+  const ownData = [...dossier, ...hits];
+  if (ownData.length === 0) {
     return {
       answer:
         "I couldn't find anything in your saved data (notes, knowledge, vault, ideas, tasks, files) about that.",
@@ -185,11 +195,15 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
     };
   }
 
-  const numbered = combined.map((h, i) => ({ ...h, n: i + 1 }));
+  // The corpus is the backbone; web results (if any) are appended after it as
+  // authoritative, current enrichment — already filtered + page-fetched.
+  const web = await webPromise;
+  const numbered = [...ownData, ...web].map((h, i) => ({ ...h, n: i + 1 }));
   const context = numbered
     .map((h) => `[${h.n}] (${h.kind}) ${h.title}\n${h.snippet ?? ""}`)
     .join("\n\n");
 
+  const ownCount = ownData.length;
   const route = await resolveRoute("ask");
   const material = [
     `QUESTION: ${q}`,
@@ -199,13 +213,20 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
       : "SOURCES (from the user's own saved data):",
     context,
     "",
-    "Answer the question using ONLY these sources. Cite the ones you use inline as [1], [2], etc. If the sources don't actually answer it, say so plainly rather than guessing. Be thorough when the sources are a complete project dossier — surface everything relevant, not just one line.",
-  ].join("\n");
+    web.length > 0
+      ? `SOURCES ${ownCount + 1}-${ownCount + web.length} (kind "web") are CURRENT, AUTHORITATIVE pages fetched from the live web to enrich the answer. Use them for up-to-date, professional context and cite them inline as [n] like any other source, and link to them with markdown \`[label](their url)\`. But sources 1-${ownCount} — the user's own data — remain the source of truth; the web sources support and enrich, they don't override it.`
+      : null,
+    web.length > 0 ? "" : null,
+    `Answer the question using these sources for the substance, and cite them inline as [1], [2], etc. Sources 1-${ownCount} are the user's own data and are the backbone of the answer; don't invent facts beyond what the sources support. If they don't actually answer it, say so plainly rather than guessing. Be thorough when the sources are a complete project dossier — surface everything relevant, not just one line.`,
+    "You MAY add a few high-quality EXTERNAL links to enrich the answer, but hold them to a professional bar: prefer the provided \"web\" sources, and otherwise link ONLY to PRIMARY, AUTHORITATIVE, publicly-readable pages — standards bodies and frameworks (NIST, ISO, IETF/RFCs, OWASP, MITRE ATT&CK/CVE, CISA), official product/vendor documentation, government or inter-governmental pages (.gov, europa.eu), and reputable technical primary sources. Do NOT link to tertiary or crowd/SEO sources (Wikipedia, Medium, blogs, Reddit, StackOverflow, W3Schools/GeeksforGeeks-style tutorial sites) or to paywalled/login-gated pages (Gartner, Forrester, IDC, WSJ, etc.). Use real markdown links `[label](https://…)`. These enrich; the [n] citations to the user's own data remain the backbone. If you can't name a genuinely authoritative source, add no link rather than a weak one.",
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
 
   let answer = "";
   for await (const ev of route.provider.run({
     system:
-      "You are the Ask engine of AIOS, the user's personal AI operating system. You answer strictly from the user's own saved notes, knowledge, vault, ideas, tasks and files — never outside knowledge — and you always cite the sources you used inline as [n]. If the provided sources don't answer the question, say so.",
+      "You are the Ask engine of AIOS, the user's personal AI operating system. Write in a precise, professional register. The SUBSTANCE of your answer comes strictly from the user's own saved notes, knowledge, vault, ideas, tasks and files — never invented facts — and you cite those sources inline as [n]. You MAY additionally include a few external enrichment links, but only to PRIMARY, AUTHORITATIVE, publicly-readable sources (standards bodies like NIST/ISO/IETF/OWASP/MITRE, official product/vendor docs, government pages) — never tertiary/crowd sources (Wikipedia, Medium, blogs, forums) and never paywalled or login-gated ones. If the provided sources don't answer the question, say so.",
     messages: [{ role: "user", content: material }],
     tools: [],
     toolCtx: { db },
@@ -218,8 +239,14 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
     if (ev.type === "error") throw new Error(ev.message);
   }
 
+  // The model may add external enrichment links, but they're often paywalled or
+  // hallucinated. Verify each is actually reachable + free to read; keep the
+  // good ones as links, demote the rest to plain text. The [n] citations (no
+  // `(url)`) are untouched.
+  const cleaned = await verifyExternalLinks(answer.trim());
+
   return {
-    answer: answer.trim(),
+    answer: cleaned,
     sources: numbered.map((h) => ({
       n: h.n,
       kind: h.kind,
