@@ -70,6 +70,60 @@ function IntegrationField({
   );
 }
 
+/** An on/off setting stored as "on"/"off" via saveIntegration. */
+function IntegrationToggle({
+  settingKey,
+  label,
+  hint,
+  initialOn,
+}: {
+  settingKey: string;
+  label: string;
+  hint: string;
+  initialOn: boolean;
+}) {
+  const [on, setOn] = useState(initialOn);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <div className="glass flex items-start justify-between gap-3 rounded-xl p-3">
+      <div className="min-w-0">
+        <p className="text-sm text-ink">
+          {label}{" "}
+          <span className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+            {settingKey}
+          </span>
+        </p>
+        <p className="mt-0.5 text-xs leading-snug text-ink-dim">{hint}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        disabled={pending}
+        onClick={() => {
+          const next = !on;
+          setOn(next);
+          startTransition(async () => {
+            await saveIntegration(settingKey, next ? "on" : "off");
+          });
+        }}
+        className={cn(
+          "relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition",
+          on ? "bg-plasma/60" : "bg-white/10",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 size-5 rounded-full bg-white transition-all",
+            on ? "left-[22px]" : "left-0.5",
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
 export function IntegrationsEditor({
   icsUrl,
   slackWebhook,
@@ -81,6 +135,8 @@ export function IntegrationsEditor({
   slackReportChannels,
   slackInboxChannels,
   geminiApiKey,
+  searxngUrl,
+  webSearchOn,
 }: {
   icsUrl: string;
   slackWebhook: string;
@@ -92,12 +148,28 @@ export function IntegrationsEditor({
   slackReportChannels: string;
   slackInboxChannels: string;
   geminiApiKey: string;
+  searxngUrl: string;
+  webSearchOn: boolean;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
       <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
         integrations
       </p>
+      <IntegrationToggle
+        settingKey="ask_web_search"
+        label="Ask · web-search enrichment"
+        hint="When on, Ask supplements your own data with a few current, authoritative pages fetched via SearXNG below (standards bodies, official docs — never paywalls or Wikipedia). Your saved data stays the source of truth; the web only enriches. Off ⇒ Ask answers from your corpus alone."
+        initialOn={webSearchOn}
+      />
+      <IntegrationField
+        settingKey="searxng_url"
+        label="SearXNG endpoint (for Ask web search)"
+        hint="Base URL of a self-hosted SearXNG with the JSON format enabled — keyless and free (no paid search API). Leave blank to use the SEARXNG_URL env var. Example: https://your-host/searxng"
+        placeholder="https://your-host/searxng"
+        initial={searxngUrl}
+        secret={false}
+      />
       <IntegrationField
         settingKey="gemini_api_key"
         label="Gemini API key (metered)"
