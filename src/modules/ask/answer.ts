@@ -149,6 +149,69 @@ async function buildProjectDossier(
   return { sources, seen, matchedNames: matched.map((p) => p.name) };
 }
 
+/** Domains that return 200 but wall their content behind a login/subscription. */
+const GATED_DOMAIN =
+  /(^|\.)(gartner|forrester|idc|statista|wsj|ft|bloomberg|nytimes|economist|hbr|nature|sciencedirect|springer|ieee|academia)\.(com|org|net|edu)$/i;
+
+/**
+ * Crowd-sourced, blog, forum and SEO domains — reachable, but not the
+ * primary/authoritative sources a professional answer should cite. Demoted to
+ * plain text just like paywalls: Wikipedia et al. are tertiary references, not
+ * a source you'd stand behind. Enrichment should point at standards bodies,
+ * official docs and government/vendor primary sources instead.
+ */
+const LOW_AUTHORITY_DOMAIN =
+  /(^|\.)(wikipedia|wikimedia|wiktionary|medium|substack|blogspot|wordpress|quora|reddit|stackoverflow|stackexchange|geeksforgeeks|w3schools|tutorialspoint|javatpoint|baeldung|dev\.to|hackernoon|freecodecamp|simplilearn|guru99|educative|programiz|towardsdatascience)\.(com|org|net|io)$/i;
+
+/** A publicly-reachable, free-to-read, authoritative page? Fails closed on any doubt. */
+async function linkAccessible(url: string): Promise<boolean> {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return false;
+  if (GATED_DOMAIN.test(u.hostname)) return false;
+  if (LOW_AUTHORITY_DOMAIN.test(u.hostname)) return false;
+  try {
+    const res = await fetch(url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(6000),
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+      },
+    });
+    if (!res.ok) return false; // 4xx/5xx, incl. 401/403 gates
+    // Redirected to a login/subscribe/consent page ⇒ not really accessible.
+    const finalPath = new URL(res.url).pathname;
+    if (/\/(login|sign[_-]?in|subscribe|register|account|paywall|consent)\b/i.test(finalPath))
+      return false;
+    return true;
+  } catch {
+    return false; // timeout, DNS, TLS, network — treat as inaccessible
+  }
+}
+
+/**
+ * Verify every external markdown link in the answer and demote the unreachable
+ * or gated ones to plain text (keeping the label). Runs the checks concurrently
+ * over the distinct URLs so it adds a fixed ~few seconds, not per-link.
+ */
+async function verifyExternalLinks(answer: string): Promise<string> {
+  const linkRe = /\[([^\]]+)\]\(((?:https?:)?\/\/[^)\s]+)\)/gi;
+  const urls = [...new Set([...answer.matchAll(linkRe)].map((m) => m[2]))];
+  if (urls.length === 0) return answer;
+  const ok = new Map<string, boolean>();
+  await Promise.all(
+    urls.map(async (u) => ok.set(u, await linkAccessible(u))),
+  );
+  return answer.replace(linkRe, (whole, label, url) =>
+    ok.get(url) ? whole : label,
+  );
+}
+
 export async function answerQuestion(query: string): Promise<AskAnswer> {
   const q = query.trim();
   if (!q) return { answer: "", sources: [], model: "" };
@@ -199,13 +262,14 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
       : "SOURCES (from the user's own saved data):",
     context,
     "",
-    "Answer the question using ONLY these sources. Cite the ones you use inline as [1], [2], etc. If the sources don't actually answer it, say so plainly rather than guessing. Be thorough when the sources are a complete project dossier — surface everything relevant, not just one line.",
+    "Answer the question using ONLY these sources for the substance, and cite them inline as [1], [2], etc. If the sources don't actually answer it, say so plainly rather than guessing. Be thorough when the sources are a complete project dossier — surface everything relevant, not just one line.",
+    "You MAY add a few high-quality EXTERNAL links to enrich the answer, but hold them to a professional bar: link ONLY to PRIMARY, AUTHORITATIVE, publicly-readable sources — standards bodies and frameworks (NIST, ISO, IETF/RFCs, OWASP, MITRE ATT&CK/CVE, CISA), official product/vendor documentation, government or inter-governmental pages (.gov, europa.eu), and reputable technical primary sources. Do NOT link to tertiary or crowd/SEO sources (Wikipedia, Medium, blogs, Reddit, StackOverflow, W3Schools/GeeksforGeeks-style tutorial sites) or to paywalled/login-gated pages (Gartner, Forrester, IDC, WSJ, etc.). Use real markdown links `[label](https://…)`. These enrich; the [n] citations to the user's own data remain the backbone. If you can't name a genuinely authoritative source, add no link rather than a weak one.",
   ].join("\n");
 
   let answer = "";
   for await (const ev of route.provider.run({
     system:
-      "You are the Ask engine of AIOS, the user's personal AI operating system. You answer strictly from the user's own saved notes, knowledge, vault, ideas, tasks and files — never outside knowledge — and you always cite the sources you used inline as [n]. If the provided sources don't answer the question, say so.",
+      "You are the Ask engine of AIOS, the user's personal AI operating system. Write in a precise, professional register. The SUBSTANCE of your answer comes strictly from the user's own saved notes, knowledge, vault, ideas, tasks and files — never invented facts — and you cite those sources inline as [n]. You MAY additionally include a few external enrichment links, but only to PRIMARY, AUTHORITATIVE, publicly-readable sources (standards bodies like NIST/ISO/IETF/OWASP/MITRE, official product/vendor docs, government pages) — never tertiary/crowd sources (Wikipedia, Medium, blogs, forums) and never paywalled or login-gated ones. If the provided sources don't answer the question, say so.",
     messages: [{ role: "user", content: material }],
     tools: [],
     toolCtx: { db },
@@ -218,8 +282,14 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
     if (ev.type === "error") throw new Error(ev.message);
   }
 
+  // The model may add external enrichment links, but they're often paywalled or
+  // hallucinated. Verify each is actually reachable + free to read; keep the
+  // good ones as links, demote the rest to plain text. The [n] citations (no
+  // `(url)`) are untouched.
+  const cleaned = await verifyExternalLinks(answer.trim());
+
   return {
-    answer: answer.trim(),
+    answer: cleaned,
     sources: numbered.map((h) => ({
       n: h.n,
       kind: h.kind,
