@@ -49,7 +49,17 @@ const KIND_ICON: Record<string, typeof FileText> = {
  */
 function CitedAnswer({ text, sources }: { text: string; sources: AskSource[] }) {
   const byN = new Map(sources.map((s) => [s.n, s]));
-  const withCitations = text.replace(/\[(\d+)\](?!\()/g, (whole, n) =>
+  // The generator now HTTP-verifies external enrichment links, so keep them.
+  // As a fast client-side net (also covers answers stored before verification),
+  // demote to plain text any link that isn't a professional source:
+  //   - paywalled/login-gated domains — a Gartner link 200s but walls its
+  //     content, so a live check can't catch it, but the domain can;
+  //   - tertiary/crowd/blog/SEO domains (Wikipedia, Medium, Reddit…) — reachable
+  //     but not authoritative enough to cite in a professional answer.
+  const lowQuality =
+    /\[([^\]]+)\]\((?:https?:)?\/\/(?:www\.)?(?:gartner|forrester|idc|statista|wsj|ft|bloomberg|nytimes|economist|hbr|wikipedia|wikimedia|wiktionary|medium|substack|blogspot|wordpress|quora|reddit|stackoverflow|stackexchange|geeksforgeeks|w3schools|tutorialspoint|javatpoint|baeldung|hackernoon|freecodecamp|simplilearn|guru99|educative|programiz|towardsdatascience)\.[a-z.]+[^)\s]*\)/gi;
+  const cleaned = text.replace(lowQuality, "$1");
+  const withCitations = cleaned.replace(/\[(\d+)\](?!\()/g, (whole, n) =>
     byN.has(Number(n)) ? `[${n}](cite:${n})` : whole,
   );
 
