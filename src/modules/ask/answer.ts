@@ -19,8 +19,9 @@ import { tasks } from "@/modules/tasks/schema";
 import { notes } from "@/modules/notes/schema";
 import { attentionItems } from "@/modules/today/schema";
 import type { AskSource } from "./schema";
+import { getSetting } from "@/core/app-settings";
 import { verifyExternalLinks } from "./links";
-import { webSearchEnabled, webSearchSources } from "./websearch";
+import { webSearchSources } from "./websearch";
 export type { AskSource } from "./schema";
 
 export interface AskAnswer {
@@ -158,9 +159,11 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
   // Kick web enrichment off in parallel with local retrieval — it only needs
   // the question. Discarded below if the corpus turns up nothing (we never
   // answer from the web alone; it enriches the user's own data, never replaces
-  // it). Fail-open: any search/fetch trouble just yields no web sources.
-  const webPromise = webSearchEnabled()
-    ? webSearchSources(q, { max: 3 }).catch(() => [] as AskSource[])
+  // it). Gated by the `ask_web_search` toggle (default on) and a configured
+  // SearXNG endpoint. Fail-open: any search/fetch trouble just yields none.
+  const webOn = (await getSetting("ask_web_search").catch(() => null)) !== "off";
+  const webPromise = webOn
+    ? webSearchSources(q, { max: 5 }).catch(() => [] as AskSource[])
     : Promise.resolve([] as AskSource[]);
 
   const { sources: dossier, seen, matchedNames } = await buildProjectDossier(q);
