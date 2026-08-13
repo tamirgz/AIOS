@@ -16,7 +16,10 @@ export const GATED_DOMAIN =
  * point at standards bodies, official docs and government/vendor primary sources.
  */
 export const LOW_AUTHORITY_DOMAIN =
-  /(^|\.)(wikipedia|wikimedia|wiktionary|medium|substack|blogspot|wordpress|quora|reddit|stackoverflow|stackexchange|geeksforgeeks|w3schools|tutorialspoint|javatpoint|baeldung|dev\.to|hackernoon|freecodecamp|simplilearn|guru99|educative|programiz|towardsdatascience)\.(com|org|net|io)$/i;
+  /(^|\.)(wikipedia|wikimedia|wiktionary|medium|substack|blogspot|wordpress|quora|reddit|stackoverflow|stackexchange|geeksforgeeks|w3schools|tutorialspoint|javatpoint|baeldung|dev\.to|hackernoon|freecodecamp|simplilearn|guru99|educative|programiz|towardsdatascience|merriam-webster|thesaurus|collinsdictionary|vocabulary|thefreedictionary|yourdictionary|wordnik|urbandictionary|dictionary)\.(com|org|net|io)$/i;
+
+/** Dictionary/reference hosts on any subdomain (e.g. dictionary.cambridge.org). */
+const REFERENCE_HOST = /(^|\.)(dictionary|thesaurus)\./i;
 
 /**
  * Cheap, no-network verdict: is this URL unfit to cite as enrichment? True for
@@ -31,7 +34,11 @@ export function isLowQualityUrl(url: string): boolean {
     return true;
   }
   if (u.protocol !== "https:" && u.protocol !== "http:") return true;
-  return GATED_DOMAIN.test(u.hostname) || LOW_AUTHORITY_DOMAIN.test(u.hostname);
+  return (
+    GATED_DOMAIN.test(u.hostname) ||
+    LOW_AUTHORITY_DOMAIN.test(u.hostname) ||
+    REFERENCE_HOST.test(u.hostname)
+  );
 }
 
 const VERIFY_UA =
