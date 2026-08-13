@@ -12,9 +12,8 @@ export interface AdapterContext {
   /** Directory the executor runs in (git worktree, or a scratch dir). */
   workdir: string;
   model: string | null;
-  timeoutMs: number;
   taskType: string;
-  /** Cooperative cancel — the engine aborts on timeout and on user cancel. */
+  /** Cooperative cancel — the engine aborts on a stall or a user cancel. */
   signal: AbortSignal;
   /** Called as soon as a child process exists, so the engine can record it. */
   onPid?: (pid: number) => void;

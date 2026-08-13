@@ -1,6 +1,13 @@
 import type { ModuleServerManifest } from "@/core/modules/types.server";
 import { workbenchJobs } from "./engine";
-import { attemptEvents, executors, taskAttempts, workbenchTasks } from "./schema";
+import { routineJobs } from "./routines";
+import {
+  attemptEvents,
+  executors,
+  routines,
+  taskAttempts,
+  workbenchTasks,
+} from "./schema";
 import { workbenchTools } from "./tools";
 import { WorkbenchPage } from "./pages/WorkbenchPage";
 import { TaskDetailPage } from "./pages/TaskDetailPage";
@@ -20,8 +27,8 @@ export const workbenchServerManifest: ModuleServerManifest = {
       component: WorkbenchWidget,
     },
   ],
-  schema: { workbenchTasks, taskAttempts, attemptEvents, executors },
+  schema: { workbenchTasks, taskAttempts, attemptEvents, executors, routines },
   aiTools: workbenchTools,
   agentTemplates: [],
-  jobs: workbenchJobs,
+  jobs: [...workbenchJobs, ...routineJobs],
 };

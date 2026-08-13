@@ -63,6 +63,17 @@ export const workbenchTasks = pgTable(
     createdFrom: text("created_from"),
     /** Headline of the finished work — what you read before the transcript. */
     summary: text("summary"),
+    /**
+     * The verifying judge's gate on the latest settled attempt (A2 · Trust,
+     * for delegated work): null = not judged; "pending"/"retrying" = mid-loop;
+     * "pass" = the result satisfies the ask, released; "fail" = it did not,
+     * held for the user after the auto-retry also fell short.
+     */
+    judgeStatus: text("judge_status"),
+    /** {pass, score, gaps[], rationale, attemptSeq} — the ask↔result verdict. */
+    judgeVerdict: jsonb("judge_verdict"),
+    /** The PR opened for this task's branch (approval-gated). Null until opened. */
+    prUrl: text("pr_url"),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -96,6 +107,14 @@ export const taskAttempts = pgTable(
     error: text("error"),
     /** The executor's own last word (result event / final assistant text). */
     result: text("result"),
+    /**
+     * Steering for an auto-retry: when the judge fails an attempt, the next
+     * sibling attempt carries the critique here, injected into its prompt so
+     * the retry actually addresses the gaps. Null = a fresh (non-retry) run.
+     */
+    feedback: text("feedback"),
+    /** This attempt's own ask↔result verdict, kept per-attempt for history. */
+    judgeVerdict: jsonb("judge_verdict"),
     inputTokens: integer("input_tokens"),
     outputTokens: integer("output_tokens"),
     costUsd: text("cost_usd"),
@@ -143,8 +162,78 @@ export const attemptEvents = pgTable(
 );
 
 /**
+ * Routines (A1 · Work Kernel) — a delegation that recurs on a trigger.
+ *
+ * A routine is the standing "what I want done, on every X": a saved ask + the
+ * repo it acts on + a trigger (a new commit, a schedule, or both) + a brain.
+ * When it fires it spawns an ordinary Workbench task, so it inherits the whole
+ * engine: git isolation, the verifying judge, and — because delegated work
+ * must never touch the repo directly — approval-gated PR delivery.
+ *
+ * Idempotency is the global rule: `lastSeenSha` is the processed-ledger for the
+ * commit trigger, so a routine fires once per new commit, never re-derives
+ * "what did I already do" from a full rescan.
+ */
+export const TRIGGER_KINDS = ["commit", "schedule", "both", "source"] as const;
+export type TriggerKind = (typeof TRIGGER_KINDS)[number];
+
+export const routines = pgTable(
+  "routines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    /** Project whose repo this routine watches/acts on ("projects:<uuid>" ref). */
+    projectId: uuid("project_id"),
+    /** Resolved repo path the delegation runs against (the read-only cache). */
+    repoPath: text("repo_path"),
+    /** The standing ask handed to each run. */
+    prompt: text("prompt").notNull(),
+    executorId: text("executor_id").notNull().default("opencode"),
+    model: text("model"),
+    /**
+     * The attention filter. On a commit trigger a cheap/free model first judges
+     * whether the change touches anything this routine cares about; only then
+     * does the (possibly expensive) executor run. `gateEnabled=false` always
+     * runs. `gateModel` is a per-routine override (a free ollama tag) over the
+     * global `routine.gate` route.
+     */
+    gateEnabled: text("gate_enabled").notNull().default("true"),
+    gateModel: text("gate_model"),
+    /** Last gate decision, surfaced on the routine card. */
+    lastGateRelevant: text("last_gate_relevant"),
+    lastGateWhy: text("last_gate_why"),
+    /** Tallies for the card: "skipped N · ran M". */
+    gateSkipped: integer("gate_skipped").notNull().default(0),
+    gateRan: integer("gate_ran").notNull().default(0),
+    triggerKind: text("trigger_kind", { enum: TRIGGER_KINDS })
+      .notNull()
+      .default("commit"),
+    /** Cron, when the trigger includes "schedule". */
+    schedule: text("schedule"),
+    /** Source binding for a "source" trigger, e.g. "telegram:RedXCyberSecurity". */
+    sourceRef: text("source_ref"),
+    /** Deliver changes as an approval-gated PR (vs. leave the branch). */
+    deliverPr: text("deliver_pr").notNull().default("true"),
+    enabled: text("enabled").notNull().default("true"),
+    /** Commit-trigger ledger: the last HEAD this routine has already acted on. */
+    lastSeenSha: text("last_seen_sha"),
+    lastFiredAt: timestamp("last_fired_at", { withTimezone: true }),
+    lastTaskId: uuid("last_task_id"),
+    /** The single open PR this routine coalesces onto (one PR, updated each run). */
+    prUrl: text("pr_url"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("routines_enabled").on(t.enabled)],
+);
+
+/**
  * Executors are configuration, not code paths: W1 seeds claude-headless and
- * native, and W2 adds opencode/pi/aider as rows against the generic adapter.
+ * native, and W2 adds opencode/pi as rows against the generic adapter.
  */
 export const EXECUTOR_KINDS = [
   "claude-headless",

@@ -232,6 +232,55 @@
       "when": 1786351470236,
       "tag": "0032_breezy_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786443565969,
+      "tag": "0033_jazzy_manta",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786444757934,
+      "tag": "0034_overjoyed_crusher_hogan",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786446237578,
+      "tag": "0035_far_hercules",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786463067671,
+      "tag": "0036_organic_scorpion",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786464549733,
+      "tag": "0037_fancy_charles_xavier",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786513035044,
+      "tag": "0038_silent_guardsmen",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1786516387339,
+      "tag": "0039_aromatic_slapstick",
+      "breakpoints": true
     }
   ]
 }

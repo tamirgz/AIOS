@@ -55,6 +55,30 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   // Workbench "docs"/native tasks (AIOS's own data + module tools). Previously
   // fell through to agent.default; §4's target for this job is a local model.
   { taskKey: "workbench.native", provider: "anthropic", model: "claude-sonnet-5" },
+  // The verifying judge that gates delegated work: it reads the ask + the
+  // produced result and decides whether the result actually satisfies the ask
+  // (A2 · Trust). A capable brain by default — this is the correctness gate,
+  // not the cheap path. Editable in Settings.
+  { taskKey: "workbench.judge", provider: "anthropic", model: "claude-sonnet-5" },
+  // The routine BUILDER — composes a routine from a plain-English description
+  // (title, trigger, target files) and keeps the ask faithful. Runs ONCE per
+  // routine at create time, so a cheap metered model is fine (and it doesn't
+  // break the free-model rule, which only governs PERIODIC agents). Settings
+  // only — never exposed on the routine card. Default: cheap Haiku.
+  {
+    taskKey: "routine.builder",
+    provider: "ollama",
+    model: "qwen3:8b",
+  },
+  // The source relevance gate: cheaply decides whether an incoming item (a
+  // Telegram post, etc.) is worth an expensive routine run. A free LOCAL model
+  // by default — it runs on every post, so it must never bill. Configurable.
+  { taskKey: "source.relevance", provider: "ollama", model: "qwen3:8b" },
+  // The COMMIT relevance gate: on a commit trigger, cheaply decides whether the
+  // change touches anything a routine documents before spending the (possibly
+  // expensive) executor. Free LOCAL default — it runs on every commit. A routine
+  // may override it per-row; this is the global default.
+  { taskKey: "routine.gate", provider: "ollama", model: "qwen3:8b" },
   // Per-project advisor read + the on-demand "different angle" re-read.
   {
     taskKey: "project.advisor",

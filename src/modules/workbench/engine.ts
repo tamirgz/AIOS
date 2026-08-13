@@ -6,7 +6,7 @@
  * reconciling attempts that a worker restart left running. Adapters only
  * translate their executor's output into normalized events.
  */
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { and, asc, eq, inArray, sql as dsql } from "drizzle-orm";
@@ -21,7 +21,7 @@ import {
   type CliParser,
 } from "./adapters/cli";
 import { TIMEOUTS } from "./defaults";
-import { assertFreeModel } from "./models";
+import { assertFreeModel, normalizeModelForExecutor } from "./models";
 import { nativeAdapter } from "./adapters/native";
 import type { Adapter, AdapterEvent } from "./adapters/types";
 import {
@@ -46,8 +46,19 @@ const MAX_CONCURRENT = 2;
  * a malformed payload fails cleanly instead of corrupting the query params. */
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** An attempt whose last event is older than this after a restart is dead. */
-const STALL_MS = 5 * 60 * 1000;
+/** No progress (no event) for this long = the run is genuinely stuck, not slow. */
+const STALL_LIMIT_MS = 60 * 60 * 1000; // 1 hour
+
+/** True if a process with this pid is still alive (a cheap signal-0 probe). */
+function pidAlive(pid: number | null): boolean {
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const ADAPTERS: Record<string, Adapter> = {
   "claude-headless": claudeHeadlessAdapter,
@@ -98,6 +109,17 @@ async function writeOpencodeConfig(workdir: string): Promise<void> {
             url: "https://n8ntg.vps.webdock.cloud/n8n-mcp/mcp",
             enabled: false,
           },
+        },
+        // Turn off two tools that derail a small local model on a focused edit.
+        // `skill` exposes the user's global ~/.claude/skills — a doc-sync run
+        // burned itself trying to call a `git` skill, then read the skill list
+        // (dockerized-ollama-agent, graphify, …) and wandered off hunting
+        // "Dockerfiles", hallucinated an out-of-repo path, and changed nothing.
+        // `task` spawns subagents AIOS doesn't want here. With both off the
+        // model is left with just the file tools and stays on the actual task.
+        tools: {
+          skill: false,
+          task: false,
         },
         provider: {
           ollama: {
@@ -196,21 +218,14 @@ export async function ensureExecutors() {
         gitMode: "worktree" as const,
         timeoutMs: TIMEOUTS["code-local"],
       },
-      {
-        id: "aider",
-        name: "aider + local model",
-        kind: "cli" as const,
-        // aider has no structured output, but it auto-commits every edit —
-        // which the worktree diff picks up regardless of what it printed.
-        commandTemplate:
-          "aider --yes --no-stream --model ollama_chat/{{model}} --message {{prompt}}",
-        parser: "text" as const,
-        defaultModel: "qwen3-coder:30b",
-        gitMode: "worktree" as const,
-        timeoutMs: TIMEOUTS["code-local"],
-      },
     ])
     .onConflictDoNothing();
+
+  // aider was removed: it's a SEARCH/REPLACE editor, not an agentic loop, so it
+  // can't analyze a commit the way this delegation needs; it also loads whole
+  // files (these docs are ~57k tokens of embedded font → request timeouts) and
+  // pulls its own commit-message model. opencode fills the local-CLI-agent role.
+  await db.delete(executors).where(eq(executors.id, "aider"));
 
   // Migrate an opencode row seeded before full-spec models: the old template
   // hardcoded `ollama/{{model}}` and stored a bare tag, which can't reach the
@@ -302,9 +317,29 @@ export async function runAttempt(attemptId: string): Promise<void> {
     .where(eq(executors.id, attempt.executorId));
   const adapter = ADAPTERS[executor?.kind ?? attempt.executorId];
 
+  // Per-attempt opencode data dir. opencode keeps a sqlite DB under
+  // XDG_DATA_HOME; a run that's killed mid-write leaves it unmigratable, which
+  // then breaks EVERY later run that shares it (observed). Giving each attempt
+  // its own throwaway dir means a killed run can only ever poison itself — the
+  // next run starts clean. Removed in `finally`.
+  const openDataDir = join(homedir(), ".aios", "opencode-runs", attempt.id.slice(0, 8));
+
+  // Stall-based, not wall-clock: a run is only killed when it stops making
+  // progress. As long as the executor keeps emitting events (tool calls, text,
+  // steps), it may run as long as it likes — a slow local model that loads for
+  // minutes and reasons for several more is working, not stuck. Only genuine
+  // silence for STALL_LIMIT_MS (no event at all) counts as stuck.
   const controller = new AbortController();
-  const timeoutMs = executor?.timeoutMs ?? TIMEOUTS[task.taskType];
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let lastProgressAt = Date.now();
+  const watchdog = setInterval(() => {
+    const idleMs = Date.now() - lastProgressAt;
+    if (idleMs > STALL_LIMIT_MS) {
+      log(
+        `attempt ${attempt.id.slice(0, 8)} stuck — no progress for ${Math.round(idleMs / 60000)}min, aborting`,
+      );
+      controller.abort();
+    }
+  }, 60_000);
 
   try {
     if (!adapter) throw new Error(`no adapter for "${attempt.executorId}"`);
@@ -355,11 +390,18 @@ export async function runAttempt(attemptId: string): Promise<void> {
     // ── execute ────────────────────────────────────────────────────────
     // A CLI executor is driven entirely by its row: template, parser, and —
     // for opencode — the config file AIOS manages instead of the user's.
+    // Resolve the run model ONCE, in the namespace this executor's template
+    // expects — a bare local tag gets its `ollama/` prefix for opencode so it
+    // can't be misread as a (failing) cloud model.
+    const runModel = normalizeModelForExecutor(
+      attempt.model ?? executor?.defaultModel ?? null,
+      executor?.commandTemplate,
+    );
     if (executor?.kind === "cli") {
       // Free-only guarantee: a local executor may use any model from its
       // library so long as it's free. Refuse a metered spec here rather than
       // let it reach a paid API. The model was already resolved above.
-      assertFreeModel(attempt.model ?? executor.defaultModel ?? null);
+      assertFreeModel(runModel);
       await writeOpencodeConfig(workdir);
     }
 
@@ -369,25 +411,42 @@ export async function runAttempt(attemptId: string): Promise<void> {
     // hint just gets mangled (observed: the model turned the workdir into a
     // bogus out-of-project path and got blocked). Keep the preamble about
     // *behaviour*, not *location*.
+    // A judge-triggered retry carries the critique of the previous attempt.
+    // Feed it back so the retry actually closes the gaps rather than repeating
+    // the same confident-but-empty output.
+    const feedbackBlock = attempt.feedback
+      ? [
+          "",
+          "A PREVIOUS ATTEMPT AT THIS TASK FELL SHORT. The verifying judge found these gaps — you MUST address them, and do NOT repeat the same mistake (no scaffolds, stubs, or 'framework in place'; produce the real deliverable):",
+          attempt.feedback,
+        ].join("\n")
+      : "";
+
     const prompt =
       executor?.kind === "cli"
         ? [
             "You are running unattended in this project directory. Read and edit files here directly, using the paths the tools give you.",
             "Do not ask questions, do not offer alternatives, do not stop to confirm — make the edits yourself, then stop.",
+            // Recurring failure mode with local models: they read a 'do X on each
+            // commit' task and build a git hook / script to do it later, instead
+            // of doing X now. A single run can't watch future commits, and files
+            // written under .git/ (hooks) aren't even tracked — so the result is
+            // an empty diff and a failed run. Forbid the shortcut explicitly.
+            "Do the actual work NOW by editing the target files in this directory. Do NOT create git hooks, CI workflows, or any automation to do it 'on future commits' — analyze the CURRENT state of the repo and make the concrete file edits the task names, this run. Never write into the .git/ directory.",
             `Today is ${new Date().toISOString().slice(0, 10)}.`,
             "",
             "TASK:",
             task.prompt,
+            feedbackBlock,
           ].join("\n")
-        : task.prompt;
+        : task.prompt + feedbackBlock;
 
     const result = await adapter.run(
       {
         attemptId: attempt.id,
         prompt,
         workdir,
-        model: attempt.model ?? executor?.defaultModel ?? null,
-        timeoutMs,
+        model: runModel,
         taskType: task.taskType,
         signal: controller.signal,
         commandTemplate: executor?.commandTemplate ?? undefined,
@@ -395,6 +454,10 @@ export async function runAttempt(attemptId: string): Promise<void> {
         env: {
           OPENCODE_CONFIG: AIOS_OPENCODE_CONFIG,
           OPENCODE_DISABLE_AUTOUPDATE: "1",
+          // Per-attempt opencode data dir (see openDataDir above): isolated from
+          // the user's global opencode AND from every other AIOS run, so a
+          // killed run's corrupt DB can never brick the next one.
+          XDG_DATA_HOME: openDataDir,
           // Read the model DB from the local cache instead of fetching it from
           // models.dev at init — a blocking network call that intermittently
           // stalled startup. The provider SDK is pre-installed too, so opencode
@@ -416,6 +479,7 @@ export async function runAttempt(attemptId: string): Promise<void> {
         },
       },
       async (e) => {
+        lastProgressAt = Date.now(); // any event = progress; resets the stall clock
         await emitEvent(attempt.id, e);
         await notifyChanged(task.id);
       },
@@ -423,6 +487,8 @@ export async function runAttempt(attemptId: string): Promise<void> {
 
     // ── settle ─────────────────────────────────────────────────────────
     let changedFiles = 0;
+    let diffFiles: { path: string }[] = [];
+    let diffPatch: string | null = null;
     if (branch && baseSha) {
       await commitCheckpoint(workdir, `aios: ${task.title}`.slice(0, 200));
       // A clone's branch lives in the clone; bring it into the user's repo so
@@ -433,6 +499,8 @@ export async function runAttempt(attemptId: string): Promise<void> {
       }
       const diff = await diffSince(workdir, baseSha);
       changedFiles = diff.files.length;
+      diffFiles = diff.files;
+      diffPatch = diff.patch ?? null;
       await emitEvent(attempt.id, {
         type: "status",
         payload: { phase: "diff", files: diff.files },
@@ -440,24 +508,22 @@ export async function runAttempt(attemptId: string): Promise<void> {
     }
 
     const timedOut = controller.signal.aborted;
-    // A repo task that changed nothing is a no-op, not a success: a local
-    // model was observed announcing "written successfully" while the file
-    // never appeared on disk. Calling that "done" would be a lie on the card.
-    const noOp = !timedOut && result.ok && branch !== null && changedFiles === 0;
-    const status = timedOut
-      ? "timed_out"
-      : result.ok && !noOp
-        ? "succeeded"
-        : "failed";
-    const noOpError =
-      "finished without changing any files — the executor reported success but the worktree is untouched";
+    // A clean run is JUDGED whether or not it changed files. For a conditional
+    // ask ("update X IF the commit affects it"), a reasoned "nothing to change"
+    // is a legitimate outcome — the judge, which sees the ask, the analysis and
+    // the empty diff, decides whether that's a real determination or a fizzle
+    // (the old "0 files → hard fail" buried correct no-op runs as red, and a
+    // lying local model is now caught by the judge instead). Only a timeout or a
+    // hard executor error skips the judge.
+    const executorOk = !timedOut && result.ok;
+    const status = timedOut ? "timed_out" : result.ok ? "succeeded" : "failed";
 
     await db
       .update(taskAttempts)
       .set({
         status,
         result: result.result?.slice(0, 8000) ?? null,
-        error: (noOp ? noOpError : result.error)?.slice(0, 2000) ?? null,
+        error: result.error?.slice(0, 2000) ?? null,
         exitCode: result.exitCode ?? null,
         inputTokens: result.inputTokens ?? null,
         outputTokens: result.outputTokens ?? null,
@@ -469,14 +535,85 @@ export async function runAttempt(attemptId: string): Promise<void> {
       })
       .where(eq(taskAttempts.id, attempt.id));
 
-    await setTask(task.id, {
-      status:
-        status !== "succeeded" ? "failed" : changedFiles > 0 ? "review" : "done",
-      summary: noOp
-        ? `No files changed. The executor's last words: ${(result.result ?? "(nothing)").slice(0, 600)}`
-        : (result.result ?? result.error ?? "").slice(0, 1000) || null,
-    });
-    log(`attempt ${attempt.id.slice(0, 8)} → ${status} (${changedFiles} file(s))`);
+    if (!executorOk) {
+      await setTask(task.id, {
+        status: "failed",
+        summary: (result.result ?? result.error ?? "").slice(0, 1000) || null,
+      });
+      log(`attempt ${attempt.id.slice(0, 8)} → ${status} (${changedFiles} file(s))`);
+    } else {
+      // ── verify (A2 · Trust): the judge gates release ──────────────────
+      // A succeeded attempt has only cleared the executor's own bar. Before it
+      // reaches the user as a result, a second brain checks it against the ask.
+      const { judgeAttempt } = await import("./judge");
+      const verdict = await judgeAttempt({
+        ask: task.prompt,
+        result: result.result ?? null,
+        changedFiles: diffFiles.map((f) => f.path),
+        patch: diffPatch,
+        taskType: task.taskType,
+      });
+      verdict.attemptSeq = attempt.seq;
+      await db
+        .update(taskAttempts)
+        .set({ judgeVerdict: verdict })
+        .where(eq(taskAttempts.id, attempt.id));
+
+      if (verdict.pass) {
+        await setTask(task.id, {
+          status: changedFiles > 0 ? "review" : "done",
+          summary: (result.result ?? "").slice(0, 1000) || null,
+          judgeStatus: "pass",
+          judgeVerdict: verdict,
+        });
+        // Routine-spawned work that produced changes is delivered as a PR —
+        // never a direct write. Queue it for the user's approval (A2).
+        if (changedFiles > 0 && task.createdFrom?.startsWith("routines:")) {
+          const { queuePrApproval } = await import("./routines");
+          await queuePrApproval(task.id).catch((e) =>
+            log(`queuePrApproval failed: ${e}`),
+          );
+        }
+        log(`attempt ${attempt.id.slice(0, 8)} → PASS (${verdict.score}) released`);
+      } else if (!attempt.feedback) {
+        // First miss → auto-retry once, feeding the critique back so the retry
+        // addresses the gaps instead of repeating them.
+        const feedback = [verdict.rationale, ...verdict.gaps.map((g) => `- ${g}`)]
+          .join("\n")
+          .slice(0, 4000);
+        const [retry] = await db
+          .insert(taskAttempts)
+          .values({
+            taskId: task.id,
+            seq: attempt.seq + 1,
+            executorId: attempt.executorId,
+            model: attempt.model,
+            feedback,
+          })
+          .returning();
+        await setTask(task.id, {
+          status: "running",
+          summary: `The judge flagged gaps — retrying once with feedback:\n${verdict.gaps
+            .map((g) => `• ${g}`)
+            .join("\n")}`.slice(0, 1000),
+          judgeStatus: "retrying",
+          judgeVerdict: verdict,
+        });
+        await sql.notify("workbench_run", retry.id);
+        log(`attempt ${attempt.id.slice(0, 8)} → FAIL (${verdict.score}) auto-retrying`);
+      } else {
+        // The retry also fell short → hold it for the user (Needs-you queue).
+        await setTask(task.id, {
+          status: "needs_input",
+          summary: `Held: the result still doesn't meet the ask after a retry.\n${verdict.rationale}\nGaps:\n${verdict.gaps
+            .map((g) => `• ${g}`)
+            .join("\n")}`.slice(0, 1000),
+          judgeStatus: "fail",
+          judgeVerdict: verdict,
+        });
+        log(`attempt ${attempt.id.slice(0, 8)} → FAIL (${verdict.score}) held for user`);
+      }
+    }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await emitEvent(attempt.id, { type: "error", payload: { message } });
@@ -487,8 +624,15 @@ export async function runAttempt(attemptId: string): Promise<void> {
     await setTask(task.id, { status: "failed", summary: message.slice(0, 500) });
     log(`attempt ${attempt.id.slice(0, 8)} failed: ${message}`);
   } finally {
-    clearTimeout(timer);
+    clearInterval(watchdog);
+    // Discard this attempt's throwaway opencode data dir — even if the run was
+    // killed, its (possibly corrupt) DB dies with it and never affects others.
+    await rm(openDataDir, { recursive: true, force: true }).catch(() => {});
     await notifyChanged(task.id);
+    // This attempt just freed a concurrency slot — kick the queue now instead of
+    // making the next task wait for the 2-min sweep. Empty payload → reconcile,
+    // which picks up the oldest queued attempt(s).
+    await sql.notify("workbench_run", "").catch(() => {});
   }
 }
 
@@ -498,25 +642,35 @@ export async function runAttempt(attemptId: string): Promise<void> {
  * don't leave a card spinning forever.
  */
 export async function reconcile(): Promise<void> {
-  const cutoff = new Date(Date.now() - STALL_MS);
-  const stale = await db
-    .update(taskAttempts)
-    .set({
-      status: "failed",
-      error: "interrupted (worker restarted or the executor died)",
-      endedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(taskAttempts.status, "running"),
-        dsql`coalesce(${taskAttempts.heartbeatAt}, ${taskAttempts.startedAt}) < ${cutoff.toISOString()}::timestamptz`,
-      ),
-    )
-    .returning({ id: taskAttempts.id, taskId: taskAttempts.taskId });
-  for (const s of stale) {
-    await setTask(s.taskId, { status: "failed" });
+  // A running attempt is dead only if its process is GONE (crashed / restart)
+  // or it made no progress for a full hour — NOT merely because it went quiet
+  // for a few minutes (a slow local model loading + reasoning is silent but
+  // very much alive). This mirrors the in-run stall watchdog so the sweep can't
+  // kill a run the run itself would keep.
+  const running = await db
+    .select()
+    .from(taskAttempts)
+    .where(eq(taskAttempts.status, "running"));
+  const now = Date.now();
+  const dead = running.filter((a) => {
+    const idleMs = now - +new Date(a.heartbeatAt ?? a.startedAt ?? a.createdAt);
+    if (idleMs > STALL_LIMIT_MS) return true; // stuck for an hour → dead
+    // A cli attempt has a real pid: trust liveness, not the clock. An in-process
+    // attempt (no pid) dies with the worker, so quiet-for-a-while means gone.
+    return a.pid ? !pidAlive(a.pid) : idleMs > 5 * 60 * 1000;
+  });
+  for (const a of dead) {
+    await db
+      .update(taskAttempts)
+      .set({
+        status: "failed",
+        error: "interrupted (worker restarted or the executor died)",
+        endedAt: new Date(),
+      })
+      .where(eq(taskAttempts.id, a.id));
+    await setTask(a.taskId, { status: "failed" });
   }
-  if (stale.length) log(`reconciled ${stale.length} interrupted attempt(s)`);
+  if (dead.length) log(`reconciled ${dead.length} dead attempt(s)`);
 
   // Then pick up anything queued (missed NOTIFY, or freed capacity).
   const queued = await db

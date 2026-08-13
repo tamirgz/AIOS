@@ -55,7 +55,7 @@ export async function createWorktree(
  * Isolation for a CLI executor — a local clone, NOT a linked worktree.
  *
  * A linked worktree's `.git` is a *file* pointing back at the main repo, so
- * external CLI agents (opencode, aider…) resolve their "project root" to the
+ * external CLI agents (opencode, pi…) resolve their "project root" to the
  * main repo and load ITS context/permissions — the model ends up editing the
  * wrong tree entirely. Measured: the same opencode+model that fails in a
  * worktree of a repo succeeds in a standalone clone of it. A clone has a real
@@ -132,10 +132,19 @@ export async function commitCheckpoint(
   workdir: string,
   message: string,
 ): Promise<boolean> {
-  // Everything the agent touched, except our own scaffolding: `.aios/task.md`
-  // is written into the worktree so a run can be reproduced by hand, and it
-  // has no business showing up as a changed file in the review diff.
-  await git(workdir, ["add", "-A", "--", ".", ":(exclude).aios"]);
+  // Everything the agent touched, EXCEPT tool scaffolding that isn't part of
+  // the requested work: `.aios/task.md` (our reproducibility copy) and
+  // `.opencode/` (opencode's per-run session/state dir). These are runtime
+  // artifacts of the executor, not changes to the project — they must never
+  // land in the review diff or the PR.
+  await git(workdir, [
+    "add",
+    "-A",
+    "--",
+    ".",
+    ":(exclude).aios",
+    ":(exclude).opencode",
+  ]);
   const staged = await git(workdir, ["diff", "--cached", "--name-only"]);
   if (!staged.trim()) return false;
   await git(workdir, [
@@ -162,6 +171,22 @@ export interface DiffSummary {
 }
 
 /** `baseSha..HEAD` in the attempt's worktree — the review currency. */
+/**
+ * A commit range's changed-file list + truncated patch — cheap input for the
+ * relevance gate (which only needs to see roughly what changed, not the whole
+ * diff). Reads from the cache repo directly; no worktree needed.
+ */
+export async function diffRange(
+  repoPath: string,
+  from: string,
+  to: string,
+): Promise<{ files: string[]; patch: string }> {
+  const names = await git(repoPath, ["diff", "--name-only", from, to]);
+  const files = names.split("\n").filter(Boolean);
+  const patch = files.length ? await git(repoPath, ["diff", from, to]) : "";
+  return { files, patch: truncatePatch(patch, 60_000) };
+}
+
 export async function diffSince(
   workdir: string,
   baseSha: string,
@@ -216,6 +241,103 @@ export async function deleteBranchIfMerged(
   } catch {
     return false;
   }
+}
+
+/**
+ * Follow `origin` until it lands on a GitHub URL. AIOS works on a cache clone
+ * whose origin is the user's local folder, whose own origin is GitHub — so PR
+ * delivery has to hop through the chain. Returns null for a local-only repo
+ * (no GitHub anywhere upstream), which is an honest "can't open a PR here".
+ */
+export async function resolveGithubRemote(repoPath: string): Promise<string | null> {
+  let cur = repoPath;
+  for (let i = 0; i < 4; i++) {
+    let url: string;
+    try {
+      url = (await git(cur, ["remote", "get-url", "origin"])).trim();
+    } catch {
+      return null;
+    }
+    if (/github\.com/i.test(url)) return url;
+    // A local-path origin: hop into it and keep looking upstream.
+    if (url.startsWith("/") || url.startsWith("file:")) {
+      cur = url.replace(/^file:\/\//, "");
+      continue;
+    }
+    return null; // some non-GitHub remote — nothing to open a PR against
+  }
+  return null;
+}
+
+/** owner/repo from a GitHub URL (https or ssh), for `gh --repo`. */
+function githubSlug(url: string): string {
+  return url
+    .replace(/^git@github\.com:/i, "")
+    .replace(/^https?:\/\/github\.com\//i, "")
+    .replace(/\.git$/i, "")
+    .trim();
+}
+
+/**
+ * Push an attempt's branch to GitHub and open a PR. This is the ONLY path by
+ * which AIOS's work reaches the repo, and it never merges — it proposes. Called
+ * exclusively through the approval queue, so the push happens only on an
+ * explicit human yes.
+ */
+export async function openPullRequest(input: {
+  repoPath: string;
+  branch: string;
+  title: string;
+  body: string;
+  /** Stable target branch to push onto (a routine reuses one). Default = branch. */
+  prBranch?: string;
+  /** Force-push the target (safe for an AIOS-owned routine branch it regenerates). */
+  force?: boolean;
+}): Promise<{ url: string; slug: string; updated: boolean }> {
+  const ghUrl = await resolveGithubRemote(input.repoPath);
+  if (!ghUrl) {
+    throw new Error(
+      "no GitHub remote upstream of this repo — it's local-only, so there's nothing to open a PR against",
+    );
+  }
+  const slug = githubSlug(ghUrl);
+  const target = input.prBranch ?? input.branch;
+
+  // Push the branch straight to GitHub from wherever it lives (the cache clone).
+  // Authenticate through gh's own credential helper for THIS push only — no
+  // global git config change, no token in argv, and it works headlessly in the
+  // launchd worker (osxkeychain access from a background agent is unreliable;
+  // gh's token is the same auth `gh pr create` already uses successfully).
+  await git(input.repoPath, [
+    "-c",
+    "credential.helper=",
+    "-c",
+    "credential.helper=!gh auth git-credential",
+    "push",
+    ...(input.force ? ["--force"] : []),
+    ghUrl,
+    `${input.branch}:${target}`,
+  ]);
+
+  // Coalesce: if an open PR already exists for this (stable) head branch, the
+  // push above just updated it — reuse it instead of opening a duplicate.
+  const existing = await exec(
+    "gh",
+    ["pr", "list", "--repo", slug, "--head", target, "--state", "open", "--json", "url", "--jq", ".[0].url"],
+    { cwd: input.repoPath, maxBuffer: 4 * 1024 * 1024 },
+  ).catch(() => ({ stdout: "" }));
+  const existingUrl = existing.stdout.trim();
+  if (existingUrl) return { url: existingUrl, slug, updated: true };
+
+  // gh prints the PR URL on success. --head is the branch we just pushed; base
+  // defaults to the repo's default branch. No auto-merge, ever.
+  const { stdout } = await exec(
+    "gh",
+    ["pr", "create", "--repo", slug, "--head", target, "--title", input.title, "--body", input.body],
+    { cwd: input.repoPath, maxBuffer: 4 * 1024 * 1024 },
+  );
+  const url = stdout.trim().split("\n").filter(Boolean).pop() ?? "";
+  return { url, slug, updated: false };
 }
 
 /** Remove the worktree; the branch stays so nothing is lost by archiving. */

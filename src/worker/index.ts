@@ -16,6 +16,8 @@ import { agentRuns, agents, type Agent } from "@/core/db/schema/agents";
 import { notifications } from "@/core/db/schema/notifications";
 import { getSetting, SETTING_KEYS } from "@/core/app-settings";
 import { serverModules } from "@/modules/registry.server";
+import { fireRoutine } from "@/modules/workbench/routines";
+import { routines } from "@/modules/workbench/schema";
 import { enqueueRun, executeApproval, executeRun } from "./executor";
 import { hasFreshBackup, runBackup } from "./backup";
 
@@ -88,6 +90,41 @@ async function syncSchedules() {
   }
 }
 
+const routineCrons = new Map<string, Cron>();
+
+/** Schedule-triggered routines get a cron each, exactly like agents. */
+async function syncRoutineCrons() {
+  const rows = await db.select().from(routines).where(eq(routines.enabled, "true"));
+  const wanted = new Map(
+    rows
+      .filter((r) => (r.triggerKind === "schedule" || r.triggerKind === "both") && r.schedule)
+      .map((r) => [r.id, r]),
+  );
+
+  for (const [id, cron] of routineCrons) {
+    const r = wanted.get(id);
+    if (!r || r.schedule !== cron.getPattern()) {
+      cron.stop();
+      routineCrons.delete(id);
+      log(`unscheduled routine ${id}`);
+    }
+  }
+
+  for (const [id, r] of wanted) {
+    if (routineCrons.has(id)) continue;
+    try {
+      const cron = new Cron(r.schedule!, { protect: true }, async () => {
+        log(`routine cron fired → ${r.name}`);
+        await fireRoutine(id).catch((e) => log(`routine ${id} failed: ${e}`));
+      });
+      routineCrons.set(id, cron);
+      log(`scheduled routine "${r.name}" [${r.schedule}]`);
+    } catch (e) {
+      log(`invalid cron for routine "${r.name}": ${e}`);
+    }
+  }
+}
+
 async function sweepOrphans() {
   const cutoff = new Date(Date.now() - ORPHAN_AFTER_MS);
   // coalesce: queued runs never get a heartbeat — judge them by created_at,
@@ -139,6 +176,7 @@ async function main() {
 
   await sweepOrphans();
   await syncSchedules();
+  await syncRoutineCrons();
 
   // Module background jobs (e.g. knowledge ingestion, calendar sync).
   const moduleJobs = serverModules.flatMap((m) => m.jobs ?? []);
@@ -175,6 +213,10 @@ async function main() {
     await l.listen("agents_changed", () => {
       log("agents_changed → resyncing schedules");
       syncSchedules().catch((e) => log(`resync failed: ${e}`));
+    });
+    await l.listen("routines_changed", () => {
+      log("routines_changed → resyncing routine crons");
+      syncRoutineCrons().catch((e) => log(`routine resync failed: ${e}`));
     });
     await l.listen("run_requests", (runId) => {
       // NOTIFY payloads are raw text; reject non-uuids so a malformed one fails
@@ -232,6 +274,7 @@ async function main() {
     lastHeartbeat = Date.now(); // fresh grace window for the new subscription
     log("listener rebuilt — catching up (schedules + queued runs)");
     syncSchedules().catch((e) => log(`catch-up resync failed: ${e}`));
+    syncRoutineCrons().catch((e) => log(`catch-up routine resync failed: ${e}`));
     pickUpQueuedRuns().catch((e) => log(`catch-up queued pickup failed: ${e}`));
   };
   // Heartbeat watchdog: emit a beat every 30s and rebuild if none has come back
@@ -258,6 +301,7 @@ async function main() {
   new Cron("*/5 * * * *", () => {
     sweepOrphans().catch((e) => log(`safety-net orphan sweep failed: ${e}`));
     syncSchedules().catch((e) => log(`safety-net schedule sync failed: ${e}`));
+    syncRoutineCrons().catch((e) => log(`safety-net routine sync failed: ${e}`));
     pickUpQueuedRuns().catch((e) => log(`safety-net queued pickup failed: ${e}`));
   });
 
