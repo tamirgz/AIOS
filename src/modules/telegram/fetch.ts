@@ -117,7 +117,17 @@ export async function fetchUrlText(url: string): Promise<string> {
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) return "";
+    // Only parse markup. A PDF/image/binary response run through the HTML
+    // extractor yields garbage full of NUL bytes — which also can't be stored
+    // in Postgres text/jsonb (error 22P05). Skip anything not HTML-ish.
+    const ct = res.headers.get("content-type") ?? "";
+    if (/(pdf|image\/|video\/|audio\/|zip|octet-stream|font|excel|spreadsheet|msword|powerpoint|protobuf)/i.test(ct))
+      return "";
     let html = await res.text();
+    // Belt-and-braces: strip NUL and C0 control chars (keep tab/newline/CR) so
+    // no fetched text can ever poison a jsonb column.
+    // eslint-disable-next-line no-control-regex
+    html = html.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "");
     // Drop non-content so it can neither pollute nor shadow the real article.
     html = html.replace(/<(script|style|noscript|template|svg)[\s\S]*?<\/\1>/gi, " ");
 

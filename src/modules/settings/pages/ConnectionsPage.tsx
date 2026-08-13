@@ -16,6 +16,8 @@ export async function ConnectionsPage() {
     slackReportChannels,
     slackInboxChannels,
     geminiApiKey,
+    searxngUrl,
+    askWebSearch,
   ] = await Promise.all([
     getSetting(SETTING_KEYS.calendarIcsUrl),
     getSetting(SETTING_KEYS.slackWebhookUrl),
@@ -27,6 +29,8 @@ export async function ConnectionsPage() {
     getSetting("slack_report_channels"),
     getSetting("slack_inbox_channels"),
     getSetting("gemini_api_key"),
+    getSetting("searxng_url"),
+    getSetting("ask_web_search"),
   ]);
 
   return (
@@ -45,6 +49,8 @@ export async function ConnectionsPage() {
           geminiApiKey={geminiApiKey ?? ""}
           slackReportChannels={slackReportChannels ?? ""}
           slackInboxChannels={slackInboxChannels ?? ""}
+          searxngUrl={searxngUrl ?? ""}
+          webSearchOn={askWebSearch !== "off"}
         />
       </div>
     </div>
