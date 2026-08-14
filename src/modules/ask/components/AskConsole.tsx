@@ -11,7 +11,9 @@ import remarkGfm from "remark-gfm";
 import {
   ArrowUp,
   Bell,
+  BookMarked,
   CheckSquare,
+  Check,
   BookOpen,
   ChevronDown,
   Download,
@@ -25,7 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
-import { ask, deleteAskHistoryEntry } from "../actions";
+import { ask, clipAnswerToObsidian, deleteAskHistoryEntry } from "../actions";
 import type { AskAnswer, AskSource } from "../answer";
 import type { AskHistoryEntry } from "../schema";
 
@@ -170,6 +172,11 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
   const [history, setHistory] = useState<AskHistoryEntry[]>(initialHistory);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Save-to-Obsidian (same raw/ destination + format as Workbench outcomes).
+  const [clipPending, startClip] = useTransition();
+  const [clipOpen, setClipOpen] = useState(false);
+  const [clipTitle, setClipTitle] = useState("");
+  const [clip, setClip] = useState<{ ok?: string; err?: string }>({});
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const submit = () => {
@@ -204,6 +211,33 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
     setAsked(entry.query);
     setResult({ answer: entry.answer, sources: entry.sources, model: entry.model ?? "" });
     setActiveId(entry.id);
+    setClipOpen(false);
+    setClip({});
+  };
+
+  const openClip = () => {
+    setClipTitle(asked.trim().slice(0, 120) || "Ask answer");
+    setClip({});
+    setClipOpen(true);
+  };
+
+  const doClip = () => {
+    if (!result) return;
+    startClip(async () => {
+      try {
+        const { path } = await clipAnswerToObsidian({
+          title: clipTitle,
+          answer: result.answer,
+          sources: result.sources,
+          model: result.model || null,
+          createdISODate: new Date().toISOString().slice(0, 10),
+        });
+        setClip({ ok: path.split("/").slice(-2).join("/") });
+        setClipOpen(false);
+      } catch (e) {
+        setClip({ err: e instanceof Error ? e.message : String(e) });
+      }
+    });
   };
 
   const deleteEntry = (id: string, e: React.MouseEvent) => {
@@ -332,21 +366,75 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
               <div className="glass rounded-2xl p-5">
                 <CitedAnswer text={result.answer} sources={result.sources} />
                 {(result.model || activeId) && (
-                  <div className="mt-3 flex items-center justify-between border-t border-white/6 pt-2">
+                  <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/6 pt-2">
                     <p className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
                       {result.model}
                     </p>
-                    {activeId && (
-                      <a
-                        href={`/api/ask/${activeId}/pdf`}
-                        title="Download this answer as a structured PDF report"
-                        className="flex items-center gap-1.5 rounded-lg bg-plasma/10 px-2.5 py-1 font-mono text-[9px] uppercase tracking-widest text-plasma transition hover:bg-plasma/20"
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={openClip}
+                        title="Save this answer into your Obsidian vault's raw/ folder"
+                        className="flex items-center gap-1.5 rounded-lg border border-ion/25 bg-ion/10 px-2.5 py-1 font-mono text-[9px] uppercase tracking-widest text-ion transition hover:bg-ion/20"
                       >
-                        <Download className="size-3" />
-                        export pdf
-                      </a>
-                    )}
+                        <BookMarked className="size-3" />
+                        obsidian
+                      </button>
+                      {activeId && (
+                        <a
+                          href={`/api/ask/${activeId}/pdf`}
+                          title="Download this answer as a structured PDF report"
+                          className="flex items-center gap-1.5 rounded-lg bg-plasma/10 px-2.5 py-1 font-mono text-[9px] uppercase tracking-widest text-plasma transition hover:bg-plasma/20"
+                        >
+                          <Download className="size-3" />
+                          export pdf
+                        </a>
+                      )}
+                    </div>
                   </div>
+                )}
+
+                {clipOpen && (
+                  <div className="glass mt-3 flex flex-col gap-2 rounded-lg p-3">
+                    <p className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+                      clip to obsidian → raw/
+                    </p>
+                    <label className="flex flex-col gap-1">
+                      <span className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+                        title
+                      </span>
+                      <input
+                        value={clipTitle}
+                        onChange={(e) => setClipTitle(e.target.value)}
+                        className="h-8 rounded-md bg-white/5 px-2 text-sm text-ink outline-none focus:bg-white/8"
+                      />
+                    </label>
+                    {clip.err && <p className="text-xs text-flare">{clip.err}</p>}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={clipPending}
+                        onClick={doClip}
+                        className="flex items-center gap-1.5 rounded-lg bg-ion/15 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-ion transition hover:bg-ion/25 disabled:opacity-40"
+                      >
+                        <BookMarked className="size-3.5" /> {clipPending ? "saving…" : "add to raw"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setClipOpen(false)}
+                        className="rounded-lg border border-white/8 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-ink-faint transition hover:text-ink-dim"
+                      >
+                        cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {clip.ok && !clipOpen && (
+                  <p className="mt-3 flex items-center gap-1.5 rounded-lg border border-ion/20 bg-ion/5 px-3 py-2 text-xs text-ion">
+                    <Check className="size-3.5" /> saved to{" "}
+                    <span className="font-mono">{clip.ok}</span> — your raw→wiki automation will take it from here.
+                  </p>
                 )}
               </div>
 
