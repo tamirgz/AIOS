@@ -87,7 +87,7 @@ export async function judgeAttempt(input: JudgeInput): Promise<JudgeVerdict> {
 
     const user =
       `THE ASK (${input.taskType}):\n${input.ask}\n\n` +
-      `WHAT THE AGENT PRODUCED (its final result text):\n${(input.result ?? "(the agent returned no text)").slice(0, 12000)}\n\n` +
+      `WHAT THE AGENT PRODUCED (its final result text):\n${(input.result ?? "(the agent returned no text)").slice(0, 16000)}\n\n` +
       `FILES THE AGENT ACTUALLY CHANGED:\n${changed}${patch}${noChangeGuidance}\n\n` +
       "Rule on whether the produced result satisfies the ask. Respond with ONLY a JSON object: " +
       `{"pass": boolean, "score": 0-100, "gaps": string[], "rationale": string}. ` +

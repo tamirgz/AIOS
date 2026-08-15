@@ -1,11 +1,10 @@
 "use server";
 
-import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, sql } from "@/core/db/client";
-import { getSetting } from "@/core/app-settings";
+import { clipToObsidianRaw } from "@/core/obsidian-clip";
 import { deleteBranchIfMerged, removeIsolation } from "./git";
 import { TYPE_DEFAULT_EXECUTOR } from "./defaults";
 import { assertFreeModel } from "./models";
@@ -46,6 +45,18 @@ export async function updateTaskPrompt(taskId: string, prompt: string) {
   revalidate(taskId);
 }
 
+/** Give a task its own header, independent of the auto-derived first line. */
+export async function updateTaskTitle(taskId: string, title: string) {
+  const next = title.trim().slice(0, 140);
+  if (!next) throw new Error("the title can't be empty");
+  await db
+    .update(workbenchTasks)
+    .set({ title: next, updatedAt: new Date() })
+    .where(eq(workbenchTasks.id, taskId));
+  await sql.notify("workbench_changed", taskId);
+  revalidate(taskId);
+}
+
 /** Edit the report text of an attempt (the "what came back" panel). */
 export async function updateAttemptResult(
   attemptId: string,
@@ -60,20 +71,9 @@ export async function updateAttemptResult(
 }
 
 /** Strip characters that can't live in a filename; keep it readable. */
-function safeFileName(title: string): string {
-  return (
-    title
-      .replace(/[\\/:*?"<>|]/g, " ") // illegal on macOS/Windows
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 120) || "Untitled"
-  );
-}
-
 /**
- * Write a report into the Obsidian vault's `raw/` folder with Web-Clipper-style
- * frontmatter, so the existing raw→wiki automation picks it up exactly as if it
- * had been clipped. Returns the file path written.
+ * Write a Workbench report into the Obsidian vault's `raw/` folder (shared clip
+ * helper — same format, rules and destination as Ask's save-to-Obsidian).
  */
 export async function clipTaskToObsidian(input: {
   title: string;
@@ -81,34 +81,7 @@ export async function clipTaskToObsidian(input: {
   body: string;
   createdISODate: string; // "YYYY-MM-DD" (computed client-side; server has no Date)
 }): Promise<{ path: string }> {
-  const vault = (await getSetting("obsidian_vault_path"))?.trim();
-  if (!vault) throw new Error("Set your Obsidian vault path in Settings first");
-
-  const title = input.title.trim() || "Untitled report";
-  const source = input.source.trim();
-  const date = input.createdISODate;
-
-  // YAML frontmatter matching the vault's existing clippings (tags: raw).
-  const yamlTitle = title.replace(/"/g, "'");
-  const frontmatter = [
-    "---",
-    `title: ${yamlTitle}`,
-    `source: ${source}`,
-    "author:",
-    "published:",
-    `created: ${date}`,
-    "description:",
-    "tags:",
-    "  - raw",
-    "---",
-    "",
-  ].join("\n");
-
-  const dir = join(vault, "raw");
-  await mkdir(dir, { recursive: true });
-  const path = join(dir, `${date} ${safeFileName(title)}.md`);
-  await writeFile(path, frontmatter + input.body.trim() + "\n", "utf8");
-  return { path };
+  return clipToObsidianRaw(input);
 }
 
 /**

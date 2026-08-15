@@ -16,6 +16,8 @@ export interface AskSource {
 export const askHistory = pgTable("ask_history", {
   id: uuid("id").defaultRandom().primaryKey(),
   query: text("query").notNull(),
+  /** Optional user-set header; the question is shown when this is null. */
+  title: text("title"),
   answer: text("answer").notNull(),
   sources: jsonb("sources").$type<AskSource[]>().notNull().default([]),
   model: text("model"),

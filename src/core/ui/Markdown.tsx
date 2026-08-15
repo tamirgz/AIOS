@@ -1,6 +1,7 @@
 "use client";
 
 import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 /** Shared AIOS-styled markdown renderer (reports, insights, agent output). */
 const components: Components = {
@@ -67,8 +68,35 @@ const components: Components = {
     />
   ),
   hr: () => <hr className="my-3 border-white/6" />,
+  // GFM tables — without these the model's `| a | b |` output renders as raw
+  // pipes (same fix as the Ask answer view).
+  table: (props) => (
+    <div className="mb-3 overflow-x-auto rounded-lg border border-white/8">
+      <table className="w-full border-collapse text-[13px]" {...props} />
+    </div>
+  ),
+  thead: (props) => <thead className="bg-white/[0.04]" {...props} />,
+  tr: (props) => <tr {...props} />,
+  th: (props) => (
+    <th
+      className="border-b border-white/10 px-3 py-2 text-left align-top font-mono text-[10px] uppercase tracking-widest text-ink-dim"
+      {...props}
+    />
+  ),
+  td: (props) => (
+    <td
+      className="border-b border-white/6 px-3 py-2 align-top leading-relaxed text-ink-dim [&:not(:last-child)]:border-r [&:not(:last-child)]:border-white/6"
+      {...props}
+    />
+  ),
 };
 
 export function Markdown({ children }: { children: string }) {
-  return <ReactMarkdown components={components}>{children}</ReactMarkdown>;
+  return (
+    <div dir="auto">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+        {children}
+      </ReactMarkdown>
+    </div>
+  );
 }

@@ -113,19 +113,18 @@ async function searxng(query: string, base: string): Promise<SearxResult[]> {
   }
 }
 
-/**
- * Search the web and return up to `max` authoritative sources (highest tier
- * first) with their page text, ready to append to the Ask context. `n` is
- * assigned later by the caller when it renumbers the full source list.
- */
-export async function webSearchSources(
-  query: string,
-  opts?: { max?: number },
-): Promise<AskSource[]> {
-  const max = opts?.max ?? 5;
-  const base = await resolveSearxngUrl();
-  if (!base) return [];
+interface Candidate {
+  url: string;
+  title: string;
+  content: string;
+  score: number;
+}
 
+/**
+ * Query SearXNG and return authoritative, on-topic results ranked by authority
+ * tier (no page fetch yet). Shared by the Ask enricher and the web.search tool.
+ */
+async function rankedCandidates(query: string, base: string): Promise<Candidate[]> {
   // Search the raw question — SearXNG's own relevance handles it best; reducing
   // it to keywords over-broadens (a lone "core" pulled in unrelated "core.*"
   // sites). The stopword list is instead used to judge relevance below.
@@ -134,12 +133,11 @@ export async function webSearchSources(
   if (!results.length) return [];
 
   // Keep only authoritative, free-to-read, ON-TOPIC results; one per site for
-  // diversity; score each by authority tier.
+  // diversity; score each by authority tier. A top-notch source is squarely on
+  // the subject: require it to hit at least two distinct query terms (one, if
+  // the question only has one) — a single common-word hit is how filler sneaks in.
   const seenHost = new Set<string>();
-  const candidates: { url: string; title: string; content: string; score: number }[] = [];
-  // A top-notch source is squarely on the subject: require it to hit at least
-  // two distinct query terms (one, if the question only has one). A single
-  // common-word hit ("core") is how off-topic filler sneaks in.
+  const candidates: Candidate[] = [];
   const need = Math.min(2, terms.length);
   for (const r of results) {
     if (!r.url || isLowQualityUrl(r.url)) continue;
@@ -162,12 +160,56 @@ export async function webSearchSources(
       score: authorityScore(host),
     });
   }
+  // Rank by authority tier (stable sort keeps SearXNG's relevance within a tier).
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates;
+}
+
+export interface WebSearchHit {
+  title: string;
+  url: string;
+  snippet: string;
+  authority: number; // 3 = standards/gov, 2 = official docs, 1 = other primary
+}
+
+/**
+ * Web search as an agent tool — authority-ranked hits with SearXNG snippets, no
+ * per-page fetch (fast). Empty if no SearXNG endpoint is configured.
+ */
+export async function searchWeb(
+  query: string,
+  opts?: { max?: number },
+): Promise<WebSearchHit[]> {
+  const max = opts?.max ?? 6;
+  const base = await resolveSearxngUrl();
+  if (!base) return [];
+  const candidates = await rankedCandidates(query, base);
+  return candidates.slice(0, max).map((c) => ({
+    title: clean(c.title).slice(0, 200) || c.url,
+    url: c.url,
+    snippet: clean(c.content).slice(0, 600),
+    authority: c.score,
+  }));
+}
+
+/**
+ * Search the web and return up to `max` authoritative sources (highest tier
+ * first) with their page text, ready to append to the Ask context. `n` is
+ * assigned later by the caller when it renumbers the full source list.
+ */
+export async function webSearchSources(
+  query: string,
+  opts?: { max?: number },
+): Promise<AskSource[]> {
+  const max = opts?.max ?? 5;
+  const base = await resolveSearxngUrl();
+  if (!base) return [];
+
+  const candidates = await rankedCandidates(query, base);
   if (!candidates.length) return [];
 
-  // Rank by authority tier (stable sort keeps SearXNG's relevance order within a
-  // tier). Fetch a pool a bit larger than `max` — some pages fetch empty and
-  // get dropped — then keep the top `max` that yielded real text, still ranked.
-  candidates.sort((a, b) => b.score - a.score);
+  // Fetch a pool a bit larger than `max` — some pages fetch empty and get
+  // dropped — then keep the top `max` that yielded real text, still ranked.
   const pool = candidates.slice(0, max + 3);
   const fetched = await Promise.all(
     pool.map(async (r) => {

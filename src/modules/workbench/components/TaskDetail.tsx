@@ -30,6 +30,7 @@ import {
   retryTask,
   unarchiveTask,
   updateTaskPrompt,
+  updateTaskTitle,
 } from "../actions";
 import type { TaskDetail as Detail } from "../queries";
 import { STATUS_META } from "./TaskBoard";
@@ -213,6 +214,8 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editingAsk, setEditingAsk] = useState(false);
   const [askDraft, setAskDraft] = useState(task.prompt);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(task.title);
   const router = useRouter();
   const live = task.status === "running" || task.status === "queued";
   useLiveEvents(["workbench_changed"]);
@@ -240,9 +243,72 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
           <ArrowLeft className="size-4" />
         </Link>
         <div className="flex-1">
-          <h2 className="font-display text-xl font-semibold text-ink">
-            {task.title}
-          </h2>
+          {editingTitle ? (
+            <div className="flex items-center gap-2">
+              <input
+                autoFocus
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && titleDraft.trim()) {
+                    start(async () => {
+                      await updateTaskTitle(task.id, titleDraft);
+                      setEditingTitle(false);
+                      router.refresh();
+                    });
+                  }
+                  if (e.key === "Escape") {
+                    setTitleDraft(task.title);
+                    setEditingTitle(false);
+                  }
+                }}
+                className="flex-1 rounded-md bg-white/5 px-2 py-1 font-display text-xl font-semibold text-ink outline-none focus:bg-white/8"
+              />
+              <button
+                type="button"
+                disabled={pending || !titleDraft.trim()}
+                onClick={() =>
+                  start(async () => {
+                    await updateTaskTitle(task.id, titleDraft);
+                    setEditingTitle(false);
+                    router.refresh();
+                  })
+                }
+                className="rounded-md bg-plasma/15 p-1.5 text-plasma transition hover:bg-plasma/25 disabled:opacity-40"
+                title="Save header"
+              >
+                <Check className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTitleDraft(task.title);
+                  setEditingTitle(false);
+                }}
+                className="rounded-md border border-white/8 p-1.5 text-ink-faint transition hover:text-ink-dim"
+                title="Cancel"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="group flex items-center gap-2">
+              <h2 className="font-display text-xl font-semibold text-ink">
+                {task.title}
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setTitleDraft(task.title);
+                  setEditingTitle(true);
+                }}
+                title="Edit header"
+                className="shrink-0 rounded-md p-1 text-ink-faint opacity-0 transition hover:bg-white/6 hover:text-ink-dim group-hover:opacity-100"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+            </div>
+          )}
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[9px] uppercase tracking-widest text-ink-faint">
             <span style={{ color: meta.color }}>{meta.label}</span>
             <span>{task.taskType}</span>
