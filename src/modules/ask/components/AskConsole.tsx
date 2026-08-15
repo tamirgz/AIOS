@@ -23,11 +23,17 @@ import {
   History,
   Lightbulb,
   Paperclip,
+  Pencil,
   Sparkles,
   X,
 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
-import { ask, clipAnswerToObsidian, deleteAskHistoryEntry } from "../actions";
+import {
+  ask,
+  clipAnswerToObsidian,
+  deleteAskHistoryEntry,
+  renameAskEntry,
+} from "../actions";
 import type { AskAnswer, AskSource } from "../answer";
 import type { AskHistoryEntry } from "../schema";
 
@@ -177,6 +183,11 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
   const [clipOpen, setClipOpen] = useState(false);
   const [clipTitle, setClipTitle] = useState("");
   const [clip, setClip] = useState<{ ok?: string; err?: string }>({});
+  // Editable header for the current answer (null = show the question).
+  const [entryTitle, setEntryTitle] = useState<string | null>(null);
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [titlePending, startTitle] = useTransition();
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const submit = () => {
@@ -185,6 +196,8 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
     setAsked(q);
     setResult(null);
     setActiveId(null);
+    setEntryTitle(null);
+    setTitleEditing(false);
     start(async () => {
       const r = await ask(q);
       setResult(r);
@@ -194,6 +207,7 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
           {
             id: r.historyId!,
             query: q,
+            title: null,
             answer: r.answer,
             sources: r.sources,
             model: r.model || null,
@@ -211,8 +225,28 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
     setAsked(entry.query);
     setResult({ answer: entry.answer, sources: entry.sources, model: entry.model ?? "" });
     setActiveId(entry.id);
+    setEntryTitle(entry.title ?? null);
+    setTitleEditing(false);
     setClipOpen(false);
     setClip({});
+  };
+
+  const openTitleEdit = () => {
+    setTitleDraft(entryTitle ?? asked);
+    setTitleEditing(true);
+  };
+
+  const saveTitle = () => {
+    if (!activeId) return;
+    const t = titleDraft.trim();
+    startTitle(async () => {
+      await renameAskEntry(activeId, t);
+      setEntryTitle(t || null);
+      setHistory((prev) =>
+        prev.map((h) => (h.id === activeId ? { ...h, title: t || null } : h)),
+      );
+      setTitleEditing(false);
+    });
   };
 
   const openClip = () => {
@@ -325,7 +359,7 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
                   title="Show this answer — already computed, no re-query"
                   className="min-w-0 flex-1 truncate text-left text-sm text-ink-dim transition hover:text-ink"
                 >
-                  {h.query}
+                  {h.title?.trim() || h.query}
                 </button>
                 <span className="shrink-0 font-mono text-[9px] text-ink-faint">
                   {formatWhen(h.createdAt)}
@@ -346,9 +380,58 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
 
       {asked && (
         <div className="flex flex-col gap-4">
-          <p className="font-mono text-[11px] uppercase tracking-widest text-ink-faint">
-            {asked}
-          </p>
+          {titleEditing ? (
+            <div className="flex items-center gap-2">
+              <input
+                autoFocus
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveTitle();
+                  if (e.key === "Escape") setTitleEditing(false);
+                }}
+                placeholder="Give this answer a header…"
+                className="h-8 flex-1 rounded-md bg-white/5 px-2 text-sm text-ink outline-none focus:bg-white/8"
+              />
+              <button
+                type="button"
+                disabled={titlePending}
+                onClick={saveTitle}
+                className="rounded-md bg-plasma/15 px-2.5 py-1 font-mono text-[9px] uppercase tracking-widest text-plasma transition hover:bg-plasma/25 disabled:opacity-40"
+              >
+                save
+              </button>
+              <button
+                type="button"
+                onClick={() => setTitleEditing(false)}
+                className="rounded-md border border-white/8 px-2.5 py-1 font-mono text-[9px] uppercase tracking-widest text-ink-faint transition hover:text-ink-dim"
+              >
+                cancel
+              </button>
+            </div>
+          ) : (
+            <div className="group flex items-center gap-2">
+              <p
+                dir="auto"
+                className={cn(
+                  "min-w-0 flex-1 font-mono text-[11px] uppercase tracking-widest",
+                  entryTitle ? "text-ink-dim" : "text-ink-faint",
+                )}
+              >
+                {entryTitle?.trim() || asked}
+              </p>
+              {activeId && (
+                <button
+                  type="button"
+                  onClick={openTitleEdit}
+                  title={entryTitle ? "Edit header" : "Add a header"}
+                  className="shrink-0 rounded-md p-1 text-ink-faint opacity-0 transition hover:bg-white/6 hover:text-ink-dim group-hover:opacity-100"
+                >
+                  <Pencil className="size-3" />
+                </button>
+              )}
+            </div>
+          )}
 
           {pending && (
             <div className="flex items-center gap-2 text-sm text-ink-dim">

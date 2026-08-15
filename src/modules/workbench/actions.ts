@@ -45,6 +45,18 @@ export async function updateTaskPrompt(taskId: string, prompt: string) {
   revalidate(taskId);
 }
 
+/** Give a task its own header, independent of the auto-derived first line. */
+export async function updateTaskTitle(taskId: string, title: string) {
+  const next = title.trim().slice(0, 140);
+  if (!next) throw new Error("the title can't be empty");
+  await db
+    .update(workbenchTasks)
+    .set({ title: next, updatedAt: new Date() })
+    .where(eq(workbenchTasks.id, taskId));
+  await sql.notify("workbench_changed", taskId);
+  revalidate(taskId);
+}
+
 /** Edit the report text of an attempt (the "what came back" panel). */
 export async function updateAttemptResult(
   attemptId: string,

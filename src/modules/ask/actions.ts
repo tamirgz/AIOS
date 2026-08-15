@@ -38,6 +38,16 @@ export async function deleteAskHistoryEntry(id: string): Promise<void> {
   revalidatePath("/m/ask");
 }
 
+/** Give an answer its own header (or clear it back to the question with ""). */
+export async function renameAskEntry(id: string, title: string): Promise<void> {
+  const next = title.trim().slice(0, 140);
+  await db
+    .update(askHistory)
+    .set({ title: next || null })
+    .where(eq(askHistory.id, id));
+  revalidatePath("/m/ask");
+}
+
 /**
  * Save an Ask answer into the Obsidian vault's `raw/` folder — same format,
  * rules and destination as Workbench outcomes. The note carries the answer, a
