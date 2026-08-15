@@ -3,8 +3,9 @@
 import { desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/core/db/client";
+import { clipToObsidianRaw } from "@/core/obsidian-clip";
 import { answerQuestion, type AskAnswer } from "./answer";
-import { askHistory, type AskHistoryEntry } from "./schema";
+import { askHistory, type AskHistoryEntry, type AskSource } from "./schema";
 
 /** Ask a question, and persist it so revisiting it later is instant. */
 export async function ask(query: string): Promise<AskAnswer & { historyId: string | null }> {
@@ -35,4 +36,41 @@ export async function listAskHistory(): Promise<AskHistoryEntry[]> {
 export async function deleteAskHistoryEntry(id: string): Promise<void> {
   await db.delete(askHistory).where(eq(askHistory.id, id));
   revalidatePath("/m/ask");
+}
+
+/** Give an answer its own header (or clear it back to the question with ""). */
+export async function renameAskEntry(id: string, title: string): Promise<void> {
+  const next = title.trim().slice(0, 140);
+  await db
+    .update(askHistory)
+    .set({ title: next || null })
+    .where(eq(askHistory.id, id));
+  revalidatePath("/m/ask");
+}
+
+/**
+ * Save an Ask answer into the Obsidian vault's `raw/` folder — same format,
+ * rules and destination as Workbench outcomes. The note carries the answer, a
+ * resolvable Sources list (so the inline [n] citations still make sense), and a
+ * provenance credit line; the vault's raw→wiki automation takes it from there.
+ */
+export async function clipAnswerToObsidian(input: {
+  title: string;
+  answer: string;
+  sources: AskSource[];
+  model: string | null;
+  createdISODate: string; // "YYYY-MM-DD" (server has no Date)
+}): Promise<{ path: string }> {
+  const sourcesMd = input.sources.length
+    ? "\n\n## Sources\n" +
+      input.sources.map((s) => `${s.n}. [${s.title}](${s.href})`).join("\n")
+    : "";
+  const credit = `Generated with ${input.model?.trim() || "AIOS"} — via AIOS Ask.`;
+  const body = `${input.answer.trim()}${sourcesMd}\n\n---\n\n*${credit}*`;
+  return clipToObsidianRaw({
+    title: input.title,
+    source: "", // Ask answers synthesise the user's own corpus — no single URL
+    body,
+    createdISODate: input.createdISODate,
+  });
 }
