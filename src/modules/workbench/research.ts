@@ -90,7 +90,7 @@ async function fetchViaReader(proxy: string, url: string): Promise<Article | nul
 }
 
 /** Read one article: local fetch first, reader-proxy fallback if blocked/thin. */
-async function readArticle(url: string): Promise<Article | null> {
+export async function readArticle(url: string): Promise<Article | null> {
   const local = clean(await fetchUrlText(url));
   if (local.length >= MIN_LOCAL_CHARS) {
     return { url, title: titleFromUrl(url), text: local };

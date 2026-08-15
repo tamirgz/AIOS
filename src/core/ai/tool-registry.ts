@@ -105,6 +105,39 @@ const CORE_TOOLS: AiToolDef[] = [
       return { sent: row.id };
     },
   },
+  {
+    name: "web.search",
+    description:
+      "Search the live web for CURRENT, authoritative information — standards bodies, official docs, government and reputable primary sources (paywalls and crowd/SEO sites are filtered out). Use for anything the user's own saved data won't have: recent events, external facts, current versions. Returns ranked hits with snippets; call web.read on a hit's url to get its full text. Free (self-hosted SearXNG).",
+    input: z.object({
+      query: z.string().min(1),
+      limit: z.number().int().min(1).max(10).default(6),
+    }),
+    async execute(input) {
+      const { searchWeb } = await import("@/modules/ask/websearch");
+      const hits = await searchWeb(input.query, { max: input.limit });
+      if (!hits.length)
+        return {
+          hits: [],
+          note: "No results — or web search isn't configured (set the searxng_url setting / SEARXNG_URL env).",
+        };
+      return { hits };
+    },
+  },
+  {
+    name: "web.read",
+    description:
+      "Fetch a web page and return its clean article text. Reads past most bot-walls/JS via a keyless reader proxy. Use to read or summarize a URL the user pasted, or to get the full text behind a web.search hit.",
+    input: z.object({
+      url: z.string().url(),
+    }),
+    async execute(input) {
+      const { readArticle } = await import("@/modules/workbench/research");
+      const a = await readArticle(input.url);
+      if (!a) return { ok: false, error: "Couldn't read that URL (unreachable or empty)." };
+      return { title: a.title, url: a.url, text: a.text.slice(0, 12000) };
+    },
+  },
 ];
 
 /** All module-declared AI tools, keyed by their dotted name ("tasks.create"). */
