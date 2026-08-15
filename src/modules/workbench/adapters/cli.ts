@@ -72,7 +72,7 @@ function parseJsonl(line: string): AdapterEvent[] {
   switch (o.type) {
     case "text":
       return part.text
-        ? [{ type: "text", payload: { text: String(part.text).slice(0, 4000) } }]
+        ? [{ type: "text", payload: { text: String(part.text).slice(0, 16000) } }]
         : [];
     case "tool_use": {
       const state = (part.state ?? {}) as Record<string, unknown>;
@@ -124,7 +124,7 @@ function parsePiJson(line: string): AdapterEvent[] {
   }
   const text = o.text ?? o.content ?? o.message;
   if (typeof text === "string" && text.trim()) {
-    return [{ type: "text", payload: { text: text.slice(0, 4000) } }];
+    return [{ type: "text", payload: { text: text.slice(0, 16000) } }];
   }
   return [];
 }
@@ -303,7 +303,7 @@ export const cliAdapter: Adapter = {
     return {
       ok: true,
       exitCode,
-      result: lastText.slice(0, 8000),
+      result: lastText.slice(0, 16000),
       inputTokens: inputTokens || undefined,
       outputTokens: outputTokens || undefined,
       costUsd,

@@ -23,6 +23,8 @@ import {
 import { TIMEOUTS } from "./defaults";
 import { assertFreeModel, normalizeModelForExecutor } from "./models";
 import { nativeAdapter } from "./adapters/native";
+import { researchAdapter } from "./adapters/research";
+import { gatherResearchContext } from "./research";
 import type { Adapter, AdapterEvent } from "./adapters/types";
 import {
   commitCheckpoint,
@@ -65,6 +67,7 @@ const ADAPTERS: Record<string, Adapter> = {
   "codex-headless": codexHeadlessAdapter,
   native: nativeAdapter,
   cli: cliAdapter,
+  research: researchAdapter,
 };
 
 const log = (m: string) =>
@@ -133,6 +136,7 @@ async function writeOpencodeConfig(workdir: string): Promise<void> {
         },
         // Unattended runs can't answer prompts. Edits are safe because the
         // engine confines every attempt to a throwaway git worktree.
+        //
         permission: {
           read: "allow",
           edit: "allow",
@@ -315,7 +319,14 @@ export async function runAttempt(attemptId: string): Promise<void> {
     .select()
     .from(executors)
     .where(eq(executors.id, attempt.executorId));
-  const adapter = ADAPTERS[executor?.kind ?? attempt.executorId];
+  // Research is a read-and-write-analysis task, not an agentic one — route it to
+  // the tool-free completion adapter instead of the chosen CLI agent (opencode
+  // can't be stopped from re-fetching the 403'd URL or dumping to files). Code
+  // executors (claude/codex) keep their own agent loop.
+  const adapter =
+    task.taskType === "research" && executor?.kind === "cli"
+      ? researchAdapter
+      : ADAPTERS[executor?.kind ?? attempt.executorId];
 
   // Per-attempt opencode data dir. opencode keeps a sqlite DB under
   // XDG_DATA_HOME; a run that's killed mid-write leaves it unmigratable, which
@@ -402,7 +413,9 @@ export async function runAttempt(attemptId: string): Promise<void> {
       // library so long as it's free. Refuse a metered spec here rather than
       // let it reach a paid API. The model was already resolved above.
       assertFreeModel(runModel);
-      await writeOpencodeConfig(workdir);
+      // Research bypasses opencode (see adapter selection), so it needs no
+      // opencode config; only real opencode runs get one.
+      if (task.taskType !== "research") await writeOpencodeConfig(workdir);
     }
 
     // Local models need autonomy spelled out — Claude infers it. But do NOT
@@ -422,9 +435,33 @@ export async function runAttempt(attemptId: string): Promise<void> {
         ].join("\n")
       : "";
 
-    const prompt =
-      executor?.kind === "cli"
+    // Research tasks name URLs, but the executors can't reliably fetch them
+    // (many sources 403 a server fetch). Read the article(s) up front and hand
+    // the text to the run — the tool-free research adapter answers straight from
+    // this material. Best-effort: no material just means a leaner prompt.
+    let researchBlock = "";
+    if (task.taskType === "research") {
+      const rc = await gatherResearchContext(task.prompt, workdir);
+      researchBlock = rc.block;
+      if (rc.articles > 0) {
+        await emitEvent(attempt.id, {
+          type: "status",
+          payload: { phase: "fetched", articles: rc.articles, related: rc.related },
+        });
+      }
+    }
+
+    // The preamble depends on what "done" means. A research task's deliverable
+    // is the analysis itself, so its material + a "write the analysis in your
+    // reply" preamble; code/docs tasks keep the edit-the-files preamble.
+    const cliPreamble =
+      task.taskType === "research"
         ? [
+            "You are a research analyst running unattended. The source material you need has already been fetched for you and is included below. Work from it plus your own knowledge.",
+            "Produce your COMPLETE analysis as your final reply — the written answer IS the deliverable and is what gets graded. Don't ask questions or stop to confirm.",
+            `Today is ${new Date().toISOString().slice(0, 10)}.`,
+          ]
+        : [
             "You are running unattended in this project directory. Read and edit files here directly, using the paths the tools give you.",
             "Do not ask questions, do not offer alternatives, do not stop to confirm — make the edits yourself, then stop.",
             // Recurring failure mode with local models: they read a 'do X on each
@@ -434,12 +471,12 @@ export async function runAttempt(attemptId: string): Promise<void> {
             // an empty diff and a failed run. Forbid the shortcut explicitly.
             "Do the actual work NOW by editing the target files in this directory. Do NOT create git hooks, CI workflows, or any automation to do it 'on future commits' — analyze the CURRENT state of the repo and make the concrete file edits the task names, this run. Never write into the .git/ directory.",
             `Today is ${new Date().toISOString().slice(0, 10)}.`,
-            "",
-            "TASK:",
-            task.prompt,
-            feedbackBlock,
-          ].join("\n")
-        : task.prompt + feedbackBlock;
+          ];
+
+    const prompt =
+      executor?.kind === "cli"
+        ? [...cliPreamble, "", "TASK:", task.prompt, feedbackBlock, researchBlock].join("\n")
+        : task.prompt + feedbackBlock + researchBlock;
 
     const result = await adapter.run(
       {
@@ -522,7 +559,7 @@ export async function runAttempt(attemptId: string): Promise<void> {
       .update(taskAttempts)
       .set({
         status,
-        result: result.result?.slice(0, 8000) ?? null,
+        result: result.result?.slice(0, 16000) ?? null,
         error: result.error?.slice(0, 2000) ?? null,
         exitCode: result.exitCode ?? null,
         inputTokens: result.inputTokens ?? null,
