@@ -19,6 +19,7 @@ const ALLOWED_INTEGRATION_KEYS = new Set([
   "gemini_api_key",
   "searxng_url",
   "ask_web_search",
+  "reader_proxy_url",
 ]);
 
 export async function disconnectGoogle() {
