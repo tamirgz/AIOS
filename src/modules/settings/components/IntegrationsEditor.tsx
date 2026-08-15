@@ -137,6 +137,7 @@ export function IntegrationsEditor({
   geminiApiKey,
   searxngUrl,
   webSearchOn,
+  readerProxyUrl,
 }: {
   icsUrl: string;
   slackWebhook: string;
@@ -150,6 +151,7 @@ export function IntegrationsEditor({
   geminiApiKey: string;
   searxngUrl: string;
   webSearchOn: boolean;
+  readerProxyUrl: string;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -168,6 +170,14 @@ export function IntegrationsEditor({
         hint="Base URL of a self-hosted SearXNG with the JSON format enabled — keyless and free (no paid search API). Leave blank to use the SEARXNG_URL env var. Example: https://your-host/searxng"
         placeholder="https://your-host/searxng"
         initial={searxngUrl}
+        secret={false}
+      />
+      <IntegrationField
+        settingKey="reader_proxy_url"
+        label="Reader proxy (for Workbench research)"
+        hint="Reads article URLs that block a direct fetch (403 bot-walls), returning clean text. Only the public URL is sent — keyless, no cost. Blank uses the default r.jina.ai; set 'off' to stay local-only; or point at a self-hosted reader. Example: https://r.jina.ai/"
+        placeholder="https://r.jina.ai/"
+        initial={readerProxyUrl}
         secret={false}
       />
       <IntegrationField
