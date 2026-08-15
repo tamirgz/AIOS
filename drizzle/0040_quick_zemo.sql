@@ -1,0 +1,1 @@
+ALTER TABLE "ask_history" ADD COLUMN "title" text;
