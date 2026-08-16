@@ -43,7 +43,28 @@ import {
 } from "./schema";
 
 /** Ollama serves one model at a time; two heavy attempts thrash the machine. */
-const MAX_CONCURRENT = 2;
+/**
+ * Concurrency is split into two pools, because the two kinds of executor have
+ * opposite scaling limits:
+ *  - LOCAL (cli → Ollama): Ollama serves one model at a time, so a second heavy
+ *    local run just thrashes the machine (model swap-in/out). One slot.
+ *  - CLOUD (claude-headless / codex / native): these call out to a hosted model
+ *    and parallelize fine. Several slots.
+ * The point: a long local routine can no longer block your Claude tasks, and
+ * vice-versa — each pool drains independently.
+ */
+const POOL_LIMITS = { local: 1, cloud: 4 } as const;
+type Pool = keyof typeof POOL_LIMITS;
+const MAX_QUEUE_PICKUP = POOL_LIMITS.local + POOL_LIMITS.cloud;
+
+/** A cli executor runs a local Ollama model; everything else is a cloud call. */
+async function poolOf(executorId: string): Promise<Pool> {
+  const [e] = await db
+    .select({ kind: executors.kind })
+    .from(executors)
+    .where(eq(executors.id, executorId));
+  return e?.kind === "cli" ? "local" : "cloud";
+}
 /** Run ids arrive as raw NOTIFY payloads; reject anything that isn't a uuid so
  * a malformed payload fails cleanly instead of corrupting the query params. */
 const UUID_RE =
@@ -288,12 +309,25 @@ export async function runAttempt(attemptId: string): Promise<void> {
     log(`ignoring malformed attempt id: ${JSON.stringify(attemptId).slice(0, 60)}`);
     return;
   }
-  const running = await db
-    .select({ id: taskAttempts.id })
+  // Which pool does THIS attempt belong to? (peek without claiming)
+  const [peek] = await db
+    .select({ executorId: taskAttempts.executorId })
     .from(taskAttempts)
+    .where(eq(taskAttempts.id, attemptId));
+  if (!peek) return;
+  const pool = await poolOf(peek.executorId);
+
+  // Count running attempts already in that pool.
+  const running = await db
+    .select({ kind: executors.kind })
+    .from(taskAttempts)
+    .leftJoin(executors, eq(executors.id, taskAttempts.executorId))
     .where(eq(taskAttempts.status, "running"));
-  if (running.length >= MAX_CONCURRENT) {
-    log(`at capacity (${running.length}) — ${attemptId} stays queued`);
+  const inPool = running.filter(
+    (r) => (r.kind === "cli" ? "local" : "cloud") === pool,
+  ).length;
+  if (inPool >= POOL_LIMITS[pool]) {
+    log(`${pool} pool full (${inPool}/${POOL_LIMITS[pool]}) — ${attemptId.slice(0, 8)} stays queued`);
     return;
   }
 
@@ -727,13 +761,15 @@ export async function reconcile(): Promise<void> {
   }
   if (dead.length) log(`reconciled ${dead.length} dead attempt(s)`);
 
-  // Then pick up anything queued (missed NOTIFY, or freed capacity).
+  // Then pick up anything queued (missed NOTIFY, or freed capacity). Pull enough
+  // candidates to fill both pools; runAttempt gates each by its own pool, so a
+  // full local pool won't stop a cloud attempt behind it from starting.
   const queued = await db
     .select({ id: taskAttempts.id })
     .from(taskAttempts)
     .where(eq(taskAttempts.status, "queued"))
     .orderBy(asc(taskAttempts.createdAt))
-    .limit(MAX_CONCURRENT);
+    .limit(MAX_QUEUE_PICKUP);
   for (const q of queued) {
     await runAttempt(q.id).catch((e) => log(`pickup ${q.id} failed: ${e}`));
   }
