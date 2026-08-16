@@ -172,4 +172,40 @@ export const workbenchTools: AiToolDef[] = [
       };
     },
   },
+  {
+    name: "routine.create",
+    risk: "approval",
+    description:
+      "Set up a RECURRING delegation (a routine): a standing ask that fires on a trigger — every new commit, a cron schedule, or both — against a project's attached repo, delivering changes as an approval-gated PR. Use to automate ongoing work (e.g. 'keep the docs in sync on every commit'). The project must have a repo attached.",
+    input: z.object({
+      name: z.string().min(1).describe("Short routine name"),
+      projectId: z.string().uuid().describe("Project (must have a repo) from projects.list"),
+      prompt: z.string().min(1).describe("The standing instruction run on each trigger"),
+      triggerKind: z
+        .enum(["commit", "schedule", "both"])
+        .default("commit")
+        .describe("What fires it: a new commit, a cron schedule, or both"),
+      schedule: z
+        .string()
+        .optional()
+        .describe("Cron expression, required when triggerKind includes 'schedule'"),
+      model: z.string().optional().describe("Free model override; omit for the default"),
+    }),
+    async execute(input) {
+      try {
+        const { createRoutine } = await import("./actions");
+        const row = await createRoutine({
+          name: input.name,
+          projectId: input.projectId,
+          prompt: input.prompt,
+          triggerKind: input.triggerKind,
+          schedule: input.schedule ?? null,
+          model: input.model ?? null,
+        });
+        return { created: { id: row.id, name: row.name, triggerKind: row.triggerKind } };
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : String(e) };
+      }
+    },
+  },
 ];
