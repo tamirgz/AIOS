@@ -135,3 +135,23 @@ export async function getProject(id: string, db: Db = defaultDb) {
     .limit(1);
   return row ?? null;
 }
+
+export interface ProjectOption {
+  id: string;
+  name: string;
+  kind: "project" | "area";
+}
+
+/**
+ * Minimal list for an "attach to project" picker — every non-archived project
+ * and area of development, so any item (an Ask answer, a Workbench task) can be
+ * filed under one. The caller groups by `kind`.
+ */
+export async function listProjectOptions(db: Db = defaultDb): Promise<ProjectOption[]> {
+  const rows = await db
+    .select({ id: projects.id, name: projects.name, kind: projects.kind })
+    .from(projects)
+    .where(sql`${projects.status} <> 'archived'`)
+    .orderBy(asc(projects.kind), asc(projects.name));
+  return rows as ProjectOption[];
+}

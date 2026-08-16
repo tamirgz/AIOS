@@ -33,7 +33,10 @@ import {
   clipAnswerToObsidian,
   deleteAskHistoryEntry,
   renameAskEntry,
+  setAskProject,
 } from "../actions";
+import { ProjectPicker } from "@/modules/projects/components/ProjectPicker";
+import type { ProjectOption } from "@/modules/projects/queries";
 import type { AskAnswer, AskSource } from "../answer";
 import type { AskHistoryEntry } from "../schema";
 
@@ -170,7 +173,13 @@ function formatWhen(d: Date | string): string {
   return new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry[] }) {
+export function AskConsole({
+  initialHistory,
+  projectOptions = [],
+}: {
+  initialHistory: AskHistoryEntry[];
+  projectOptions?: ProjectOption[];
+}) {
   const [pending, start] = useTransition();
   const [, startDelete] = useTransition();
   const [result, setResult] = useState<AskAnswer | null>(null);
@@ -188,6 +197,8 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [titlePending, startTitle] = useTransition();
+  // Which project/area the current answer is filed under.
+  const [entryProjectRef, setEntryProjectRef] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const submit = () => {
@@ -197,6 +208,7 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
     setResult(null);
     setActiveId(null);
     setEntryTitle(null);
+    setEntryProjectRef(null);
     setTitleEditing(false);
     start(async () => {
       const r = await ask(q);
@@ -208,6 +220,7 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
             id: r.historyId!,
             query: q,
             title: null,
+            projectRef: null,
             answer: r.answer,
             sources: r.sources,
             model: r.model || null,
@@ -226,6 +239,7 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
     setResult({ answer: entry.answer, sources: entry.sources, model: entry.model ?? "" });
     setActiveId(entry.id);
     setEntryTitle(entry.title ?? null);
+    setEntryProjectRef(entry.projectRef ?? null);
     setTitleEditing(false);
     setClipOpen(false);
     setClip({});
@@ -454,6 +468,21 @@ export function AskConsole({ initialHistory }: { initialHistory: AskHistoryEntry
                       {result.model}
                     </p>
                     <div className="flex items-center gap-1.5">
+                      {activeId && (
+                        <ProjectPicker
+                          options={projectOptions}
+                          value={entryProjectRef}
+                          onChange={async (ref) => {
+                            setEntryProjectRef(ref);
+                            await setAskProject(activeId, ref);
+                            setHistory((prev) =>
+                              prev.map((h) =>
+                                h.id === activeId ? { ...h, projectRef: ref } : h,
+                              ),
+                            );
+                          }}
+                        />
+                      )}
                       <button
                         type="button"
                         onClick={openClip}

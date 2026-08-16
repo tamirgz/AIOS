@@ -45,6 +45,15 @@ export async function updateTaskPrompt(taskId: string, prompt: string) {
   revalidate(taskId);
 }
 
+/** File a task under a project/area ("projects:<uuid>"), or unfile (null). */
+export async function setTaskProject(taskId: string, projectRef: string | null) {
+  await db
+    .update(workbenchTasks)
+    .set({ projectRef: projectRef || null, updatedAt: new Date() })
+    .where(eq(workbenchTasks.id, taskId));
+  revalidate(taskId);
+}
+
 /** Give a task its own header, independent of the auto-derived first line. */
 export async function updateTaskTitle(taskId: string, title: string) {
   const next = title.trim().slice(0, 140);
