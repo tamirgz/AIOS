@@ -1,13 +1,5 @@
 import { isNull, sql as dsql } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
-import { notes } from "@/modules/notes/schema";
-import { knowledgeItems } from "@/modules/knowledge/schema";
-import { tasks } from "@/modules/tasks/schema";
-import { obsidianNotes } from "@/modules/obsidian/schema";
-import { ideas } from "@/modules/ideas/schema";
-import { projectFiles, projects } from "@/modules/projects/schema";
-import { notionPages } from "@/modules/notion/schema";
-import { attentionItems } from "@/modules/today/schema";
 import { searchIndex } from "@/core/db/schema/search-index";
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
@@ -58,14 +50,7 @@ async function handleModelSwitch(log: (m: string) => void): Promise<void> {
   const active = (await getSetting(ACTIVE_MODEL_KEY)) ?? DEFAULT_EMBEDDING_MODEL;
   if (configured === active) return;
   log(`embedding model changed ${active} → ${configured}: re-embedding everything`);
-  await db.update(notes).set({ embedding: null });
-  await db.update(knowledgeItems).set({ embedding: null });
-  await db.update(tasks).set({ embedding: null });
-  await db.update(obsidianNotes).set({ embedding: null });
-  await db.update(ideas).set({ embedding: null });
-  await db.update(notionPages).set({ embedding: null });
-  await db.update(projectFiles).set({ embedding: null });
-  await db.update(attentionItems).set({ embedding: null });
+  // One vector space now — nulling the unified index re-embeds the whole corpus.
   await db.update(searchIndex).set({ embedding: null });
   await setSetting(ACTIVE_MODEL_KEY, configured);
 }
@@ -83,205 +68,23 @@ export async function sweepEmbeddings(
   await handleModelSwitch(log);
   let done = 0;
 
-  const noteRows = await db
-    .select({ id: notes.id, title: notes.title, body: notes.body })
-    .from(notes)
-    .where(isNull(notes.embedding))
-    .limit(20);
-  for (const n of noteRows) {
-    const e = await embedText(`${n.title}\n${n.body}`);
-    await db
-      .update(notes)
-      .set({ embedding: dsql`${toVec(e)}::vector` })
-      .where(dsql`${notes.id} = ${n.id}`);
-    done++;
-  }
-
-  const kRows = await db
-    .select()
-    .from(knowledgeItems)
-    .where(
-      dsql`${knowledgeItems.embedding} is null and ${knowledgeItems.status} = 'ready'`,
-    )
-    .limit(20);
-  for (const k of kRows) {
-    const text = [k.title, k.note, k.insight?.summary, k.insight?.keyIdeas?.join("\n"), k.insight?.tags?.join(" ")]
-      .filter(Boolean)
-      .join("\n");
-    const e = await embedText(text || k.input);
-    await db
-      .update(knowledgeItems)
-      .set({ embedding: dsql`${toVec(e)}::vector` })
-      .where(dsql`${knowledgeItems.id} = ${k.id}`);
-    done++;
-  }
-
-  const taskRows = await db
-    .select({ id: tasks.id, title: tasks.title, notes: tasks.notes })
-    .from(tasks)
-    .where(isNull(tasks.embedding))
-    .limit(20);
-  for (const t of taskRows) {
-    const e = await embedText(`${t.title}\n${t.notes ?? ""}`);
-    await db
-      .update(tasks)
-      .set({ embedding: dsql`${toVec(e)}::vector` })
-      .where(dsql`${tasks.id} = ${t.id}`);
-    done++;
-  }
-
-  const ideaRows = await db
-    .select({ id: ideas.id, title: ideas.title, notes: ideas.notes })
-    .from(ideas)
-    .where(isNull(ideas.embedding))
-    .limit(20);
-  for (const i of ideaRows) {
-    const e = await embedText(`${i.title}\n${i.notes ?? ""}`);
-    await db
-      .update(ideas)
-      .set({ embedding: dsql`${toVec(e)}::vector` })
-      .where(dsql`${ideas.id} = ${i.id}`);
-    done++;
-  }
-
-  const projectRows = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      description: projects.description,
-      goal: projects.goal,
-      nextAction: projects.nextAction,
-    })
-    .from(projects)
-    .where(isNull(projects.embedding))
-    .limit(20);
-  for (const p of projectRows) {
-    // Embed the project from its actual WORK, not just its name — name+goal
-    // alone is too sparse to tell a real task ("move the encrypted code") from
-    // an unrelated one ("consult a lawyer"), which is what let agents mis-anchor
-    // cards. Linked task/note titles ground the embedding in the real theme.
-    const ref = `projects:${p.id}`;
-    const [ptasks, pnotes] = await Promise.all([
-      db.select({ t: tasks.title }).from(tasks).where(dsql`${tasks.projectRef} = ${ref}`).limit(30),
-      db.select({ t: notes.title }).from(notes).where(dsql`${notes.projectRef} = ${ref}`).limit(30),
-    ]);
-    const text = [
-      p.name,
-      p.goal,
-      p.description,
-      p.nextAction,
-      ...ptasks.map((r) => r.t),
-      ...pnotes.map((r) => r.t),
-    ]
-      .filter(Boolean)
-      .join("\n");
-    const e = await embedText(text);
-    await db
-      .update(projects)
-      .set({ embedding: dsql`${toVec(e)}::vector` })
-      .where(dsql`${projects.id} = ${p.id}`);
-    done++;
-  }
-
-  // Open attention items — powers raise-time semantic dedup. Only OPEN rows
-  // matter (dedup only compares against open cards); backfills anything that
-  // missed embedding at insert (e.g. Ollama was briefly down).
-  const attnRows = await db
-    .select({ id: attentionItems.id, title: attentionItems.title })
-    .from(attentionItems)
-    .where(dsql`${attentionItems.embedding} is null and ${attentionItems.status} = 'open'`)
-    .limit(30);
-  for (const a of attnRows) {
-    const e = await embedText(a.title);
-    await db
-      .update(attentionItems)
-      .set({ embedding: dsql`${toVec(e)}::vector` })
-      .where(dsql`${attentionItems.id} = ${a.id}`);
-    done++;
-  }
-
-  // Archival memory entries — recall depends on these.
-  const { memoryEntries } = await import("@/core/db/schema/memory");
-  const memRows = await db
-    .select({ id: memoryEntries.id, text: memoryEntries.text })
-    .from(memoryEntries)
-    .where(isNull(memoryEntries.embedding))
-    .limit(30);
-  for (const m of memRows) {
-    const e = await embedText(m.text);
-    await db
-      .update(memoryEntries)
-      .set({ embedding: dsql`${toVec(e)}::vector` })
-      .where(dsql`${memoryEntries.id} = ${m.id}`);
-    done++;
-  }
-
-  // Vault index: larger batch — a first sync of a big vault backfills over
-  // successive sweeps (~1.5k notes/hour at 50 per 2-min tick).
-  const vaultRows = await db
-    .select({
-      id: obsidianNotes.id,
-      title: obsidianNotes.title,
-      excerpt: obsidianNotes.excerpt,
-    })
-    .from(obsidianNotes)
-    .where(isNull(obsidianNotes.embedding))
-    .limit(50);
-  for (const v of vaultRows) {
-    const e = await embedText(`${v.title}\n${v.excerpt}`);
-    await db
-      .update(obsidianNotes)
-      .set({ embedding: dsql`${toVec(e)}::vector` })
-      .where(dsql`${obsidianNotes.id} = ${v.id}`);
-    done++;
-  }
-
-  // Notion pages (present only when connected).
-  const notionRows = await db
-    .select({ id: notionPages.id, title: notionPages.title, content: notionPages.content })
-    .from(notionPages)
-    .where(isNull(notionPages.embedding))
-    .limit(30);
-  for (const p of notionRows) {
-    const e = await embedText(`${p.title}\n${p.content ?? ""}`);
-    await db
-      .update(notionPages)
-      .set({ embedding: dsql`${toVec(e)}::vector` })
-      .where(dsql`${notionPages.id} = ${p.id}`);
-    done++;
-  }
-
-  // Project files whose text extraction finished (status='ready') — skips
-  // rows still processing or that came back unsupported/error.
-  const fileRows = await db
-    .select({
-      id: projectFiles.id,
-      filename: projectFiles.filename,
-      extractedText: projectFiles.extractedText,
-    })
-    .from(projectFiles)
-    .where(
-      dsql`${projectFiles.embedding} is null and ${projectFiles.status} = 'ready'`,
-    )
-    .limit(20);
-  for (const f of fileRows) {
-    const e = await embedText(`${f.filename}\n${f.extractedText ?? ""}`);
-    await db
-      .update(projectFiles)
-      .set({ embedding: dsql`${toVec(e)}::vector` })
-      .where(dsql`${projectFiles.id} = ${f.id}`);
-    done++;
-  }
-
-  // Unified index rows (Gmail, Calendar, Telegram, reports, People, Inbox,
-  // Workbench results, Ask answers) — same local model, one loop.
+  // One corpus, one loop. Every source now lives in `search_index`; the batch
+  // is generous because a first full sync (or a model switch) has the whole
+  // corpus to embed, and each row is a single local Ollama call — free, offline.
+  // Embed the RICH `embed_text` (full body/excerpt/linked-work) when present,
+  // else the short title+snippet (external sources that never set embed_text).
   const idxRows = await db
-    .select({ id: searchIndex.id, title: searchIndex.title, snippet: searchIndex.snippet })
+    .select({
+      id: searchIndex.id,
+      title: searchIndex.title,
+      snippet: searchIndex.snippet,
+      embedText: searchIndex.embedText,
+    })
     .from(searchIndex)
     .where(isNull(searchIndex.embedding))
-    .limit(40);
+    .limit(80);
   for (const r of idxRows) {
-    const e = await embedText(`${r.title}\n${r.snippet ?? ""}`);
+    const e = await embedText(r.embedText ?? `${r.title}\n${r.snippet ?? ""}`);
     await db
       .update(searchIndex)
       .set({ embedding: dsql`${toVec(e)}::vector` })
@@ -375,51 +178,11 @@ export async function searchEverything(
     area: string | null;
     distance: number;
   }>(dsql`
-    (select 'note' as kind, id::text, title, left(body, 160) as snippet,
-            null::text as href, null::text as area, (embedding <=> ${vec}::vector) as distance
-       from notes where embedding is not null)
-    union all
-    (select 'knowledge', id::text, coalesce(title, left(input, 80)),
-            (insight->>'summary'), null, null, (embedding <=> ${vec}::vector)
-       from knowledge_items where embedding is not null)
-    union all
-    (select 'task', id::text, title, null, null, null,
-            (embedding <=> ${vec}::vector)
-       from tasks where embedding is not null)
-    union all
-    (select 'vault', path, title, left(excerpt, 160), null, null,
-            (embedding <=> ${vec}::vector)
-       from obsidian_notes where embedding is not null)
-    union all
-    (select 'idea', id::text, title, left(coalesce(notes, ''), 160), null, null,
-            (embedding <=> ${vec}::vector)
-       from ideas where embedding is not null)
-    union all
-    (select 'notion', id, title, left(coalesce(content, ''), 160), null, null,
-            (embedding <=> ${vec}::vector)
-       from notion_pages where embedding is not null)
-    union all
-    (select 'file', id::text, filename, left(coalesce(extracted_text, ''), 160), null, null,
-            (embedding <=> ${vec}::vector)
-       from project_files where embedding is not null)
-    union all
-    (select 'project', id::text, name, left(coalesce(description, ''), 160),
-            '/m/projects/' || id::text, null, (embedding <=> ${vec}::vector)
-       from projects where embedding is not null)
-    union all
-    (select 'attention', id::text, title, left(coalesce(body, ''), 160), href, null,
-            (embedding <=> ${vec}::vector)
-       from attention_items where embedding is not null)
-    union all
-    (select 'memory', id::text, left(text, 80), left(text, 200), null, null,
-            (embedding <=> ${vec}::vector)
-       from memory_entries where embedding is not null)
-    union all
-    (select kind, source_id, title, snippet, href, area_ref,
-            (embedding <=> ${vec}::vector) ${boost}
-       from search_index where embedding is not null)
-    order by distance asc
-    limit ${limit}
+    select kind, source_id as id, title, snippet, href, area_ref as area,
+           (embedding <=> ${vec}::vector) ${boost} as distance
+      from search_index where embedding is not null
+     order by distance asc
+     limit ${limit}
   `);
   return [...rows].map((r) => ({
     kind: r.kind as SemanticHit["kind"],
@@ -462,21 +225,16 @@ export interface Connections {
   related: Connection[];
 }
 
-const SOURCE_TABLE: Record<string, string> = {
-  note: "notes",
-  idea: "ideas",
-  knowledge: "knowledge_items",
-};
-
 /**
- * Best-fit project via two signals, strongest first:
- *  1) Neighbour vote — which project do this item's closest notes/tasks
- *     already belong to (weighted by closeness). Robust even when a project's
- *     own description is thin.
- *  2) Direct — the project whose name+description embeds closest.
+ * Best-fit project via two signals, strongest first — now all over the unified
+ * `search_index` (one vector space):
+ *  1) Neighbour vote — which project do this item's closest notes/tasks already
+ *     belong to (weighted by closeness). `project_refs` is a jsonb array, so we
+ *     unnest it — an item filed under two projects votes for both.
+ *  2) Direct — the project row (kind='project') whose grounded vector is closest.
  */
 async function suggestProject(
-  table: string,
+  kind: string,
   sourceId: string,
 ): Promise<ProjectSuggestion | null> {
   // 1 — neighbour vote.
@@ -487,21 +245,17 @@ async function suggestProject(
     n: number;
   }>(dsql`
     with target as (
-      select embedding from ${dsql.raw(table)}
-       where id = ${sourceId} and embedding is not null),
+      select embedding from search_index
+       where kind = ${kind} and source_id = ${sourceId} and embedding is not null),
     neighbours as (
-      select project_ref,
-             (embedding <=> (select embedding from target)) as d
-        from (
-          select project_ref, embedding, id::text as rid from notes
-           where embedding is not null and project_ref is not null
-          union all
-          select project_ref, embedding, id::text as rid from tasks
-           where embedding is not null and project_ref is not null
-        ) x
-       where rid <> ${sourceId}
+      select ref as project_ref,
+             (si.embedding <=> (select embedding from target)) as d
+        from search_index si, jsonb_array_elements_text(si.project_refs) ref
+       where si.kind in ('note','task') and si.embedding is not null
+         and ref like 'projects:%'
+         and not (si.kind = ${kind} and si.source_id = ${sourceId})
          and (select embedding from target) is not null
-         and (embedding <=> (select embedding from target)) < ${RELATED_MAX_DISTANCE})
+         and (si.embedding <=> (select embedding from target)) < ${RELATED_MAX_DISTANCE})
     select project_ref,
            sum(${RELATED_MAX_DISTANCE} - d)::float8 as score,
            min(d)::float8 as best,
@@ -536,12 +290,13 @@ async function suggestProject(
     distance: number;
   }>(dsql`
     with target as (
-      select embedding from ${dsql.raw(table)}
-       where id = ${sourceId} and embedding is not null)
+      select embedding from search_index
+       where kind = ${kind} and source_id = ${sourceId} and embedding is not null)
     select p.id::text, p.name,
-           (p.embedding <=> (select embedding from target))::float8 as distance
-      from projects p
-     where p.embedding is not null
+           (si.embedding <=> (select embedding from target))::float8 as distance
+      from search_index si
+      join projects p on p.id::text = si.source_id
+     where si.kind = 'project' and si.embedding is not null
        and (select embedding from target) is not null
      order by distance asc
      limit 1
@@ -573,9 +328,10 @@ export async function matchProjectByText(
     const vec = await embedText(clean.slice(0, 2000));
     const rows = await db.execute<{ id: string; name: string; distance: number }>(dsql`
       select p.id::text, p.name,
-             (p.embedding <=> ${toVec(vec)}::vector)::float8 as distance
-        from projects p
-       where p.embedding is not null and p.status = 'active'
+             (si.embedding <=> ${toVec(vec)}::vector)::float8 as distance
+        from search_index si
+        join projects p on p.id::text = si.source_id
+       where si.kind = 'project' and si.embedding is not null and p.status = 'active'
        order by distance asc
        limit 1
     `);
@@ -609,13 +365,11 @@ export async function suggestProjectByText(
     const v = toVec(await embedText(clean.slice(0, 2000)));
     const rows = await db.execute<{ project_ref: string; best: number; n: number }>(dsql`
       with neighbours as (
-        select project_ref, (embedding <=> ${v}::vector) as d
-          from (
-            select project_ref, embedding from notes where embedding is not null and project_ref is not null
-            union all
-            select project_ref, embedding from tasks where embedding is not null and project_ref is not null
-          ) x
-         where (embedding <=> ${v}::vector) < ${RELATED_MAX_DISTANCE})
+        select ref as project_ref, (si.embedding <=> ${v}::vector) as d
+          from search_index si, jsonb_array_elements_text(si.project_refs) ref
+         where si.kind in ('note','task') and si.embedding is not null
+           and ref like 'projects:%'
+           and (si.embedding <=> ${v}::vector) < ${RELATED_MAX_DISTANCE})
       select project_ref, min(d)::float8 as best, count(*)::int as n
         from neighbours
        group by project_ref
@@ -684,20 +438,17 @@ export async function getConnections(
   sourceId: string,
   opts: { limit?: number; currentProjectId?: string | null } = {},
 ): Promise<Connections> {
-  const table = SOURCE_TABLE[sourceKind];
-  if (!table) return { projectSuggestion: null, related: [] };
+  if (!["note", "idea", "knowledge"].includes(sourceKind))
+    return { projectSuggestion: null, related: [] };
   const limit = opts.limit ?? 6;
-  const selfClause = (col: string, k: string) =>
-    dsql.raw(
-      `not ('${sourceKind}' = '${k}' and ${col} = '${sourceId.replace(/'/g, "")}')`,
-    );
 
   try {
     let projectSuggestion: ProjectSuggestion | null = null;
     if (!opts.currentProjectId) {
-      projectSuggestion = await suggestProject(table, sourceId);
+      projectSuggestion = await suggestProject(sourceKind, sourceId);
     }
 
+    // Cross-type neighbours, all from the one index. Self-exclude by (kind,id).
     const rows = await db.execute<{
       kind: string;
       id: string;
@@ -706,25 +457,16 @@ export async function getConnections(
       distance: number;
     }>(dsql`
       with target as (
-        select embedding from ${dsql.raw(table)}
-         where id = ${sourceId} and embedding is not null)
-      (select 'note' as kind, n.id::text, n.title, left(n.body, 140) as snippet,
-              (n.embedding <=> (select embedding from target)) as distance
-         from notes n where n.embedding is not null and ${selfClause("n.id::text", "note")})
-      union all
-      (select 'idea', i.id::text, i.title, left(coalesce(i.notes, ''), 140),
-              (i.embedding <=> (select embedding from target))
-         from ideas i where i.embedding is not null and ${selfClause("i.id::text", "idea")})
-      union all
-      (select 'knowledge', k.id::text, coalesce(k.title, left(k.input, 80)),
-              (k.insight->>'summary'), (k.embedding <=> (select embedding from target))
-         from knowledge_items k where k.embedding is not null and ${selfClause("k.id::text", "knowledge")})
-      union all
-      (select 'vault', o.path, o.title, left(o.excerpt, 140),
-              (o.embedding <=> (select embedding from target))
-         from obsidian_notes o where o.embedding is not null)
-      order by distance asc
-      limit ${limit + 4}
+        select embedding from search_index
+         where kind = ${sourceKind} and source_id = ${sourceId} and embedding is not null)
+      select si.kind, si.source_id as id, si.title, si.snippet,
+             (si.embedding <=> (select embedding from target)) as distance
+        from search_index si
+       where si.kind in ('note','idea','knowledge','vault') and si.embedding is not null
+         and not (si.kind = ${sourceKind} and si.source_id = ${sourceId})
+         and (select embedding from target) is not null
+       order by distance asc
+       limit ${limit + 4}
     `);
 
     const related: Connection[] = [...rows]

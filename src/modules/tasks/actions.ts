@@ -66,11 +66,11 @@ export async function updateTask(
     featureRef: string | null;
   }>,
 ) {
-  // Content changed → stale embedding; the sweep re-computes it.
-  const contentChanged = "title" in patch || "notes" in patch;
+  // Re-embedding on content change is handled by the search-index content-hash
+  // gate — the next sync detects the new text and re-embeds. No column to clear.
   const [row] = await db
     .update(tasks)
-    .set({ ...patch, ...(contentChanged ? { embedding: null } : {}) })
+    .set(patch)
     .where(eq(tasks.id, id))
     .returning();
   revalidatePath("/");

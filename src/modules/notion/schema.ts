@@ -1,5 +1,4 @@
 import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { embeddingVector } from "@/core/db/vector";
 
 /**
  * Read-only mirror of Notion pages (title + a text snippet), embedded so the
@@ -13,7 +12,6 @@ export const notionPages = pgTable("notion_pages", {
   title: text("title").notNull().default("(untitled)"),
   url: text("url"),
   content: text("content"),
-  embedding: embeddingVector("embedding"),
   lastEdited: timestamp("last_edited", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
