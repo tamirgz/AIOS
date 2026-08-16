@@ -8,9 +8,10 @@ import { markdown } from "@codemirror/lang-markdown";
 import ReactMarkdown, { type Components } from "react-markdown";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
-import { deleteNote, updateNote } from "../actions";
+import { deleteNote, setNoteProjects, updateNote } from "../actions";
 import type { Note } from "../schema";
-import { ProjectPicker, type PickerProject } from "./ProjectPicker";
+import { ProjectMultiPicker } from "@/modules/projects/components/ProjectMultiPicker";
+import type { ProjectOption } from "@/modules/projects/queries";
 
 type SaveStatus = "saved" | "saving" | "unsaved";
 
@@ -89,11 +90,12 @@ export function NoteEditor({
   projects = [],
 }: {
   note: Note;
-  projects?: PickerProject[];
+  projects?: ProjectOption[];
 }) {
   const router = useRouter();
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body);
+  const [projectRefs, setProjectRefs] = useState<string[]>(note.projectRefs ?? []);
   const [status, setStatus] = useState<SaveStatus>("saved");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [armed, setArmed] = useState(false);
@@ -154,10 +156,13 @@ export function NoteEditor({
           <ArrowLeft className="size-3.5" />
           notes
         </Link>
-        <ProjectPicker
-          noteId={note.id}
-          projects={projects}
-          currentProjectId={note.projectRef?.split(":")[1] ?? null}
+        <ProjectMultiPicker
+          options={projects}
+          value={projectRefs}
+          onChange={async (next) => {
+            setProjectRefs(next);
+            await setNoteProjects(note.id, next);
+          }}
         />
         <span
           className={cn(
