@@ -138,6 +138,8 @@ export function IntegrationsEditor({
   searxngUrl,
   webSearchOn,
   readerProxyUrl,
+  mlxBaseUrl,
+  mlxModels,
 }: {
   icsUrl: string;
   slackWebhook: string;
@@ -152,6 +154,8 @@ export function IntegrationsEditor({
   searxngUrl: string;
   webSearchOn: boolean;
   readerProxyUrl: string;
+  mlxBaseUrl: string;
+  mlxModels: string;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -178,6 +182,22 @@ export function IntegrationsEditor({
         hint="Reads article URLs that block a direct fetch (403 bot-walls), returning clean text. Only the public URL is sent — keyless, no cost. Blank uses the default r.jina.ai; set 'off' to stay local-only; or point at a self-hosted reader. Example: https://r.jina.ai/"
         placeholder="https://r.jina.ai/"
         initial={readerProxyUrl}
+        secret={false}
+      />
+      <IntegrationField
+        settingKey="mlx_base_url"
+        label="Apple MLX endpoint (mlx_lm.server)"
+        hint="Base URL of a running mlx_lm.server (OpenAI-compatible). Serves MLX-format models on Apple silicon — measured ~5× Ollama's throughput on MoE models (Qwen3-Coder-30B-A3B). Blank uses MLX_BASE_URL or the default http://localhost:8080/v1. Start it with: mlx_lm.server --port 8080"
+        placeholder="http://localhost:8080/v1"
+        initial={mlxBaseUrl}
+        secret={false}
+      />
+      <IntegrationField
+        settingKey="mlx_models"
+        label="Available MLX models"
+        hint="Comma- or newline-separated MLX model ids (HuggingFace ids or local paths) you've downloaded — these appear as selectable models for the 'mlx' provider in AI Routing above. One mlx_lm.server loads any of them on demand. Example: mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit, mlx-community/Qwen3-8B-4bit"
+        placeholder="mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit"
+        initial={mlxModels}
         secret={false}
       />
       <IntegrationField

@@ -25,6 +25,18 @@ export const mlxProvider: AIProvider = {
   id: "mlx",
 
   async listModels() {
+    // Prefer the user-curated list (Settings · Connections · `mlx_models`) — a
+    // single mlx_lm.server loads any of them on demand by HF id/path, so this is
+    // what should appear in the routing dropdown. Falls back to whatever the
+    // server currently reports if the list isn't configured.
+    const { getSetting } = await import("@/core/app-settings");
+    const configured = (await getSetting("mlx_models").catch(() => null))?.trim();
+    if (configured) {
+      return configured
+        .split(/[\n,]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
     const base = await mlxBase();
     const res = await fetch(`${base}/models`, { signal: AbortSignal.timeout(4000) });
     if (!res.ok) throw new Error(`mlx_lm.server ${base}/models → ${res.status}`);
