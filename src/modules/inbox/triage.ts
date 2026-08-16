@@ -11,7 +11,6 @@ const TRIAGE_TOOLS = [
   "notes.create",
   "knowledge.capture",
   "ideas.capture",
-  "calendar.createEvent",
 ];
 
 function safeJsonParse(s: string): unknown {
@@ -45,8 +44,6 @@ function routeFor(
       return { kind: "knowledge", label: "Knowledge", href: id ? `/m/knowledge/${id}` : "/m/knowledge" };
     case "ideas.capture":
       return { kind: "idea", label: "Idea", href: id ? `/m/ideas/${id}` : "/m/ideas" };
-    case "calendar.createEvent":
-      return { kind: "event", label: "Event", href: "/m/calendar" };
     default:
       return null;
   }
@@ -87,7 +84,7 @@ export async function triageInboxItem(itemId: string): Promise<void> {
         "  • URL/repo/video/quote worth keeping → knowledge.capture (pass input through; add why it matters)",
         "  • a product/business/feature idea or 'what if…' concept → ideas.capture",
         "  • longer thought or journal-style note → notes.create (give it a real title)",
-        "  • something happening at a date/time → calendar.createEvent",
+        "  • something happening at a specific date/time → tasks.create with that dueAt (we do NOT auto-write the calendar)",
         "Use at most ONE create OR ONE status update (tasks.list to find it doesn't count). If it's pure noise, use no tool. Then answer with ONE short sentence describing what you did — name the task and its new status if you updated one.",
         `Current date-time: ${new Date().toISOString()}`,
         "",

@@ -1,9 +1,11 @@
 import { z } from "zod";
 import type { AiToolDef } from "@/core/modules/types.server";
-import { sql } from "@/core/db/client";
 import { getAgenda } from "./agenda";
-import { calendarEvents } from "./schema";
 
+/**
+ * Calendar is READ-ONLY for agents. Writing to the calendar (creating, editing,
+ * or cancelling events) is intentionally not exposed — the user reserves that.
+ */
 export const calendarTools: AiToolDef[] = [
   {
     name: "calendar.agenda",
@@ -31,33 +33,6 @@ export const calendarTools: AiToolDef[] = [
         allDay: i.allDay,
         detail: i.detail,
       }));
-    },
-  },
-  {
-    name: "calendar.createEvent",
-    risk: "approval",
-    description:
-      "Create a local AIOS calendar event (not written to Google Calendar).",
-    input: z.object({
-      title: z.string().min(1),
-      startAt: z.string().describe("ISO 8601 start date-time"),
-      endAt: z.string().optional().describe("ISO 8601 end date-time"),
-      allDay: z.boolean().default(false),
-      notes: z.string().optional(),
-    }),
-    async execute(input, { db }) {
-      const [row] = await db
-        .insert(calendarEvents)
-        .values({
-          title: input.title,
-          startAt: new Date(input.startAt),
-          endAt: input.endAt ? new Date(input.endAt) : null,
-          allDay: input.allDay,
-          notes: input.notes ?? null,
-        })
-        .returning();
-      await sql.notify("calendar_changed", row.id);
-      return { created: { id: row.id, title: row.title, startAt: row.startAt } };
     },
   },
 ];
