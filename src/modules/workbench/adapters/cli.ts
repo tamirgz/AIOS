@@ -15,8 +15,6 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { subscriptionEnv } from "@/core/ai/auth";
 import type { Adapter, AdapterContext, AdapterEvent, AdapterResult } from "./types";
 import {
   AIOS_OPENCODE_CONFIG,
@@ -24,6 +22,7 @@ import {
   childPath,
   resolveBin,
 } from "./opencode-env";
+import { harnessEnv, harnessHome, maybeSeatbelt } from "./sandbox";
 import {
   classifyModelFailure,
   recordModelHealth,
@@ -158,23 +157,32 @@ export const cliAdapter: Adapter = {
     }
 
     const parser = ctx.parser ?? "text";
-    const child = spawn(bin, args, {
+    // Subscription/local-safe env in a private HOME (harnessEnv → subscriptionEnv
+    // strips metered keys; XDG dirs point at the sandbox so opencode/pi caches
+    // and state stay out of the user's real config).
+    const env = harnessEnv("cli", {
+      ...ctx.env,
+      PATH: childPath(),
+      // THE root-cause fix for "opencode edits the wrong repo": the worker's
+      // PWD is the AIOS project, and opencode (like many tools) trusts $PWD
+      // over the actual cwd to find its project root. Inheriting the stale
+      // value made every run operate in the AIOS checkout — it even wrote a
+      // file there once. Pin PWD to the isolated workdir.
+      PWD: ctx.workdir,
+      CI: "1",
+    });
+    // Tier 2: for these auto-approve local CLIs, the OS enforces that writes
+    // stay inside the workdir + sandbox home + tmp (no-op if seatbelt is off
+    // or unavailable).
+    const launch = maybeSeatbelt(bin, args, {
+      workdir: ctx.workdir,
+      home: harnessHome("cli"),
+    });
+    const child = spawn(launch.bin, launch.args, {
       cwd: ctx.workdir,
       detached: true, // own process group, so a timeout kills its children too
       stdio: ["ignore", "pipe", "pipe"],
-      // Subscription/local auth only, for every executor we spawn.
-      env: subscriptionEnv({
-        ...ctx.env,
-        PATH: childPath(),
-        HOME: process.env.HOME ?? homedir(),
-        // THE root-cause fix for "opencode edits the wrong repo": the worker's
-        // PWD is the AIOS project, and opencode (like many tools) trusts $PWD
-        // over the actual cwd to find its project root. Inheriting the stale
-        // value made every run operate in the AIOS checkout — it even wrote a
-        // file there once. Pin PWD to the isolated workdir.
-        PWD: ctx.workdir,
-        CI: "1",
-      }),
+      env,
     });
     if (child.pid) ctx.onPid?.(child.pid);
 

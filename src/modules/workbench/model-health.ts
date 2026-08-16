@@ -18,7 +18,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { subscriptionEnv } from "@/core/ai/auth";
+import { harnessEnv } from "./adapters/sandbox";
 import {
   AIOS_OPENCODE_CONFIG,
   AIOS_OPENCODE_DIR,
@@ -226,9 +226,9 @@ export function probeFreeModel(
         cwd: AIOS_OPENCODE_DIR,
         detached: true,
         stdio: ["ignore", "pipe", "pipe"],
-        env: subscriptionEnv({
+        // Same isolated, subscription-safe env as a real cli run.
+        env: harnessEnv("cli", {
           PATH: childPath(),
-          HOME: process.env.HOME ?? homedir(),
           OPENCODE_CONFIG: AIOS_OPENCODE_CONFIG,
           PWD: AIOS_OPENCODE_DIR,
           CI: "1",
