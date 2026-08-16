@@ -7,6 +7,7 @@
 import { and, eq, sql as dsql } from "drizzle-orm";
 import { db, sql } from "@/core/db/client";
 import { embedText, groundProjectRef } from "@/core/embeddings";
+import { indexRow } from "@/core/search-index";
 import { attentionItems, type AttentionType } from "./schema";
 
 // Below this cosine distance, two attention titles are treated as the same
@@ -129,10 +130,14 @@ export async function insertAttentionItem(input: RaiseInput) {
   let embedding: number[] | null = null;
   try {
     embedding = await embedText(input.title.trim());
+    // Compare against sibling OPEN cards via the unified index. Joined back to
+    // attention_items on status='open' so a card closed within the last sync
+    // window can't resurface as a false duplicate.
     const [near] = await db.execute<{ id: string; distance: number }>(dsql`
-      select id, (embedding <=> ${toVec(embedding)}::vector) as distance
-      from attention_items
-      where status = 'open' and embedding is not null
+      select a.id, (si.embedding <=> ${toVec(embedding)}::vector) as distance
+      from search_index si
+      join attention_items a on a.id::text = si.source_id and a.status = 'open'
+      where si.kind = 'attention' and si.embedding is not null
       order by distance asc
       limit 1
     `);
@@ -163,9 +168,12 @@ export async function insertAttentionItem(input: RaiseInput) {
         href: input.href ?? null,
         payload: input.payload ?? {},
         dedupeKey,
-        embedding: embedding ? dsql`${toVec(embedding)}::vector` : null,
       })
       .returning();
+    // Push this card into the unified index right now (with its freshly-computed
+    // title vector) so the NEXT agent's raise-time dedup sees it immediately,
+    // rather than waiting for the 2-min sync.
+    await indexRow("attention", row.id, embedding);
     await sql.notify("attention_changed", "");
     return row;
   } catch (e) {

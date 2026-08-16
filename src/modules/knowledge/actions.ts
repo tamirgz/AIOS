@@ -46,8 +46,7 @@ export async function retryKnowledge(id: string) {
 export async function updateKnowledgeNote(id: string, note: string) {
   await db
     .update(knowledgeItems)
-    // Your note feeds the embedding — clear it so the sweep re-computes.
-    .set({ note: note.trim() || null, embedding: null, updatedAt: new Date() })
+    .set({ note: note.trim() || null, updatedAt: new Date() })
     .where(eq(knowledgeItems.id, id));
   revalidatePath(`/m/knowledge/${id}`);
 }

@@ -5,7 +5,6 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { embeddingVector } from "@/core/db/vector";
 
 /**
  * Read-only index of the user's Obsidian vault. AIOS never writes to the
@@ -22,7 +21,6 @@ export const obsidianNotes = pgTable(
     /** First ~1.5k chars, markdown stripped — search surface + embed input. */
     excerpt: text("excerpt").notNull().default(""),
     mtime: timestamp("mtime", { withTimezone: true }).notNull(),
-    embedding: embeddingVector("embedding"),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

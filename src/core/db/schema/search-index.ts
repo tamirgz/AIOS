@@ -19,9 +19,12 @@ import { embeddingVector } from "@/core/db/vector";
  * reports, People, Inbox, and even our own Workbench results / Ask answers fell
  * out of the corpus.
  *
- * This table is the single place those "extra" sources flow into: one row per
- * source item, embedded by the same local sweep, searched by one query. Phase 2
- * migrates the per-table sources here too; Phase 3 grounds `projectRefs`.
+ * This table is the single place ALL sources flow into: one row per source
+ * item, embedded by the same local sweep, searched by one query. Phase 2 folded
+ * the per-table sources (notes, tasks, ideas, knowledge, vault, Notion, files,
+ * projects, attention, memory) in here too, so there is now ONE vector space,
+ * one sweep, and one query surface every consumer (search, relations, project
+ * suggestions, memory recall, agents) reads from. Phase 3 grounds `areaRef`.
  */
 export const searchIndex = pgTable(
   "search_index",
@@ -32,7 +35,16 @@ export const searchIndex = pgTable(
     /** The source row's id, so a re-sync upserts instead of duplicating. */
     sourceId: text("source_id").notNull(),
     title: text("title").notNull(),
+    /** Short human-facing preview (truncated for display). */
     snippet: text("snippet"),
+    /**
+     * The RICH text actually embedded — a note's full body, a vault excerpt, a
+     * project's linked-work titles — kept separate from the short display
+     * `snippet` so long-form sources don't lose their signal to truncation. The
+     * sweep embeds `coalesce(embed_text, title || snippet)`; short external
+     * sources (mail, events…) leave it null and embed title+snippet as before.
+     */
+    embedText: text("embed_text"),
     /** Where clicking the hit goes. */
     href: text("href"),
     /** Projects/areas this item belongs to (precise, user- or source-set). */

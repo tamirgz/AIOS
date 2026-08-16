@@ -178,18 +178,24 @@ export async function recallEntries(
   try {
     const { embedText } = await import("@/core/embeddings");
     const vec = `[${(await embedText(query)).join(",")}]`;
+    // Memory now embeds through the unified index (kind='memory'); rank there,
+    // then fetch the full rows here so recall still returns real entry text.
     const rows = await db.execute<{
       kind: string;
       text: string;
       created_at: Date;
       source: string;
     }>(dsql`
-      select kind, text, created_at, source,
-             (embedding <=> ${vec}::vector) as distance
-        from memory_entries
-       where embedding is not null
-       order by distance asc
-       limit ${limit}
+      with ranked as (
+        select source_id, (embedding <=> ${vec}::vector) as distance
+          from search_index
+         where kind = 'memory' and embedding is not null
+         order by distance asc
+         limit ${limit})
+      select m.kind, m.text, m.created_at, m.source
+        from memory_entries m
+        join ranked r on r.source_id = m.id::text
+       order by r.distance asc
     `);
     if ([...rows].length > 0) {
       return [...rows].map((r) => ({

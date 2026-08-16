@@ -9,7 +9,6 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { embeddingVector } from "@/core/db/vector";
 
 /**
  * The attention item — the single atom of the Life-OS loop (ONE-STOP §3.2).
@@ -67,13 +66,6 @@ export const attentionItems = pgTable(
     payload: jsonb("payload").notNull().default({}),
     /** Idempotency key so an agent re-run doesn't raise the same card twice. */
     dedupeKey: text("dedupe_key"),
-    /**
-     * Title embedding — powers semantic dedup at raise time, so the same task
-     * reworded ("Whenever the contract lands…" vs "Consult lawyer…") or raised
-     * under a different anchor by another agent is recognized as a duplicate,
-     * which a content-hash key cannot catch. Dimension-less vector.
-     */
-    embedding: embeddingVector("embedding"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -112,8 +112,6 @@ export async function syncVault(
       title: extractTitle(content, name),
       excerpt: toExcerpt(content),
       mtime: new Date(s.mtimeMs),
-      // content changed → embedding is stale; sweep re-embeds.
-      embedding: null,
       updatedAt: new Date(),
     };
     await db
@@ -144,7 +142,8 @@ export async function vaultStats() {
   const [row] = await db
     .select({
       total: dsql<number>`count(*)`,
-      embedded: dsql<number>`count(*) filter (where ${obsidianNotes.embedding} is not null)`,
+      // Embeddings now live in the unified index (kind='vault').
+      embedded: dsql<number>`(select count(*) from search_index where kind = 'vault' and embedding is not null)`,
       lastSync: dsql<Date | null>`max(${obsidianNotes.updatedAt})`,
     })
     .from(obsidianNotes);
