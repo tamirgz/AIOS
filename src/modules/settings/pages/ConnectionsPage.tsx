@@ -19,6 +19,8 @@ export async function ConnectionsPage() {
     searxngUrl,
     askWebSearch,
     readerProxyUrl,
+    mlxBaseUrl,
+    mlxModels,
   ] = await Promise.all([
     getSetting(SETTING_KEYS.calendarIcsUrl),
     getSetting(SETTING_KEYS.slackWebhookUrl),
@@ -33,6 +35,8 @@ export async function ConnectionsPage() {
     getSetting("searxng_url"),
     getSetting("ask_web_search"),
     getSetting("reader_proxy_url"),
+    getSetting("mlx_base_url"),
+    getSetting("mlx_models"),
   ]);
 
   return (
@@ -54,6 +58,8 @@ export async function ConnectionsPage() {
           searxngUrl={searxngUrl ?? ""}
           webSearchOn={askWebSearch !== "off"}
           readerProxyUrl={readerProxyUrl ?? ""}
+          mlxBaseUrl={mlxBaseUrl ?? ""}
+          mlxModels={mlxModels ?? ""}
         />
       </div>
     </div>
