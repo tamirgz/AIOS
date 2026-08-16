@@ -47,12 +47,12 @@ export async function getProjectCockpit(
       total: sql<number>`(select count(*) from ${tasks} where ${tasks.projectRef} = ${ref})`,
       done: sql<number>`(select count(*) from ${tasks} where ${tasks.projectRef} = ${ref} and ${tasks.status} = 'done')`,
       overdue: sql<number>`(select count(*) from ${tasks} where ${tasks.projectRef} = ${ref} and ${tasks.status} <> 'done' and ${tasks.dueAt} is not null and ${tasks.dueAt} < now())`,
-      noteCount: sql<number>`(select count(*) from ${notes} where ${notes.projectRefs} @> ${JSON.stringify([ref])}::jsonb)`,
+      noteCount: sql<number>`(select count(*) from ${notes} where ${notes.projectRefs} @> jsonb_build_array(${ref}))`,
       openAttention: sql<number>`(select count(*) from ${attentionItems} where ${attentionItems.projectRef} = ${ref} and ${attentionItems.status} = 'open')`,
       lastActivityAt: sql<string | null>`greatest(
         ${projects.updatedAt},
         (select max(greatest(${tasks.createdAt}, coalesce(${tasks.completedAt}, ${tasks.createdAt}))) from ${tasks} where ${tasks.projectRef} = ${ref}),
-        (select max(${notes.updatedAt}) from ${notes} where ${notes.projectRefs} @> ${JSON.stringify([ref])}::jsonb),
+        (select max(${notes.updatedAt}) from ${notes} where ${notes.projectRefs} @> jsonb_build_array(${ref})),
         (select max(${attentionItems.createdAt}) from ${attentionItems} where ${attentionItems.projectRef} = ${ref})
       )`,
     })
