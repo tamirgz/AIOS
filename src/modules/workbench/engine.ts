@@ -596,7 +596,20 @@ export async function runAttempt(attemptId: string): Promise<void> {
         .set({ judgeVerdict: verdict })
         .where(eq(taskAttempts.id, attempt.id));
 
-      if (verdict.pass) {
+      if (verdict.errored) {
+        // The judge couldn't RUN (e.g. the routed brain hit its rate limit and
+        // the local fallback also failed). That's an infra failure, not a
+        // content one — the executor did its job. Don't retry (it would just hit
+        // the same wall) and don't call it a fail. Release the result for the
+        // user's own review, clearly marked unverified.
+        await setTask(task.id, {
+          status: "review",
+          summary: (result.result ?? "").slice(0, 1000) || null,
+          judgeStatus: "unverified",
+          judgeVerdict: verdict,
+        });
+        log(`attempt ${attempt.id.slice(0, 8)} → judge UNAVAILABLE, released for manual review`);
+      } else if (verdict.pass) {
         await setTask(task.id, {
           status: changedFiles > 0 ? "review" : "done",
           summary: (result.result ?? "").slice(0, 1000) || null,
