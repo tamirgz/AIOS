@@ -18,8 +18,8 @@ export const askHistory = pgTable("ask_history", {
   query: text("query").notNull(),
   /** Optional user-set header; the question is shown when this is null. */
   title: text("title"),
-  /** Filed under a project or area of development ("projects:<uuid>"). Null = unfiled. */
-  projectRef: text("project_ref"),
+  /** Filed under any number of projects/areas (["projects:<uuid>", …]). */
+  projectRefs: jsonb("project_refs").$type<string[]>().notNull().default([]),
   answer: text("answer").notNull(),
   sources: jsonb("sources").$type<AskSource[]>().notNull().default([]),
   model: text("model"),

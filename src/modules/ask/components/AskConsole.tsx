@@ -33,9 +33,9 @@ import {
   clipAnswerToObsidian,
   deleteAskHistoryEntry,
   renameAskEntry,
-  setAskProject,
+  setAskProjects,
 } from "../actions";
-import { ProjectPicker } from "@/modules/projects/components/ProjectPicker";
+import { ProjectMultiPicker } from "@/modules/projects/components/ProjectMultiPicker";
 import type { ProjectOption } from "@/modules/projects/queries";
 import type { AskAnswer, AskSource } from "../answer";
 import type { AskHistoryEntry } from "../schema";
@@ -197,8 +197,8 @@ export function AskConsole({
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [titlePending, startTitle] = useTransition();
-  // Which project/area the current answer is filed under.
-  const [entryProjectRef, setEntryProjectRef] = useState<string | null>(null);
+  // Which projects/areas the current answer is filed under.
+  const [entryProjectRefs, setEntryProjectRefs] = useState<string[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const submit = () => {
@@ -208,7 +208,7 @@ export function AskConsole({
     setResult(null);
     setActiveId(null);
     setEntryTitle(null);
-    setEntryProjectRef(null);
+    setEntryProjectRefs([]);
     setTitleEditing(false);
     start(async () => {
       const r = await ask(q);
@@ -220,7 +220,7 @@ export function AskConsole({
             id: r.historyId!,
             query: q,
             title: null,
-            projectRef: null,
+            projectRefs: [],
             answer: r.answer,
             sources: r.sources,
             model: r.model || null,
@@ -239,7 +239,7 @@ export function AskConsole({
     setResult({ answer: entry.answer, sources: entry.sources, model: entry.model ?? "" });
     setActiveId(entry.id);
     setEntryTitle(entry.title ?? null);
-    setEntryProjectRef(entry.projectRef ?? null);
+    setEntryProjectRefs(entry.projectRefs ?? []);
     setTitleEditing(false);
     setClipOpen(false);
     setClip({});
@@ -469,15 +469,15 @@ export function AskConsole({
                     </p>
                     <div className="flex items-center gap-1.5">
                       {activeId && (
-                        <ProjectPicker
+                        <ProjectMultiPicker
                           options={projectOptions}
-                          value={entryProjectRef}
-                          onChange={async (ref) => {
-                            setEntryProjectRef(ref);
-                            await setAskProject(activeId, ref);
+                          value={entryProjectRefs}
+                          onChange={async (refs) => {
+                            setEntryProjectRefs(refs);
+                            await setAskProjects(activeId, refs);
                             setHistory((prev) =>
                               prev.map((h) =>
-                                h.id === activeId ? { ...h, projectRef: ref } : h,
+                                h.id === activeId ? { ...h, projectRefs: refs } : h,
                               ),
                             );
                           }}
