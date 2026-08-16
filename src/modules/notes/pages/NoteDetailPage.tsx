@@ -35,19 +35,23 @@ export async function NoteDetailPage({ params }: ModuleRouteProps) {
     );
   }
 
-  const { listProjects } = await import("@/modules/projects/actions");
-  const [projectRows, connections] = await Promise.all([
-    listProjects().catch(() => []),
+  const { listProjectOptions } = await import("@/modules/projects/queries");
+  const [projects, connections] = await Promise.all([
+    listProjectOptions().catch(() => []),
     getConnections("note", note.id, {
-      currentProjectId: note.projectRef?.split(":")[1] ?? null,
+      // Only suggest a project when the note isn't filed anywhere yet.
+      currentProjectId: note.projectRefs?.[0]?.split(":")[1] ?? null,
     }),
   ]);
-  const projects = projectRows.map((p) => ({ id: p.id, name: p.name }));
 
   return (
     <>
       <NoteEditor note={note} projects={projects} />
-      <NoteConnections noteId={note.id} connections={connections} />
+      <NoteConnections
+        noteId={note.id}
+        currentRefs={note.projectRefs ?? []}
+        connections={connections}
+      />
     </>
   );
 }

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import type { AiToolDef } from "@/core/modules/types.server";
-import { notes } from "./schema";
+import { filedUnder, notes } from "./schema";
 
 export const noteTools: AiToolDef[] = [
   {
@@ -20,13 +20,13 @@ export const noteTools: AiToolDef[] = [
       const [row] = await db
         .update(notes)
         .set({
-          projectRef: input.projectId ? `projects:${input.projectId}` : null,
+          projectRefs: input.projectId ? [`projects:${input.projectId}`] : [],
           updatedAt: new Date(),
         })
         .where(eq(notes.id, input.id))
         .returning();
       return row
-        ? { updated: { id: row.id, projectRef: row.projectRef } }
+        ? { updated: { id: row.id, projectRefs: row.projectRefs } }
         : { error: "note not found" };
     },
   },
@@ -49,7 +49,7 @@ export const noteTools: AiToolDef[] = [
         .values({
           title: input.title,
           body: input.body ?? "",
-          projectRef: input.projectId ? `projects:${input.projectId}` : null,
+          projectRefs: input.projectId ? [`projects:${input.projectId}`] : [],
         })
         .returning();
       return { created: { id: row.id, title: row.title } };
@@ -77,9 +77,7 @@ export const noteTools: AiToolDef[] = [
         .select()
         .from(notes)
         .where(
-          input.projectId
-            ? and(match, eq(notes.projectRef, `projects:${input.projectId}`))
-            : match,
+          input.projectId ? and(match, filedUnder(input.projectId)) : match,
         )
         .orderBy(desc(notes.updatedAt))
         .limit(input.limit);
@@ -87,7 +85,7 @@ export const noteTools: AiToolDef[] = [
         id: n.id,
         title: n.title,
         snippet: n.body.slice(0, 200),
-        projectRef: n.projectRef,
+        projectRefs: n.projectRefs,
         updatedAt: n.updatedAt,
       }));
     },

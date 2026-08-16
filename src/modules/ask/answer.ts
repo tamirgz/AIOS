@@ -16,7 +16,7 @@ import { searchEverything, RELATED_MAX_DISTANCE } from "@/core/embeddings";
 import { db } from "@/core/db/client";
 import { projectFiles, projects } from "@/modules/projects/schema";
 import { tasks } from "@/modules/tasks/schema";
-import { notes } from "@/modules/notes/schema";
+import { filedUnder, notes } from "@/modules/notes/schema";
 import { attentionItems } from "@/modules/today/schema";
 import type { AskSource } from "./schema";
 import { getSetting } from "@/core/app-settings";
@@ -95,7 +95,7 @@ async function buildProjectDossier(
       db
         .select({ id: notes.id, title: notes.title, body: notes.body })
         .from(notes)
-        .where(eq(notes.projectRef, ref))
+        .where(filedUnder(p.id))
         .limit(MAX_NOTES),
       db
         .select({ id: projectFiles.id, filename: projectFiles.filename, extractedText: projectFiles.extractedText })
