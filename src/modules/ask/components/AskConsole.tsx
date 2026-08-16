@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
+import { useDraft } from "@/core/ui/useDraft";
 import {
   ask,
   clipAnswerToObsidian,
@@ -200,6 +201,8 @@ export function AskConsole({
   // Which projects/areas the current answer is filed under.
   const [entryProjectRefs, setEntryProjectRefs] = useState<string[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Keep a half-written question across navigation to another module and back.
+  const clearDraft = useDraft("ask:draft", inputRef);
 
   const submit = () => {
     const q = inputRef.current?.value.trim();
@@ -230,6 +233,7 @@ export function AskConsole({
         ]);
       }
       if (inputRef.current) inputRef.current.value = "";
+      clearDraft();
     });
   };
 
