@@ -3,13 +3,15 @@
 import type { Connections } from "@/core/embeddings";
 import { ConnectionsPanel } from "@/core/ui/ConnectionsPanel";
 import { ProjectSuggestionCard } from "@/core/ui/ProjectSuggestionCard";
-import { setNoteProject } from "../actions";
+import { setNoteProjects } from "../actions";
 
 export function NoteConnections({
   noteId,
+  currentRefs,
   connections,
 }: {
   noteId: string;
+  currentRefs: string[];
   connections: Connections;
 }) {
   const { projectSuggestion, related } = connections;
@@ -19,7 +21,14 @@ export function NoteConnections({
       {projectSuggestion && (
         <ProjectSuggestionCard
           suggestion={projectSuggestion}
-          onLink={(projectId) => setNoteProject(noteId, projectId)}
+          // Multi-filing: accepting a suggestion ADDS the project, keeping any
+          // the note is already filed under.
+          onLink={(projectId) =>
+            setNoteProjects(noteId, [
+              ...currentRefs,
+              `projects:${projectId}`,
+            ])
+          }
         />
       )}
       <ConnectionsPanel related={related} />

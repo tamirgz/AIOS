@@ -132,11 +132,13 @@ export function NotesGrid({
               key={n.id}
               note={n}
               index={i}
-              projectName={
-                n.projectRef
-                  ? projectNames[n.projectRef.split(":")[1]]
-                  : undefined
-              }
+              projectName={(() => {
+                const names = (n.projectRefs ?? [])
+                  .map((r) => projectNames[r.split(":")[1]])
+                  .filter(Boolean);
+                if (names.length === 0) return undefined;
+                return names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`;
+              })()}
             />
           ))}
         </div>
