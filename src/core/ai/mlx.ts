@@ -13,13 +13,12 @@
  */
 import type { AIProvider } from "./provider";
 import { runOpenAICompatible } from "./openai-compat";
-
-async function mlxBase(): Promise<string> {
-  const { getSetting } = await import("@/core/app-settings");
-  const fromSetting = (await getSetting("mlx_base_url").catch(() => null))?.trim();
-  const base = fromSetting || process.env.MLX_BASE_URL || "http://localhost:8080/v1";
-  return base.replace(/\/$/, "");
-}
+import {
+  mlxBase,
+  ensureMlxUp,
+  beginMlxRequest,
+  endMlxRequest,
+} from "./mlx-runtime";
 
 export const mlxProvider: AIProvider = {
   id: "mlx",
@@ -45,7 +44,15 @@ export const mlxProvider: AIProvider = {
   },
 
   async *run(opts) {
+    // Bring the server up (it's stopped when idle — see mlx-runtime) and hold
+    // off the idle-unload timer for the duration of this request.
+    await ensureMlxUp();
     const base = await mlxBase();
-    yield* runOpenAICompatible(base, "mlx", opts);
+    beginMlxRequest();
+    try {
+      yield* runOpenAICompatible(base, "mlx", opts);
+    } finally {
+      endMlxRequest();
+    }
   },
 };
