@@ -1,4 +1,5 @@
 import type { AiToolContext, AiToolDef } from "@/core/modules/types.server";
+import type { AIProviderId } from "@/core/db/schema/ai-routes";
 
 export type AIEvent =
   | { type: "text"; text: string }
@@ -24,7 +25,7 @@ export interface AIRunOptions {
 }
 
 export interface AIProvider {
-  id: "anthropic" | "ollama" | "nvidia" | "gemini";
+  id: AIProviderId;
   listModels(): Promise<string[]>;
   run(opts: AIRunOptions): AsyncIterable<AIEvent>;
 }
