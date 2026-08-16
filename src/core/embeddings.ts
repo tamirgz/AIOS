@@ -321,6 +321,8 @@ export interface SemanticHit {
   snippet: string | null;
   href: string;
   distance: number;
+  /** The area-of-development drawer this item was classified into (index rows). */
+  area: string | null;
 }
 
 /** Fallback link for kinds whose UNION branch didn't select an explicit href. */
@@ -356,58 +358,65 @@ function hitHref(kind: string, id: string): string {
 export async function searchEverything(
   query: string,
   limit = 8,
+  opts?: { area?: string | null },
 ): Promise<SemanticHit[]> {
   const vec = toVec(await embedText(query));
+  // "Open the relevant drawer": when the query's area is known, discount
+  // same-area index items so they rank ahead of equally-similar off-topic ones.
+  const boost = opts?.area
+    ? dsql`* (case when area_ref = ${opts.area} then 0.82 else 1 end)`
+    : dsql``;
   const rows = await db.execute<{
     kind: string;
     id: string;
     title: string;
     snippet: string | null;
     href: string | null;
+    area: string | null;
     distance: number;
   }>(dsql`
     (select 'note' as kind, id::text, title, left(body, 160) as snippet,
-            null::text as href, (embedding <=> ${vec}::vector) as distance
+            null::text as href, null::text as area, (embedding <=> ${vec}::vector) as distance
        from notes where embedding is not null)
     union all
     (select 'knowledge', id::text, coalesce(title, left(input, 80)),
-            (insight->>'summary'), null, (embedding <=> ${vec}::vector)
+            (insight->>'summary'), null, null, (embedding <=> ${vec}::vector)
        from knowledge_items where embedding is not null)
     union all
-    (select 'task', id::text, title, null, null,
+    (select 'task', id::text, title, null, null, null,
             (embedding <=> ${vec}::vector)
        from tasks where embedding is not null)
     union all
-    (select 'vault', path, title, left(excerpt, 160), null,
+    (select 'vault', path, title, left(excerpt, 160), null, null,
             (embedding <=> ${vec}::vector)
        from obsidian_notes where embedding is not null)
     union all
-    (select 'idea', id::text, title, left(coalesce(notes, ''), 160), null,
+    (select 'idea', id::text, title, left(coalesce(notes, ''), 160), null, null,
             (embedding <=> ${vec}::vector)
        from ideas where embedding is not null)
     union all
-    (select 'notion', id, title, left(coalesce(content, ''), 160), null,
+    (select 'notion', id, title, left(coalesce(content, ''), 160), null, null,
             (embedding <=> ${vec}::vector)
        from notion_pages where embedding is not null)
     union all
-    (select 'file', id::text, filename, left(coalesce(extracted_text, ''), 160), null,
+    (select 'file', id::text, filename, left(coalesce(extracted_text, ''), 160), null, null,
             (embedding <=> ${vec}::vector)
        from project_files where embedding is not null)
     union all
     (select 'project', id::text, name, left(coalesce(description, ''), 160),
-            '/m/projects/' || id::text, (embedding <=> ${vec}::vector)
+            '/m/projects/' || id::text, null, (embedding <=> ${vec}::vector)
        from projects where embedding is not null)
     union all
-    (select 'attention', id::text, title, left(coalesce(body, ''), 160), href,
+    (select 'attention', id::text, title, left(coalesce(body, ''), 160), href, null,
             (embedding <=> ${vec}::vector)
        from attention_items where embedding is not null)
     union all
-    (select 'memory', id::text, left(text, 80), left(text, 200), null,
+    (select 'memory', id::text, left(text, 80), left(text, 200), null, null,
             (embedding <=> ${vec}::vector)
        from memory_entries where embedding is not null)
     union all
-    (select kind, source_id, title, snippet, href,
-            (embedding <=> ${vec}::vector)
+    (select kind, source_id, title, snippet, href, area_ref,
+            (embedding <=> ${vec}::vector) ${boost}
        from search_index where embedding is not null)
     order by distance asc
     limit ${limit}
@@ -418,6 +427,7 @@ export async function searchEverything(
     title: r.title,
     snippet: r.snippet,
     href: r.href ?? hitHref(r.kind, r.id),
+    area: r.area ?? null,
     distance: Number(r.distance),
   }));
 }
