@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, FolderKanban } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import type { ProjectOption } from "../queries";
@@ -9,6 +10,10 @@ import type { ProjectOption } from "../queries";
  * "File this under one or more projects/areas" picker. Multi-select: a button
  * that opens a grouped checklist (Areas of development vs Projects). Value is a
  * list of entity refs ("projects:<uuid>").
+ *
+ * The menu is portalled to <body> at coordinates measured from the button, so a
+ * transformed/overflow-clipped ancestor (the Workbench detail header) can't
+ * throw off its position.
  */
 export function ProjectMultiPicker({
   options,
@@ -23,7 +28,10 @@ export function ProjectMultiPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
-  const boxRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const MENU_W = 256;
 
   const selectedIds = new Set(
     value.map((v) => (v.startsWith("projects:") ? v.slice("projects:".length) : v)),
@@ -32,13 +40,40 @@ export function ProjectMultiPicker({
   const projects = options.filter((o) => o.kind === "project");
   const selectedNames = options.filter((o) => selectedIds.has(o.id)).map((o) => o.name);
 
+  const place = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    // Anchor the menu's left edge to the button; if the viewport is known and it
+    // would overflow the right edge, shift it left so it stays on screen.
+    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    let left = r.left;
+    if (vw && left + MENU_W + 8 > vw) left = Math.max(8, vw - MENU_W - 8);
+    setCoords({ top: r.bottom + 4, left });
+  };
+
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (
+        btnRef.current &&
+        !btnRef.current.contains(t) &&
+        menuRef.current &&
+        !menuRef.current.contains(t)
+      ) {
+        setOpen(false);
+      }
     };
+    // Reposition/close on scroll or resize so the fixed menu can't drift.
+    const onScroll = () => setOpen(false);
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    window.addEventListener("resize", onScroll);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("scroll", onScroll, true);
+    };
   }, [open]);
 
   const toggle = (id: string) => {
@@ -86,10 +121,14 @@ export function ProjectMultiPicker({
   );
 
   return (
-    <div ref={boxRef} className={cn("relative", className)}>
+    <div className={cn("inline-block", className)}>
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          if (!open) place();
+          setOpen((o) => !o);
+        }}
         title="File this under one or more projects / areas of development"
         className={cn(
           "flex max-w-[240px] items-center gap-1.5 rounded-lg border border-white/10 bg-abyss/60 px-2 py-1 font-mono text-[10px] uppercase tracking-widest transition hover:border-plasma/40",
@@ -102,15 +141,23 @@ export function ProjectMultiPicker({
         <ChevronDown className="size-3 shrink-0 text-ink-faint" />
       </button>
 
-      {open && (
-        <div className="absolute right-0 z-50 mt-1 max-h-80 w-64 overflow-auto rounded-lg border border-white/10 bg-abyss p-1 shadow-xl shadow-black/40">
-          {areas.length > 0 && <Group heading="Areas of development" items={areas} />}
-          {projects.length > 0 && <Group heading="Projects" items={projects} />}
-          {options.length === 0 && (
-            <p className="px-2 py-2 text-xs text-ink-faint">No projects yet.</p>
-          )}
-        </div>
-      )}
+      {open &&
+        coords &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{ position: "fixed", top: coords.top, left: coords.left, width: MENU_W }}
+            className="z-[100] max-h-80 overflow-auto rounded-lg border border-white/10 bg-abyss p-1 shadow-xl shadow-black/40"
+          >
+            {areas.length > 0 && <Group heading="Areas of development" items={areas} />}
+            {projects.length > 0 && <Group heading="Projects" items={projects} />}
+            {options.length === 0 && (
+              <p className="px-2 py-2 text-xs text-ink-faint">No projects yet.</p>
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
