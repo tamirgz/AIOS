@@ -4,12 +4,14 @@ import { aiRoutes, type AIProviderId } from "@/core/db/schema/ai-routes";
 import type { AIProvider } from "./provider";
 import { anthropicProvider } from "./anthropic";
 import { ollamaProvider } from "./ollama";
+import { mlxProvider } from "./mlx";
 import { nvidiaProvider } from "./nvidia";
 import { geminiProvider } from "./gemini";
 
 export const providers: Record<AIProviderId, AIProvider> = {
   anthropic: anthropicProvider,
   ollama: ollamaProvider,
+  mlx: mlxProvider,
   nvidia: nvidiaProvider,
   gemini: geminiProvider,
 };
