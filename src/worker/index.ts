@@ -316,8 +316,17 @@ async function main() {
   }
 
   // Embedding sweep: local nomic-embed-text via Ollama, rows with NULL
-  // embeddings only — idempotent, free, offline.
+  // embeddings only — idempotent, free, offline. First refresh the unified
+  // search_index from the sources that don't own an embedding column (Gmail,
+  // Calendar, Telegram, reports, People, Inbox, Workbench results, Ask answers),
+  // then embed everything still missing a vector.
   new Cron("*/2 * * * *", { protect: true }, async () => {
+    try {
+      const { syncSearchIndex } = await import("@/core/search-index");
+      await syncSearchIndex(log);
+    } catch (e) {
+      log(`search-index sync failed: ${String(e).slice(0, 120)}`);
+    }
     try {
       const { sweepEmbeddings } = await import("@/core/embeddings");
       const n = await sweepEmbeddings(log);
