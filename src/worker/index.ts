@@ -334,6 +334,14 @@ async function main() {
     } catch (e) {
       log(`embedding sweep failed (ollama down?): ${String(e).slice(0, 120)}`);
     }
+    // Sort newly-indexed items into their broad "area of development" drawer
+    // (local LLM, topic-based). Bounded per tick so it never hogs Ollama.
+    try {
+      const { classifyAreas } = await import("@/core/area-classify");
+      await classifyAreas(60, log);
+    } catch (e) {
+      log(`area classify failed: ${String(e).slice(0, 120)}`);
+    }
   });
 
   // Catch up: execute any queued runs left from before boot.

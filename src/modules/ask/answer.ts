@@ -168,9 +168,15 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
 
   const { sources: dossier, seen, matchedNames } = await buildProjectDossier(q);
 
+  // Open the relevant "drawer": assess which area of development the question is
+  // about (local model), so same-area items (mail, events, telegram…) rank ahead
+  // of equally-similar off-topic ones. Best-effort — null just means no boost.
+  const { assessQueryArea } = await import("@/core/area-classify");
+  const area = await assessQueryArea(q).catch(() => null);
+
   // The dossier already carries the bulk for an entity-specific question;
   // fewer semantic slots are needed alongside it.
-  const raw = await searchEverything(q, dossier.length > 0 ? 6 : 10);
+  const raw = await searchEverything(q, dossier.length > 0 ? 6 : 10, { area });
   const names = matchedNames.map((n) => n.toLowerCase());
   const hits = raw.filter((h) => {
     if (seen.has(`${h.kind}:${h.id}`)) return false; // already in the dossier
