@@ -47,7 +47,7 @@ export function EmbeddingModelPicker({ initial }: { initial: string }) {
               setModel(e.target.value);
               setSaved(false);
             }}
-            className="h-9 flex-1 rounded-lg border border-white/10 bg-abyss px-3 font-mono text-xs text-ink outline-none focus:border-plasma/40"
+            className="h-9 min-w-0 flex-1 rounded-lg border border-white/10 bg-abyss px-3 font-mono text-xs text-ink outline-none focus:border-plasma/40"
           >
             {model && !models.includes(model) && (
               <option value={model}>{model}</option>
