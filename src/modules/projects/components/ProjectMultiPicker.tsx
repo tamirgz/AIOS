@@ -64,14 +64,18 @@ export function ProjectMultiPicker({
         setOpen(false);
       }
     };
-    // Reposition/close on scroll or resize so the fixed menu can't drift.
-    const onScroll = () => setOpen(false);
+    // Scrolling INSIDE the menu list must not close it — only a PAGE scroll
+    // should, and then we just re-anchor the fixed menu to the (moved) button.
+    const onScroll = (e: Event) => {
+      if (menuRef.current && menuRef.current.contains(e.target as Node)) return;
+      place();
+    };
     document.addEventListener("mousedown", onDoc);
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("resize", place);
     window.addEventListener("scroll", onScroll, true);
     return () => {
       document.removeEventListener("mousedown", onDoc);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("resize", place);
       window.removeEventListener("scroll", onScroll, true);
     };
   }, [open]);

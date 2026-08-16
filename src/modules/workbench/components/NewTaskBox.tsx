@@ -12,6 +12,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
+import { useDraft } from "@/core/ui/useDraft";
 import { createTask } from "../actions";
 import type { TaskType } from "../schema";
 
@@ -83,6 +84,8 @@ export function NewTaskBox({
   const [repoPickOpen, setRepoPickOpen] = useState(false);
   const [pending, start] = useTransition();
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  // Keep a half-written task across navigation to another module and back.
+  const clearDraft = useDraft("workbench:new-task-draft", promptRef);
   const router = useRouter();
   const active = TYPES.find((t) => t.id === type)!;
   // Show the project's name on the button once its repo is the chosen path.
@@ -100,6 +103,7 @@ export function NewTaskBox({
         model: model.trim() || undefined,
       });
       if (promptRef.current) promptRef.current.value = "";
+      clearDraft();
       router.push(`/m/workbench/${task.id}`);
     });
   };
