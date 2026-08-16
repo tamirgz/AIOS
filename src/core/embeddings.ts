@@ -8,6 +8,7 @@ import { ideas } from "@/modules/ideas/schema";
 import { projectFiles, projects } from "@/modules/projects/schema";
 import { notionPages } from "@/modules/notion/schema";
 import { attentionItems } from "@/modules/today/schema";
+import { searchIndex } from "@/core/db/schema/search-index";
 
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 export const DEFAULT_EMBEDDING_MODEL = "nomic-embed-text";
@@ -65,6 +66,7 @@ async function handleModelSwitch(log: (m: string) => void): Promise<void> {
   await db.update(notionPages).set({ embedding: null });
   await db.update(projectFiles).set({ embedding: null });
   await db.update(attentionItems).set({ embedding: null });
+  await db.update(searchIndex).set({ embedding: null });
   await setSetting(ACTIVE_MODEL_KEY, configured);
 }
 
@@ -271,6 +273,22 @@ export async function sweepEmbeddings(
     done++;
   }
 
+  // Unified index rows (Gmail, Calendar, Telegram, reports, People, Inbox,
+  // Workbench results, Ask answers) — same local model, one loop.
+  const idxRows = await db
+    .select({ id: searchIndex.id, title: searchIndex.title, snippet: searchIndex.snippet })
+    .from(searchIndex)
+    .where(isNull(searchIndex.embedding))
+    .limit(40);
+  for (const r of idxRows) {
+    const e = await embedText(`${r.title}\n${r.snippet ?? ""}`);
+    await db
+      .update(searchIndex)
+      .set({ embedding: dsql`${toVec(e)}::vector` })
+      .where(dsql`${searchIndex.id} = ${r.id}`);
+    done++;
+  }
+
   // Tell open pages that search/connections just got fresher data, so a note
   // you just typed shows its connections without a manual reload.
   if (done > 0) await sql.notify("embeddings_updated", String(done));
@@ -278,7 +296,26 @@ export async function sweepEmbeddings(
 }
 
 export interface SemanticHit {
-  kind: "note" | "knowledge" | "task" | "vault" | "idea" | "notion" | "file";
+  kind:
+    | "note"
+    | "knowledge"
+    | "task"
+    | "vault"
+    | "idea"
+    | "notion"
+    | "file"
+    | "project"
+    | "attention"
+    | "memory"
+    | "mail"
+    | "event"
+    | "telegram"
+    | "report"
+    | "person"
+    | "inbox"
+    | "workbench"
+    | "ask"
+    | "feature";
   id: string;
   title: string;
   snippet: string | null;
@@ -286,6 +323,7 @@ export interface SemanticHit {
   distance: number;
 }
 
+/** Fallback link for kinds whose UNION branch didn't select an explicit href. */
 function hitHref(kind: string, id: string): string {
   switch (kind) {
     case "note":
@@ -302,12 +340,19 @@ function hitHref(kind: string, id: string): string {
     // Opens/downloads the actual attached file.
     case "file":
       return `/api/projects/files/${id}`;
+    case "memory":
+      return "/m/settings/memory";
     default:
       return "/m/tasks";
   }
 }
 
-/** Hybrid-lite semantic search across notes, knowledge, and tasks. */
+/**
+ * Semantic search across the WHOLE corpus: the per-table embedded sources plus
+ * the unified `search_index` (Gmail, Calendar, Telegram, reports, People, Inbox,
+ * Workbench results, Ask answers) plus projects/attention/memory that used to be
+ * embedded-but-unsearchable. One query, one local vector space.
+ */
 export async function searchEverything(
   query: string,
   limit = 8,
@@ -318,35 +363,52 @@ export async function searchEverything(
     id: string;
     title: string;
     snippet: string | null;
+    href: string | null;
     distance: number;
   }>(dsql`
     (select 'note' as kind, id::text, title, left(body, 160) as snippet,
-            (embedding <=> ${vec}::vector) as distance
+            null::text as href, (embedding <=> ${vec}::vector) as distance
        from notes where embedding is not null)
     union all
     (select 'knowledge', id::text, coalesce(title, left(input, 80)),
-            (insight->>'summary'), (embedding <=> ${vec}::vector)
+            (insight->>'summary'), null, (embedding <=> ${vec}::vector)
        from knowledge_items where embedding is not null)
     union all
-    (select 'task', id::text, title, null,
+    (select 'task', id::text, title, null, null,
             (embedding <=> ${vec}::vector)
        from tasks where embedding is not null)
     union all
-    (select 'vault', path, title, left(excerpt, 160),
+    (select 'vault', path, title, left(excerpt, 160), null,
             (embedding <=> ${vec}::vector)
        from obsidian_notes where embedding is not null)
     union all
-    (select 'idea', id::text, title, left(coalesce(notes, ''), 160),
+    (select 'idea', id::text, title, left(coalesce(notes, ''), 160), null,
             (embedding <=> ${vec}::vector)
        from ideas where embedding is not null)
     union all
-    (select 'notion', id, title, left(coalesce(content, ''), 160),
+    (select 'notion', id, title, left(coalesce(content, ''), 160), null,
             (embedding <=> ${vec}::vector)
        from notion_pages where embedding is not null)
     union all
-    (select 'file', id::text, filename, left(coalesce(extracted_text, ''), 160),
+    (select 'file', id::text, filename, left(coalesce(extracted_text, ''), 160), null,
             (embedding <=> ${vec}::vector)
        from project_files where embedding is not null)
+    union all
+    (select 'project', id::text, name, left(coalesce(description, ''), 160),
+            '/m/projects/' || id::text, (embedding <=> ${vec}::vector)
+       from projects where embedding is not null)
+    union all
+    (select 'attention', id::text, title, left(coalesce(body, ''), 160), href,
+            (embedding <=> ${vec}::vector)
+       from attention_items where embedding is not null)
+    union all
+    (select 'memory', id::text, left(text, 80), left(text, 200), null,
+            (embedding <=> ${vec}::vector)
+       from memory_entries where embedding is not null)
+    union all
+    (select kind, source_id, title, snippet, href,
+            (embedding <=> ${vec}::vector)
+       from search_index where embedding is not null)
     order by distance asc
     limit ${limit}
   `);
@@ -355,7 +417,7 @@ export async function searchEverything(
     id: r.id,
     title: r.title,
     snippet: r.snippet,
-    href: hitHref(r.kind, r.id),
+    href: r.href ?? hitHref(r.kind, r.id),
     distance: Number(r.distance),
   }));
 }
