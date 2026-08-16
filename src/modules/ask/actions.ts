@@ -38,6 +38,15 @@ export async function deleteAskHistoryEntry(id: string): Promise<void> {
   revalidatePath("/m/ask");
 }
 
+/** File an answer under a project/area ("projects:<uuid>"), or unfile (null). */
+export async function setAskProject(id: string, projectRef: string | null): Promise<void> {
+  await db
+    .update(askHistory)
+    .set({ projectRef: projectRef || null })
+    .where(eq(askHistory.id, id));
+  revalidatePath("/m/ask");
+}
+
 /** Give an answer its own header (or clear it back to the question with ""). */
 export async function renameAskEntry(id: string, title: string): Promise<void> {
   const next = title.trim().slice(0, 140);

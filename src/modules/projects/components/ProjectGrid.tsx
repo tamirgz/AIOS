@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react";
-import { ArrowRight, ChevronDown, FolderPlus, GripVertical } from "lucide-react";
+import { ArrowRight, ChevronDown, Compass, FolderPlus, GripVertical } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import { createProject, setProjectCategoryOrder } from "../actions";
 import type { ProjectCockpit } from "../queries";
@@ -237,9 +237,16 @@ export function ProjectGrid({
 }) {
   // Active projects group by category; paused/done/archived stay in the
   // collapse at the bottom. Named category groups are drag-reorderable.
-  const { byCat, liveNames, uncategorized, inactive, activeCount } = useMemo(() => {
-    const active = projects.filter((p) => p.status === "active");
-    const inactive = projects.filter((p) => p.status !== "active");
+  const { byCat, liveNames, uncategorized, inactive, activeCount, areas } = useMemo(() => {
+    // Areas of development are a different kind — a standing bucket to file
+    // things under, not a deliverable — so they get their own section and never
+    // mix into the category groups.
+    const areas = projects
+      .filter((p) => p.kind === "area" && p.status !== "archived")
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const real = projects.filter((p) => p.kind !== "area");
+    const active = real.filter((p) => p.status === "active");
+    const inactive = real.filter((p) => p.status !== "active");
     const byCat = new Map<string, ProjectCockpit[]>();
     for (const p of active) {
       const key = p.category?.trim() || "";
@@ -248,7 +255,7 @@ export function ProjectGrid({
     const liveNames = [...byCat.keys()]
       .filter((k) => k !== "")
       .sort((a, b) => (byCat.get(b)!.length - byCat.get(a)!.length) || a.localeCompare(b));
-    return { byCat, liveNames, uncategorized: byCat.get("") ?? [], inactive, activeCount: active.length };
+    return { byCat, liveNames, uncategorized: byCat.get("") ?? [], inactive, activeCount: active.length, areas };
   }, [projects]);
 
   const [order, setOrder] = useState<string[]>(() => reconcileOrder(liveNames, categoryOrder));
@@ -277,6 +284,21 @@ export function ProjectGrid({
               count={uncategorized.length}
             />
             <ProjectSection title="uncategorized" projects={uncategorized} />
+          </div>
+        )}
+
+        {areas.length > 0 && (
+          <div className="border-t border-white/8 pt-6">
+            <div className="mb-3 flex items-center gap-2 px-1">
+              <Compass className="size-3.5 text-plasma" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-plasma">
+                Areas of development
+              </span>
+              <span className="font-mono text-xs tabular-nums text-ink-faint">
+                {areas.length}
+              </span>
+            </div>
+            <ProjectSection title="areas" projects={areas} />
           </div>
         )}
       </div>

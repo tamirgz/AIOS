@@ -288,6 +288,13 @@
       "when": 1786774504314,
       "tag": "0040_quick_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1786878532554,
+      "tag": "0041_complete_wrecking_crew",
+      "breakpoints": true
     }
   ]
 }

@@ -14,6 +14,19 @@ export const PROJECT_STATUSES = ["active", "paused", "done", "archived"] as cons
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
 /**
+ * What kind of "project" this row is:
+ *   - "project" — a goal-oriented effort the user created (the default; every
+ *     existing row). Has deliverables, a goal, a next action, health.
+ *   - "area"    — a standing area of personal development (Finance, Career,
+ *     Health…). A bucket to file things under, not a deliverable — so the UI
+ *     lists these separately and skips the goal/next-action/health nudges.
+ * Both live in one table so anything that links to a project (via a
+ * "projects:<uuid>" ref) can just as easily link to an area.
+ */
+export const PROJECT_KINDS = ["project", "area"] as const;
+export type ProjectKind = (typeof PROJECT_KINDS)[number];
+
+/**
  * Life-OS L2 health. Derived cheaply on read (so the cockpit always shows one,
  * even before any agent runs), then refined by the Project-pulse agent, which
  * can also set "blocked" — a judgement the heuristic can't make.
@@ -36,6 +49,8 @@ export const projects = pgTable("projects", {
    * it and the cockpit suggests already-used values. Null = uncategorized.
    */
   category: text("category"),
+  /** "project" (default) vs "area" of development — see PROJECT_KINDS. */
+  kind: text("kind", { enum: PROJECT_KINDS }).notNull().default("project"),
   status: text("status", { enum: PROJECT_STATUSES })
     .notNull()
     .default("active"),
