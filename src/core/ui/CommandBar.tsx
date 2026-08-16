@@ -17,6 +17,7 @@ import { modules } from "@/modules/registry";
 import { captureToInbox } from "@/modules/inbox/actions";
 import { createTask } from "@/modules/tasks/actions";
 import { createNote } from "@/modules/notes/actions";
+import { warmMlx } from "@/core/ai/warm-mlx";
 import { cn } from "./cn";
 
 /**
@@ -216,6 +217,7 @@ function ChatView({
         <input
           ref={inputRef}
           autoFocus
+          onFocus={() => warmMlx()}
           placeholder={chat.busy ? "thinking…" : "Message the AI core…"}
           className="h-9 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-faint"
         />
