@@ -6,7 +6,7 @@ export const gmailManifest: ModuleManifest = {
   title: "Mail",
   icon: Mail,
   accent: "var(--color-flare)",
-  nav: { order: 17 }, // after Calendar
+  nav: { order: 17, group: "Sources", external: true },
   commands: [
     {
       id: "gmail.open",
