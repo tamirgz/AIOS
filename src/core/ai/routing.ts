@@ -57,9 +57,12 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   { taskKey: "workbench.native", provider: "anthropic", model: "claude-sonnet-5" },
   // The verifying judge that gates delegated work: it reads the ask + the
   // produced result and decides whether the result actually satisfies the ask
-  // (A2 · Trust). A capable brain by default — this is the correctness gate,
-  // not the cheap path. Editable in Settings.
-  { taskKey: "workbench.judge", provider: "anthropic", model: "claude-sonnet-5" },
+  // (A2 · Trust). LOCAL-FIRST by default so verification is free and never
+  // depends on a rate-limited cloud plan; the fallback below covers the local
+  // model being down. Both editable in Settings.
+  { taskKey: "workbench.judge", provider: "ollama", model: "qwen3-coder:30b" },
+  // The online safety-net judge — used ONLY when the local primary can't run.
+  { taskKey: "workbench.judge.fallback", provider: "anthropic", model: "claude-sonnet-5" },
   // The routine BUILDER — composes a routine from a plain-English description
   // (title, trigger, target files) and keeps the ask faithful. Runs ONCE per
   // routine at create time, so a cheap metered model is fine (and it doesn't

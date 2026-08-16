@@ -7,12 +7,14 @@
  * judges each task type on its own terms (a research deliverable is prose, not a
  * diff) and never invents requirements the ask didn't make.
  *
- * The brain is configurable in Settings (AI Routing → "workbench.judge"). If
- * that model is unavailable (e.g. the Claude weekly limit — which is separate
- * from whichever executor ran the task), the judge falls back to a free local
- * model so verification still happens; only if BOTH fail does it report that it
- * could not run (`errored`), so the engine releases the result for the user's
- * own review instead of pretending it failed.
+ * Both brains are configurable in Settings (AI Routing):
+ *   - "workbench.judge"          — the PRIMARY judge. A free LOCAL model by
+ *     default, so verification never bills and never depends on a rate-limited
+ *     cloud plan.
+ *   - "workbench.judge.fallback" — used only when the primary can't run (down,
+ *     Ollama not up…). An ONLINE model by default, as a safety net.
+ * Only if BOTH fail does it report that it could not run (`errored`), so the
+ * engine releases the result for the user's own review instead of faking a fail.
  */
 import { db } from "@/core/db/client";
 import type { AIProvider } from "@/core/ai/provider";
@@ -34,9 +36,6 @@ export interface JudgeInput {
   patch?: string | null; // truncated unified diff, when there is one
   taskType: string;
 }
-
-/** Free local model the judge falls back to when the routed brain is down. */
-const FALLBACK_MODEL = "qwen3-coder:30b";
 
 const CODE_SYSTEM =
   "You are a strict delivery judge for delegated ENGINEERING work. You compare a task's ASK to what an agent PRODUCED and rule on one thing only: does the produced result genuinely satisfy the ask? " +
@@ -144,29 +143,29 @@ async function runOnce(
  */
 export async function judgeAttempt(input: JudgeInput): Promise<JudgeVerdict> {
   const { system, user } = buildPrompt(input);
+  const { resolveRoute } = await import("@/core/ai/routing");
 
-  // 1) The configured judge brain (Settings → workbench.judge).
+  // 1) The PRIMARY judge (Settings → workbench.judge) — a free local model by
+  //    default, so verification never bills and never hits a cloud rate limit.
   let primaryErr: unknown;
   try {
-    const { resolveRoute } = await import("@/core/ai/routing");
     const route = await resolveRoute("workbench.judge");
     return parseVerdict(await runOnce(route.provider, route.model, system, user));
   } catch (e) {
     primaryErr = e;
   }
 
-  // 2) Fallback: a free local model, so a rate-limited/unavailable primary
-  //    (e.g. the Claude weekly limit) doesn't stall verification. This is why
-  //    the judge can still run even when the task ran on ChatGPT/Codex.
+  // 2) The FALLBACK judge (Settings → workbench.judge.fallback) — an online
+  //    model, used only when the local one couldn't run (e.g. Ollama down).
   try {
-    const { ollamaProvider } = await import("@/core/ai/ollama");
-    const v = parseVerdict(await runOnce(ollamaProvider, FALLBACK_MODEL, system, user));
+    const route = await resolveRoute("workbench.judge.fallback");
+    const v = parseVerdict(await runOnce(route.provider, route.model, system, user));
     const why = primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
-    v.rationale = `[Primary judge unavailable (${why}); verified by the free local ${FALLBACK_MODEL} instead.]\n${v.rationale}`;
+    v.rationale = `[Primary judge unavailable (${why}); verified by the ${route.model} fallback instead.]\n${v.rationale}`;
     return v;
   } catch (fallbackErr) {
-    // 3) Neither could run. This is NOT a content verdict — flag it so the
-    //    engine releases the result for manual review instead of retrying.
+    // 3) Neither could run. NOT a content verdict — flag it so the engine
+    //    releases the result for manual review instead of retrying.
     const why = primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
     const why2 = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
     return {
@@ -174,7 +173,7 @@ export async function judgeAttempt(input: JudgeInput): Promise<JudgeVerdict> {
       score: 0,
       errored: true,
       gaps: ["The verifying judge could not run."],
-      rationale: `The result was NOT graded — the judge could not run (primary: ${why}; fallback ${FALLBACK_MODEL}: ${why2}). Review it yourself and release when satisfied.`,
+      rationale: `The result was NOT graded — the judge could not run (primary: ${why}; fallback: ${why2}). Review it yourself and release when satisfied.`,
     };
   }
 }
