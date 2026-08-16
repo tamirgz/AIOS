@@ -173,7 +173,9 @@ function JudgePanel({
         ? { color: "var(--color-gold)", label: "judge flagged gaps — retrying with feedback" }
         : status === "fail"
           ? { color: "var(--color-flare)", label: "held — didn't meet the ask after a retry" }
-          : { color: "var(--color-ink-faint)", label: status };
+          : status === "unverified"
+            ? { color: "var(--color-gold)", label: "unverified — the judge couldn't run; review it yourself" }
+            : { color: "var(--color-ink-faint)", label: status };
 
   return (
     <section
@@ -367,15 +369,19 @@ export function TaskDetailView({
               retry
             </button>
           )}
-          {task.status === "review" && (
+          {/* Review OR held (needs_input) — either way the user has looked and
+              can close it out. Held tasks previously had no way to be marked
+              reviewed; this is that action. */}
+          {(task.status === "review" || task.status === "needs_input") && (
             <button
               type="button"
               disabled={pending}
               onClick={() => start(async () => void (await acceptTask(task.id)))}
+              title="Mark reviewed and close this out (done)"
               className="flex items-center gap-1.5 rounded-lg bg-plasma/15 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-plasma transition hover:bg-plasma/25 disabled:opacity-40"
             >
               <Check className="size-3" />
-              accept
+              {task.status === "needs_input" ? "mark reviewed" : "accept"}
             </button>
           )}
           {task.prUrl ? (
