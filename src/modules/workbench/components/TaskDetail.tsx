@@ -28,10 +28,13 @@ import {
   deleteTask,
   requestPR,
   retryTask,
+  setTaskProject,
   unarchiveTask,
   updateTaskPrompt,
   updateTaskTitle,
 } from "../actions";
+import { ProjectPicker } from "@/modules/projects/components/ProjectPicker";
+import type { ProjectOption } from "@/modules/projects/queries";
 import type { TaskDetail as Detail } from "../queries";
 import { STATUS_META } from "./TaskBoard";
 import { ReportPanel } from "./ReportPanel";
@@ -170,7 +173,9 @@ function JudgePanel({
         ? { color: "var(--color-gold)", label: "judge flagged gaps — retrying with feedback" }
         : status === "fail"
           ? { color: "var(--color-flare)", label: "held — didn't meet the ask after a retry" }
-          : { color: "var(--color-ink-faint)", label: status };
+          : status === "unverified"
+            ? { color: "var(--color-gold)", label: "unverified — the judge couldn't run; review it yourself" }
+            : { color: "var(--color-ink-faint)", label: status };
 
   return (
     <section
@@ -208,7 +213,13 @@ function JudgePanel({
   );
 }
 
-export function TaskDetailView({ detail }: { detail: Detail }) {
+export function TaskDetailView({
+  detail,
+  projectOptions = [],
+}: {
+  detail: Detail;
+  projectOptions?: ProjectOption[];
+}) {
   const { task, attempts, events, diff } = detail;
   const [pending, start] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -323,6 +334,16 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
             )}
             {latest?.costUsd && <span>${Number(latest.costUsd).toFixed(2)}</span>}
           </div>
+          <div className="mt-2">
+            <ProjectPicker
+              options={projectOptions}
+              value={task.projectRef ?? null}
+              onChange={async (ref) => {
+                await setTaskProject(task.id, ref);
+                router.refresh();
+              }}
+            />
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -348,15 +369,19 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
               retry
             </button>
           )}
-          {task.status === "review" && (
+          {/* Review OR held (needs_input) — either way the user has looked and
+              can close it out. Held tasks previously had no way to be marked
+              reviewed; this is that action. */}
+          {(task.status === "review" || task.status === "needs_input") && (
             <button
               type="button"
               disabled={pending}
               onClick={() => start(async () => void (await acceptTask(task.id)))}
+              title="Mark reviewed and close this out (done)"
               className="flex items-center gap-1.5 rounded-lg bg-plasma/15 px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-plasma transition hover:bg-plasma/25 disabled:opacity-40"
             >
               <Check className="size-3" />
-              accept
+              {task.status === "needs_input" ? "mark reviewed" : "accept"}
             </button>
           )}
           {task.prUrl ? (

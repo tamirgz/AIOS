@@ -2,17 +2,20 @@
  * The delegation judge (A2 · Trust).
  *
  * After a delegated attempt reports success, this is the second pair of eyes:
- * it reads the ORIGINAL ask and WHAT CAME BACK (the executor's result plus the
- * files it actually changed) and rules on one question only — does the result
- * genuinely satisfy the ask? It is deliberately strict: a scaffold, a stub, a
- * "framework in place", or work on the wrong files is NOT a pass, no matter how
- * confidently the executor announced "Done". This is exactly the ask↔result
- * review a human does before trusting delegated output — automated, so every
- * delegation gets it, not just the ones someone happens to check.
+ * it reads the ORIGINAL ask and WHAT CAME BACK and rules on one question only —
+ * does the result genuinely satisfy the ask? It is deliberately strict, but it
+ * judges each task type on its own terms (a research deliverable is prose, not a
+ * diff) and never invents requirements the ask didn't make.
  *
- * The brain is configurable in Settings (AI Routing → "workbench.judge").
+ * The brain is configurable in Settings (AI Routing → "workbench.judge"). If
+ * that model is unavailable (e.g. the Claude weekly limit — which is separate
+ * from whichever executor ran the task), the judge falls back to a free local
+ * model so verification still happens; only if BOTH fail does it report that it
+ * could not run (`errored`), so the engine releases the result for the user's
+ * own review instead of pretending it failed.
  */
 import { db } from "@/core/db/client";
+import type { AIProvider } from "@/core/ai/provider";
 
 export interface JudgeVerdict {
   pass: boolean;
@@ -20,6 +23,8 @@ export interface JudgeVerdict {
   gaps: string[]; // concrete, actionable misses (empty on a clean pass)
   rationale: string; // one honest paragraph
   attemptSeq?: number;
+  /** True when the judge could not RUN at all (infra), not a content verdict. */
+  errored?: boolean;
 }
 
 export interface JudgeInput {
@@ -30,10 +35,59 @@ export interface JudgeInput {
   taskType: string;
 }
 
-const SYSTEM =
-  "You are a strict delivery judge for delegated engineering work. You compare a task's ASK to what an agent PRODUCED and rule on one thing only: does the produced result genuinely satisfy the ask? " +
+/** Free local model the judge falls back to when the routed brain is down. */
+const FALLBACK_MODEL = "qwen3-coder:30b";
+
+const CODE_SYSTEM =
+  "You are a strict delivery judge for delegated ENGINEERING work. You compare a task's ASK to what an agent PRODUCED and rule on one thing only: does the produced result genuinely satisfy the ask? " +
   "Be adversarial and literal. A scaffold, stub, placeholder, TODO, 'framework in place', or a description of what a solution WOULD do is NOT satisfying a 'do X' ask — that is a FAIL. Work done on the wrong files, or a claim of changes the diff does not show, is a FAIL. " +
   "Only pass when the concrete deliverable the ask names actually exists in the result or the changed files. Do not be charitable; the whole point of you is to catch confident-but-empty output.";
+
+const WRITTEN_SYSTEM =
+  "You are a strict delivery judge for delegated RESEARCH and WRITING. You compare the ASK to what was PRODUCED and rule on one thing only: does the written deliverable genuinely and completely answer the ask? " +
+  "There are no files or diffs to check — judge the writing on its own terms. Be adversarial about completeness, accuracy and specificity: a vague, generic, partial, or evasive answer is a FAIL; a thorough, concrete, on-point one is a PASS. " +
+  "Judge ONLY against what the ask actually requested — do not invent extra requirements, and do not fail good work for missing things the ask never asked for.";
+
+/** Judge tasks whose deliverable is prose (not code) on their own terms. */
+function isWritten(taskType: string): boolean {
+  return taskType === "research" || taskType === "docs" || taskType === "custom";
+}
+
+function buildPrompt(input: JudgeInput): { system: string; user: string } {
+  const written = isWritten(input.taskType);
+  const system = written ? WRITTEN_SYSTEM : CODE_SYSTEM;
+
+  const producedText = (input.result ?? "(the agent returned no text)").slice(0, 16000);
+
+  if (written) {
+    const user =
+      `THE ASK (${input.taskType}):\n${input.ask}\n\n` +
+      `WHAT THE AGENT PRODUCED:\n${producedText}\n\n` +
+      "Rule on whether this fully and accurately answers the ask. Respond with ONLY a JSON object: " +
+      `{"pass": boolean, "score": 0-100, "gaps": string[], "rationale": string}. ` +
+      "gaps must be concrete and actionable — what is missing or wrong — and empty only on a clean pass.";
+    return { system, user };
+  }
+
+  const changed =
+    input.changedFiles.length > 0
+      ? input.changedFiles.join("\n")
+      : "(the attempt changed no files)";
+  const patch = input.patch ? `\n\nUNIFIED DIFF (truncated):\n${input.patch.slice(0, 12000)}` : "";
+  // A zero-diff code run is not automatically a fail — some asks are conditional.
+  const noChangeGuidance =
+    input.changedFiles.length === 0
+      ? "\n\nTHIS RUN CHANGED NO FILES. If the ask is CONDITIONAL (e.g. \"update X IF the change affects it\", \"keep docs in sync\"), a deliberate NO-CHANGE is a valid PASS — but ONLY if the result shows the agent genuinely did the work: it names what it actually inspected (the specific commit/diff, the specific target files or sections) and gives a concrete, verifiable reason nothing needs updating. If the result is vague, generic, empty, or shows no real inspection, it FAILED (the agent fizzled) — do NOT pass it. If the ask UNCONDITIONALLY required a change and none was made, FAIL."
+      : "";
+  const user =
+    `THE ASK (${input.taskType}):\n${input.ask}\n\n` +
+    `WHAT THE AGENT PRODUCED (its final result text):\n${producedText}\n\n` +
+    `FILES THE AGENT ACTUALLY CHANGED:\n${changed}${patch}${noChangeGuidance}\n\n` +
+    "Rule on whether the produced result satisfies the ask. Respond with ONLY a JSON object: " +
+    `{"pass": boolean, "score": 0-100, "gaps": string[], "rationale": string}. ` +
+    "gaps must be concrete and actionable — what is missing or wrong — and empty only on a clean pass.";
+  return { system, user };
+}
 
 /** Pull the JSON verdict out of the model's reply, tolerant of prose/fences. */
 function parseVerdict(text: string): JudgeVerdict {
@@ -51,7 +105,6 @@ function parseVerdict(text: string): JudgeVerdict {
       // fall through to the conservative default
     }
   }
-  // Unparseable verdict → do not silently pass. Hold it for the human.
   return {
     pass: false,
     score: 0,
@@ -60,59 +113,68 @@ function parseVerdict(text: string): JudgeVerdict {
   };
 }
 
+/** Run one judge pass on a given provider/model. Throws on a provider error. */
+async function runOnce(
+  provider: AIProvider,
+  model: string,
+  system: string,
+  user: string,
+): Promise<string> {
+  let text = "";
+  for await (const ev of provider.run({
+    system,
+    messages: [{ role: "user", content: user }],
+    tools: [],
+    toolCtx: { db },
+    model,
+    maxTurns: 1,
+  })) {
+    if (ev.type === "text") text += ev.text;
+    else if (ev.type === "done" && ev.text) text = ev.text;
+    else if (ev.type === "error") throw new Error(ev.message);
+  }
+  return text;
+}
+
 /**
- * Run the judge for one attempt. Never throws — a judging failure must not
- * crash the run; it returns a conservative FAIL so nothing ships unverified.
+ * Run the judge for one attempt. Never throws. Tries the routed brain first;
+ * on an infra error (rate limit, network) falls back to a free local model; if
+ * BOTH fail, returns an `errored` verdict — the caller releases the result for
+ * the user's own review rather than pretending it passed or failed.
  */
 export async function judgeAttempt(input: JudgeInput): Promise<JudgeVerdict> {
+  const { system, user } = buildPrompt(input);
+
+  // 1) The configured judge brain (Settings → workbench.judge).
+  let primaryErr: unknown;
   try {
     const { resolveRoute } = await import("@/core/ai/routing");
     const route = await resolveRoute("workbench.judge");
-
-    const changed =
-      input.changedFiles.length > 0
-        ? input.changedFiles.join("\n")
-        : "(the attempt changed no files)";
-    const patch = input.patch ? `\n\nUNIFIED DIFF (truncated):\n${input.patch.slice(0, 12000)}` : "";
-
-    // A zero-diff run is not automatically a fail. Some asks are conditional
-    // ("update X IF the commit affects it"), where a reasoned "nothing to
-    // change" is the correct outcome — but only when the agent actually did the
-    // checking. This tells the judge how to tell a real determination from a
-    // fizzle, so a lying/empty run is still failed.
-    const noChangeGuidance =
-      input.changedFiles.length === 0
-        ? "\n\nTHIS RUN CHANGED NO FILES. If the ask is CONDITIONAL (e.g. \"update X IF the change affects it\", \"keep docs in sync\"), a deliberate NO-CHANGE is a valid PASS — but ONLY if the result shows the agent genuinely did the work: it names what it actually inspected (the specific commit/diff, the specific target files or sections) and gives a concrete, verifiable reason nothing needs updating. If the result is vague, generic, empty, or shows no real inspection, it FAILED (the agent fizzled) — do NOT pass it. If the ask UNCONDITIONALLY required a change and none was made, FAIL."
-        : "";
-
-    const user =
-      `THE ASK (${input.taskType}):\n${input.ask}\n\n` +
-      `WHAT THE AGENT PRODUCED (its final result text):\n${(input.result ?? "(the agent returned no text)").slice(0, 16000)}\n\n` +
-      `FILES THE AGENT ACTUALLY CHANGED:\n${changed}${patch}${noChangeGuidance}\n\n` +
-      "Rule on whether the produced result satisfies the ask. Respond with ONLY a JSON object: " +
-      `{"pass": boolean, "score": 0-100, "gaps": string[], "rationale": string}. ` +
-      "gaps must be concrete and actionable — what is missing or wrong — and empty only on a clean pass.";
-
-    let text = "";
-    for await (const ev of route.provider.run({
-      system: SYSTEM,
-      messages: [{ role: "user", content: user }],
-      tools: [],
-      toolCtx: { db },
-      model: route.model,
-      maxTurns: 1,
-    })) {
-      if (ev.type === "text") text += ev.text;
-      else if (ev.type === "done" && ev.text) text = ev.text;
-      else if (ev.type === "error") throw new Error(ev.message);
-    }
-    return parseVerdict(text);
+    return parseVerdict(await runOnce(route.provider, route.model, system, user));
   } catch (e) {
+    primaryErr = e;
+  }
+
+  // 2) Fallback: a free local model, so a rate-limited/unavailable primary
+  //    (e.g. the Claude weekly limit) doesn't stall verification. This is why
+  //    the judge can still run even when the task ran on ChatGPT/Codex.
+  try {
+    const { ollamaProvider } = await import("@/core/ai/ollama");
+    const v = parseVerdict(await runOnce(ollamaProvider, FALLBACK_MODEL, system, user));
+    const why = primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
+    v.rationale = `[Primary judge unavailable (${why}); verified by the free local ${FALLBACK_MODEL} instead.]\n${v.rationale}`;
+    return v;
+  } catch (fallbackErr) {
+    // 3) Neither could run. This is NOT a content verdict — flag it so the
+    //    engine releases the result for manual review instead of retrying.
+    const why = primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
+    const why2 = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
     return {
       pass: false,
       score: 0,
+      errored: true,
       gaps: ["The verifying judge could not run."],
-      rationale: `Judge error: ${e instanceof Error ? e.message : String(e)}. Held for your review rather than released unverified.`,
+      rationale: `The result was NOT graded — the judge could not run (primary: ${why}; fallback ${FALLBACK_MODEL}: ${why2}). Review it yourself and release when satisfied.`,
     };
   }
 }

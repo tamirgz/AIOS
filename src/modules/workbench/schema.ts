@@ -61,6 +61,8 @@ export const workbenchTasks = pgTable(
     status: text("status", { enum: TASK_STATUSES }).notNull().default("queued"),
     /** Entity-ref of whatever spawned this ("ideas:<uuid>", "chat"…). */
     createdFrom: text("created_from"),
+    /** Filed under a project or area of development ("projects:<uuid>"). Null = unfiled. */
+    projectRef: text("project_ref"),
     /** Headline of the finished work — what you read before the transcript. */
     summary: text("summary"),
     /**
