@@ -1,6 +1,15 @@
 import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-export const INBOX_STATUSES = ["new", "triaging", "triaged", "error"] as const;
+export const INBOX_STATUSES = [
+  "new",
+  "triaging",
+  "triaged",
+  // Terminal states set by the post-handling audit: a local LLM checks whether
+  // triage handled the capture properly. Pass → completed, fail → failed.
+  "completed",
+  "failed",
+  "error", // legacy triage-crash marker; grouped with `failed` in the UI
+] as const;
 export type InboxStatus = (typeof INBOX_STATUSES)[number];
 
 /**
@@ -26,6 +35,8 @@ export const inboxItems = pgTable("inbox_items", {
   triage: jsonb("triage").$type<{
     summary: string;
     route?: { kind: string; label: string; href: string };
+    /** Post-handling audit by a local LLM: did triage handle this properly? */
+    verified?: { ok: boolean; note: string };
   }>(),
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true })
