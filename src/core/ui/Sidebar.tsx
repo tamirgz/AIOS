@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
@@ -62,9 +62,10 @@ function isActiveModule(pathname: string, id: string): boolean {
 
 /**
  * A collapsible sidebar section (e.g. "Sources" — the read-only external feeds).
- * Collapsed by default and remembers the user's choice, BUT always shows itself
- * expanded when the current route is one of its items, so you're never on a page
- * that's hidden in a closed drawer.
+ * Collapsed by default; the header toggles it and nothing else overrides that.
+ * When it's collapsed but one of its items is the current route, the header
+ * shows a small active dot so you still know you're "in" a Source without the
+ * drawer forcing itself open.
  */
 function NavGroup({
   label,
@@ -76,42 +77,27 @@ function NavGroup({
   pathname: string;
 }) {
   const activeInside = items.some((m) => isActiveModule(pathname, m.id));
-  const [open, setOpen] = useState(false); // collapsed by default
-  const key = `aios-nav-group:${label}`;
-
-  useEffect(() => {
-    const stored = typeof window !== "undefined" ? window.localStorage.getItem(key) : null;
-    if (stored != null) setOpen(stored === "1");
-  }, [key]);
-
-  const toggle = () => {
-    const next = !open;
-    setOpen(next);
-    try {
-      window.localStorage.setItem(key, next ? "1" : "0");
-    } catch {
-      /* private mode — non-fatal */
-    }
-  };
-
-  const expanded = open || activeInside;
+  const [open, setOpen] = useState(false); // collapsed by default, every load
 
   return (
     <div className="mt-2">
       <button
         type="button"
-        onClick={toggle}
+        onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center gap-1.5 rounded-lg px-3 py-1.5 text-ink-faint transition hover:text-ink-dim"
       >
         <ChevronRight
-          className={cn("size-3 shrink-0 transition-transform", expanded && "rotate-90")}
+          className={cn("size-3 shrink-0 transition-transform", open && "rotate-90")}
         />
         <span className="font-mono text-[10px] uppercase tracking-[0.2em]">{label}</span>
+        {activeInside && !open && (
+          <span className="dot ml-1.5 text-plasma animate-pulse-soft" />
+        )}
         <span className="ml-auto font-mono text-[10px] tabular-nums text-ink-faint/70">
           {items.length}
         </span>
       </button>
-      {expanded && (
+      {open && (
         <div className="mt-1 flex flex-col gap-1">
           {items.map((m) => (
             <NavItem
