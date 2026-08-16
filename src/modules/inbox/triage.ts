@@ -108,13 +108,11 @@ export async function triageInboxItem(itemId: string): Promise<void> {
     const resultObj =
       typeof toolResult === "string" ? safeJsonParse(toolResult) : toolResult;
     const dest = usedTool ? routeFor(usedTool, resultObj) : null;
-    await set({
-      status: "triaged",
-      triage: {
-        summary: finalText.slice(0, 500) || "routed",
-        ...(dest ? { route: dest } : {}),
-      },
-    });
+    const triageData = {
+      summary: finalText.slice(0, 500) || "routed",
+      ...(dest ? { route: dest } : {}),
+    };
+    await set({ status: "triaged", triage: triageData });
 
     // Slack-captured items get an in-thread confirmation of how/where they
     // were filed. No-op for manual captures; never breaks triage.
@@ -133,8 +131,21 @@ export async function triageInboxItem(itemId: string): Promise<void> {
         createdId: r.created?.id ?? r.captured?.id ?? r.id ?? null,
       }).catch(() => {});
     }
+
+    // Post-handling audit: a LOCAL LLM re-reads the capture + what triage did
+    // and decides whether it was handled properly → completed, else failed.
+    const handling = dest
+      ? `Filed as ${dest.label}${finalText ? ` — ${finalText.slice(0, 300)}` : ""}`
+      : `Left in the inbox, no item created${finalText ? ` — ${finalText.slice(0, 300)}` : ""}`;
+    const { verifyHandling } = await import("./verify");
+    const verified = await verifyHandling(item.input, handling);
+    await set({
+      status: verified.ok ? "completed" : "failed",
+      triage: { ...triageData, verified },
+    });
   } catch (e) {
-    await set({ status: "error", error: String(e).slice(0, 400) });
+    // A triage crash is itself a handling failure.
+    await set({ status: "failed", error: String(e).slice(0, 400) });
   }
 }
 
