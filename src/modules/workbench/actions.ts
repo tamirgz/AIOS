@@ -201,7 +201,12 @@ export async function cancelTask(taskId: string) {
   revalidate(taskId);
 }
 
-/** Archive hides the card and reclaims the worktrees; branches survive. */
+/**
+ * Archive hides the card, reclaims the worktrees, and deletes any branch whose
+ * work is already merged — so archived tasks stop leaving `aios/task-*` litter
+ * in the repo. Unmerged branches survive untouched (the one copy of work you
+ * haven't taken), exactly as hard-delete treats them.
+ */
 export async function archiveTask(taskId: string) {
   const [task] = await db
     .select()
@@ -215,7 +220,8 @@ export async function archiveTask(taskId: string) {
       .from(taskAttempts)
       .where(eq(taskAttempts.taskId, taskId));
     for (const a of attempts) {
-      if (a.workdir && a.branch) await removeIsolation(task.repoPath, a.workdir);
+      if (a.workdir) await removeIsolation(task.repoPath, a.workdir);
+      if (a.branch) await deleteBranchIfMerged(task.repoPath, a.branch);
     }
   }
 
