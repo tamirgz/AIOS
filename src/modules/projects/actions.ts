@@ -51,15 +51,11 @@ export async function updateProject(
     status: ProjectStatus;
   }>,
 ) {
-  // Name/description feed the project embedding used by suggestions.
-  const contentChanged = "name" in patch || "description" in patch;
+  // The project's grounded vector re-embeds via the search-index content-hash
+  // gate when name/description/goal/linked-work changes — nothing to clear here.
   const [row] = await db
     .update(projects)
-    .set({
-      ...patch,
-      ...(contentChanged ? { embedding: null } : {}),
-      updatedAt: new Date(),
-    })
+    .set({ ...patch, updatedAt: new Date() })
     .where(eq(projects.id, id))
     .returning();
   revalidateProjects(id);
@@ -204,8 +200,7 @@ export async function listProjectCategories(): Promise<string[]> {
 export async function setProjectGoal(id: string, goal: string | null) {
   await db
     .update(projects)
-    // Goal feeds the project embedding (grounding) — re-embed on change.
-    .set({ goal: goal?.trim() || null, embedding: null })
+    .set({ goal: goal?.trim() || null })
     .where(eq(projects.id, id));
   revalidateProjects(id);
 }
@@ -214,7 +209,7 @@ export async function setProjectGoal(id: string, goal: string | null) {
 export async function setProjectNextAction(id: string, nextAction: string | null) {
   await db
     .update(projects)
-    .set({ nextAction: nextAction?.trim() || null, embedding: null, updatedAt: new Date() })
+    .set({ nextAction: nextAction?.trim() || null, updatedAt: new Date() })
     .where(eq(projects.id, id));
   revalidateProjects(id);
 }
@@ -241,7 +236,7 @@ export async function completeProjectNextAction(id: string) {
   });
   await db
     .update(projects)
-    .set({ nextAction: null, embedding: null, updatedAt: new Date() })
+    .set({ nextAction: null, updatedAt: new Date() })
     .where(eq(projects.id, id));
   revalidateProjects(id);
 }

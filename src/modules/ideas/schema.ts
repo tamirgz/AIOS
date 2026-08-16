@@ -1,5 +1,4 @@
 import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { embeddingVector } from "@/core/db/vector";
 
 export const IDEA_CATEGORIES = [
   "product",
@@ -50,7 +49,6 @@ export const ideas = pgTable("ideas", {
   analysisError: text("analysis_error"),
   /** Set when promoted: "projects:<uuid>". */
   projectRef: text("project_ref"),
-  embedding: embeddingVector("embedding"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
