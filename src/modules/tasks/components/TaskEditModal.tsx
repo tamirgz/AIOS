@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { Flame, Trash2, X } from "lucide-react";
@@ -39,6 +39,17 @@ export function TaskEditModal({
   const [priority, setPriority] = useState<TaskPriority>(task.priority);
   const [dueAt, setDueAt] = useState(toDateInput(task.dueAt));
   const [projectId, setProjectId] = useState(task.projectRef?.split(":")[1] ?? "");
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
+  // Notes grow to fit their content (capped, then scroll) — no more cramming a
+  // long note into three fixed rows. The user can still drag it taller.
+  const autoGrow = () => {
+    const el = notesRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+  useLayoutEffect(autoGrow, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -83,7 +94,7 @@ export function TaskEditModal({
         exit={{ opacity: 0, scale: 0.98 }}
         transition={{ type: "spring", stiffness: 420, damping: 34 }}
         onClick={(e) => e.stopPropagation()}
-        className="glass w-full max-w-md rounded-2xl p-4"
+        className="glass max-h-[80vh] w-full max-w-md overflow-y-auto rounded-2xl p-4"
       >
         <div className="mb-3 flex items-center justify-between">
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-ink-faint">
@@ -110,11 +121,18 @@ export function TaskEditModal({
         />
 
         <textarea
+          ref={notesRef}
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => {
+            setNotes(e.target.value);
+            autoGrow();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
+          }}
           rows={3}
           placeholder="Notes…"
-          className="mb-3 w-full resize-none rounded-lg bg-white/5 px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:bg-white/8"
+          className="mb-3 max-h-[45vh] min-h-[4.5rem] w-full resize-y overflow-y-auto rounded-lg bg-white/5 px-3 py-2 text-sm leading-relaxed text-ink outline-none placeholder:text-ink-faint focus:bg-white/8"
         />
 
         <div className="mb-4 flex flex-wrap items-center gap-2">
