@@ -14,17 +14,20 @@ agents/harnesses execute, and exactly what host/global state they touch.
   (`claude`/`codex`/`opencode`/`pi`) — runs **natively on the host** (Apple
   Silicon, full speed). Docker's only cost here is DB I/O over a localhost port,
   which is negligible.
-- **Does the host setup mess with my global config?** Mostly no:
+- **Does the host setup mess with my global config?** No:
   - **Billing is actively protected** — metered API keys (`ANTHROPIC_API_KEY`,
     `OPENAI_API_KEY`, …) are stripped at startup and from every spawned child, so
     a stray key can never silently start per-token billing.
   - It does **not** modify shell profiles, system settings, or global git config.
   - All filesystem scratch is namespaced under **`~/.aios/`**.
-  - **But** the Workbench CLI harnesses run under your **real `$HOME`**, so a
-    "Claude Code (headless)" or "Codex" run uses your actual `~/.claude` /
-    `~/.codex` CLI config (reads it; those tools may write their own state), and
-    they **leave `aios/task-<id>` git branches** behind in whatever repo they
-    worked on (including this one). See [Global footprint](#global--home-directory-footprint).
+  - The Workbench CLI harnesses run in a **private `HOME`** per kind
+    (`~/.aios/harness-home/<kind>`): they read your real config (skills, settings,
+    auth) through read-through symlinks but **write** their session history,
+    auto-memory, and caches into the sandbox — never your real `~/.claude` /
+    `~/.codex`. The auto-approve local CLIs (`opencode`/`pi`) additionally run
+    under a **macOS seatbelt** that confines writes to the workdir. See
+    [Harness isolation](#harness-isolation). `aios/task-*` review branches are
+    reclaimed when a task is archived (if merged).
 
 ## Process topology
 
@@ -93,24 +96,24 @@ create worktrees or use your global CLI config.
 `src/modules/workbench/`. Each executor is an **adapter**; the engine owns
 isolation so a misbehaving executor can't dirty your checkout. Adapters:
 
-| Executor | Kind | Spawns | Auth / model | Git isolation |
+| Executor | Kind | Spawns | Auth / model | Isolation |
 |---|---|---|---|---|
-| Claude Code (headless) | `claude-headless` | `claude` CLI | Max sub → your `~/.claude` | worktree |
-| Codex (GPT-5) | `codex-headless` | `codex exec --json` | ChatGPT sub → `~/.codex/auth.json` | worktree |
+| Claude Code (headless) | `claude-headless` | `claude` CLI | Max sub (env token) | worktree + private HOME |
+| Codex (GPT-5) | `codex-headless` | `codex exec --json` | ChatGPT sub (linked `auth.json`) | worktree + private HOME |
 | AIOS native | `native` | — (in-process module tools) | routing table | none |
-| opencode | `cli` | `opencode run` | local/free models | worktree/clone |
-| pi | `cli` | `pi` | local Ollama model | worktree/clone |
+| opencode | `cli` | `opencode run` | local/free models | worktree/clone + private HOME + seatbelt |
+| pi | `cli` | `pi` | local Ollama model | worktree/clone + private HOME + seatbelt |
 | research | `research` | — (fetch + tool-free analysis) | routing table | none (scratch dir) |
 
-- Every spawned executor gets its env from **`subscriptionEnv()`** — the current
-  env **minus** all metered-auth vars and any redirected base URLs — so a
-  Workbench harness can never bill per token.
-- The CLI harnesses run under your **real `$HOME`** (not an isolated one), so
-  they read your actual `~/.claude` (including skills — the engine deliberately
-  exposes `~/.claude/skills` to runs) and `~/.codex`. Those CLIs may write their
-  own state there as they normally would.
-- Local coding agents run with `--dangerously-skip-permissions`; a repo-level
-  `external_directory` deny rule still confines writes to the workdir.
+- Every spawned executor gets its env from **`harnessEnv()`** (which wraps
+  **`subscriptionEnv()`** — current env **minus** all metered-auth vars and
+  redirected base URLs), so a Workbench harness can never bill per token.
+- The CLI harnesses run in a **private `HOME`** (see [Harness isolation](#harness-isolation)),
+  not your real one — they read your config (skills, settings, auth) through
+  read-through symlinks but write their own state into the sandbox.
+- Local coding agents run with `--dangerously-skip-permissions`; on top of the
+  repo-level `external_directory` deny rule, the **seatbelt** confines their
+  writes at the OS level.
 
 ## Auth & billing safety
 
@@ -143,25 +146,52 @@ with your global tooling:
 | `~/.aios/scratch/` | write | app-private | Research/no-git run scratch. |
 | `~/.aios/opencode-data`, `opencode-runs`, `opencode/` | write | app-private | opencode data dirs for CLI runs. |
 | `~/.aios/free-model-health.json` | write | app-private | Free-model health ledger. |
+| `~/.aios/harness-home/<kind>/` | write | app-private | Per-harness private HOME — session history, auto-memory, caches. |
 | `~/Backups/aios/` (or `$AIOS_BACKUP_DIR`) | write | app-private | Nightly `pg_dump` backups. |
 | `~/AIOS/agent-reports/` | read | shared drop-box | External-agent report intake. |
-| `~/.claude/` (skills, `.credentials.json`, keychain) | read | **your global config** | Auth presence + skills exposed to Workbench runs. |
-| `~/.claude/jobs/` | read | **your global config** | Claude Desktop background-job intake. |
-| `~/.codex/auth.json` | read | **your global config** | Codex (ChatGPT sub) login. |
+| `~/.claude/` (skills, settings, hooks, rules) | **read only** | your global config | Linked read-through into the harness HOME; writes go to the sandbox. |
+| `~/.codex/auth.json`, `config.toml` | **read only** | your global config | Linked into the harness HOME; Codex session state stays in the sandbox. |
+| `~/.gitconfig`, `~/.npmrc` | **read only** | your global config | Linked so in-run git/npm keep your identity. `~/.ssh` is **not** linked. |
 | `~/.cache/opencode/models.json` | read | shared cache | NVIDIA model catalog. |
-| target repo `.git` (e.g. this repo) | write | **your repo** | `git worktree`/`clone` + `aios/task-<id>` branches. |
+| target repo `.git` (e.g. this repo) | write | **your repo** | `git worktree`/`clone` + `aios/task-<id>` review branches. |
 
-**Not touched:** shell profiles (`.zshrc` etc.), system settings, global
-`~/.gitconfig`, npm/pnpm/uv global installs. AIOS installs nothing globally
-beyond its own `~/Library/LaunchAgents/com.aios.*` plists.
+**Not touched:** shell profiles (`.zshrc` etc.), system settings, your `~/.ssh`,
+npm/pnpm/uv global installs, and — now that harnesses run in a private HOME —
+your real `~/.claude` / `~/.codex` **state** (only config is read, read-only).
+AIOS installs nothing globally beyond its own `~/Library/LaunchAgents/com.aios.*`
+plists.
 
-### Git branch leftovers (the one real housekeeping item)
+## Harness isolation
 
-Workbench worktrees/clones are throwaway and reclaimed, but the **branches they
-create survive** — a run leaves `aios/task-<shortid>` in whatever repo it worked
-on. Example: this repo currently carries a stray `aios/task-5d336dfd`. These are
-harmless but accumulate; delete finished ones with `git branch -D aios/task-*`
-once you've confirmed they're merged or unwanted.
+The Workbench CLI harnesses are confined by `src/modules/workbench/adapters/sandbox.ts`
+so a delegated run can't read or write your real global tool state, while still
+behaving exactly as it does under your real home.
+
+- **Private HOME** (`harnessEnv`): each kind runs with
+  `HOME=~/.aios/harness-home/<claude|codex|cli>` (+ XDG dirs for the cli tools).
+  Session history, auto-memory, sqlite state and caches land there. The config
+  the harness needs is linked **read-through**: Claude mirrors all of `~/.claude`
+  *except* the write-pollution dirs (`projects`, `sessions`, `shell-snapshots`,
+  …); Codex/opencode link the specific auth+config entries. `~/.gitconfig` /
+  `~/.npmrc` are linked for in-run git/npm; `~/.ssh` is deliberately **not**.
+  Auth is unaffected — the Claude token authenticates from the env even in an
+  isolated HOME, Codex reads the linked `auth.json`.
+- **Seatbelt** (`maybeSeatbelt`): the auto-approve local CLIs (`opencode`/`pi`)
+  are wrapped in `sandbox-exec` with an OS-enforced profile that confines file
+  **writes** to the workdir + sandbox home + tmp (reads/exec/network stay open).
+  Disable with `WORKBENCH_SEATBELT=off` if a run legitimately needs to write
+  elsewhere.
+- **Billing safety** rides underneath: `harnessEnv` wraps `subscriptionEnv`, so
+  metered keys are stripped from every harness regardless.
+
+### Git branch housekeeping
+
+A worktree/clone run leaves an `aios/task-<shortid>` review branch in whatever
+repo it worked on. Worktrees/clones are reclaimed automatically, and **archiving
+a task now deletes its branch when the work is already merged** (unmerged
+branches survive — they may hold the only copy of work you haven't taken). To
+sweep merged leftovers by hand: `git branch --merged main | grep aios/task- |
+xargs git branch -d`.
 
 ## Operations
 
