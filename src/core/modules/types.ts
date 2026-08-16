@@ -19,7 +19,15 @@ export interface ModuleManifest {
   icon: LucideIcon;
   /** CSS color used for nav glow / accent highlights. */
   accent: string;
-  nav: { order: number };
+  /**
+   * Sidebar placement. `order` sorts the flat list (and within a group).
+   * `group` pulls the item under a collapsible section label (e.g. "Sources"
+   * for read-only external feeds) instead of the always-visible core list.
+   * `external: true` marks a pointer-out — clicking ultimately opens the real
+   * app — and shows an ↗ cue (Telegram is a source but readable in-app, so it
+   * sets `group` without `external`).
+   */
+  nav: { order: number; group?: string; external?: boolean };
   /** ⌘K entries contributed by this module. */
   commands: ModuleCommand[];
 }
