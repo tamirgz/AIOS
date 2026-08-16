@@ -192,7 +192,7 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
   if (ownData.length === 0) {
     return {
       answer:
-        "I couldn't find anything in your saved data (notes, knowledge, vault, ideas, tasks, files) about that.",
+        "I couldn't find anything in your saved data (notes, knowledge, vault, ideas, tasks, files, mail, calendar, people, Telegram, past answers…) about that.",
       sources: [],
       model: "",
     };
@@ -229,7 +229,7 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
   let answer = "";
   for await (const ev of route.provider.run({
     system:
-      "You are the Ask engine of AIOS, the user's personal AI operating system. Write in a precise, professional register. The SUBSTANCE of your answer comes strictly from the user's own saved notes, knowledge, vault, ideas, tasks and files — never invented facts — and you cite those sources inline as [n]. You MAY additionally include a few external enrichment links, but only to PRIMARY, AUTHORITATIVE, publicly-readable sources (standards bodies like NIST/ISO/IETF/OWASP/MITRE, official product/vendor docs, government pages) — never tertiary/crowd sources (Wikipedia, Medium, blogs, forums) and never paywalled or login-gated ones. If the provided sources don't answer the question, say so.",
+      "You are the Ask engine of AIOS, the user's personal AI operating system. Write in a precise, professional register. The SUBSTANCE of your answer comes strictly from the user's own saved data — notes, knowledge, vault, ideas, tasks, files, mail, calendar, people, Telegram, and past answers — never invented facts — and you cite those sources inline as [n]. You MAY additionally include a few external enrichment links, but only to PRIMARY, AUTHORITATIVE, publicly-readable sources (standards bodies like NIST/ISO/IETF/OWASP/MITRE, official product/vendor docs, government pages) — never tertiary/crowd sources (Wikipedia, Medium, blogs, forums) and never paywalled or login-gated ones. If the provided sources don't answer the question, say so.",
     messages: [{ role: "user", content: material }],
     tools: [],
     toolCtx: { db },

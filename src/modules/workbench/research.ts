@@ -104,40 +104,69 @@ export async function readArticle(url: string): Promise<Article | null> {
 }
 
 export interface ResearchContext {
-  block: string; // prompt section to append (empty if nothing fetched)
+  block: string; // prompt section to append (empty if nothing gathered)
   articles: number;
   related: number;
+  knowledge: number;
 }
 
 /**
- * Read every URL in the prompt, gather related sources, write everything to
- * `.aios/sources/`, and return a prompt block carrying the material inline.
- * Best-effort throughout: any failure just yields less context, never throws.
+ * Assemble everything relevant to the task: the user's OWN corpus (semantic
+ * search across all sources — notes, knowledge, vault, tasks, mail, calendar,
+ * past answers…), any article URLs named in the prompt, and related web
+ * coverage. Returns a prompt block carrying it inline. Best-effort throughout:
+ * any failure just yields less context, never throws.
  */
 export async function gatherResearchContext(
   prompt: string,
   workdir: string,
 ): Promise<ResearchContext> {
-  const urls = extractUrls(prompt);
-  if (urls.length === 0) return { block: "", articles: 0, related: 0 };
-
-  const articles = (await Promise.all(urls.slice(0, 4).map(readArticle))).filter(
-    (a): a is Article => a !== null,
+  // 1) The user's own knowledge base — "take everything I have into account".
+  const { searchEverything, RELATED_MAX_DISTANCE } = await import("@/core/embeddings");
+  const hits = (await searchEverything(prompt, 10).catch(() => [])).filter(
+    (h) => h.distance <= RELATED_MAX_DISTANCE,
   );
-  if (articles.length === 0) return { block: "", articles: 0, related: 0 };
 
-  // Related coverage for "research all related" — search on the first article's
-  // title, filtered through the same authority/relevance gates as Ask.
-  const related = await webSearchSources(articles[0].title, { max: 4 }).catch(() => []);
+  // 2) Article(s) named in the prompt.
+  const urls = extractUrls(prompt);
+  const articles = urls.length
+    ? (await Promise.all(urls.slice(0, 4).map(readArticle))).filter(
+        (a): a is Article => a !== null,
+      )
+    : [];
 
-  // Persist to disk so a file-oriented executor can also read the sources.
-  const dir = join(workdir, ".aios", "sources");
-  await mkdir(dir, { recursive: true }).catch(() => {});
+  // 3) Related web coverage — only when there's a seed article to expand on.
+  const related = articles.length
+    ? await webSearchSources(articles[0].title, { max: 4 }).catch(() => [])
+    : [];
+
+  if (hits.length === 0 && articles.length === 0)
+    return { block: "", articles: 0, related: 0, knowledge: 0 };
+
   const parts: string[] = [
     "",
-    "=== FETCHED SOURCE MATERIAL (read these; you do NOT need web/search/grep tools) ===",
-    "The article(s) named in the task have already been fetched for you below and saved under .aios/sources/. Base your analysis strictly on this material.",
+    "=== SOURCE MATERIAL (base your analysis on this; you do NOT need web/search/grep tools) ===",
   ];
+
+  if (hits.length) {
+    parts.push(
+      "",
+      "--- FROM YOUR OWN KNOWLEDGE BASE (saved notes, knowledge, vault, tasks, mail, calendar, past answers…) ---",
+    );
+    for (const h of hits) {
+      parts.push(`• [${h.kind}] ${h.title}\n${(h.snippet ?? "").slice(0, 500)}`);
+    }
+  }
+
+  // Persist fetched articles to disk so a file-oriented executor can also read them.
+  const dir = join(workdir, ".aios", "sources");
+  await mkdir(dir, { recursive: true }).catch(() => {});
+  if (articles.length) {
+    parts.push(
+      "",
+      "--- FETCHED ARTICLE(S) named in the task (also saved under .aios/sources/) ---",
+    );
+  }
   let i = 0;
   for (const a of articles) {
     i += 1;
@@ -168,5 +197,10 @@ export async function gatherResearchContext(
   }
 
   parts.push("", "=== END SOURCE MATERIAL ===");
-  return { block: parts.join("\n"), articles: articles.length, related: related.length };
+  return {
+    block: parts.join("\n"),
+    articles: articles.length,
+    related: related.length,
+    knowledge: hits.length,
+  };
 }
