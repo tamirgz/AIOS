@@ -3,7 +3,17 @@
  * enricher so the two never drift. Enrichment links must clear a professional
  * bar: reachable AND free-to-read AND a primary/authoritative source — not a
  * paywall and not a tertiary/crowd/SEO page.
+ *
+ * `verifyExternalLinks` goes further than a status check: it FETCHES each link,
+ * rejects parked/for-sale/404 pages by content signature, and runs a local-LLM
+ * judge over the real page text to confirm it's genuinely on-topic — because a
+ * status-200 check alone lets a parked domain (GoDaddy "for sale"), a soft-404,
+ * or a live-but-irrelevant authoritative page through.
  */
+import { fetchUrlText } from "@/modules/telegram/fetch";
+
+const OLLAMA_BASE = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+const JUDGE_MODEL = process.env.ASK_JUDGE_MODEL || "qwen3:8b";
 
 /** Domains that return 200 but wall their content behind a login/subscription. */
 export const GATED_DOMAIN =
@@ -41,40 +51,110 @@ export function isLowQualityUrl(url: string): boolean {
   );
 }
 
-const VERIFY_UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+/**
+ * Parking / for-sale / suspended / soft-404 signatures in a page's fetched text.
+ * These pages return HTTP 200, so only their CONTENT gives them away.
+ */
+const DEAD_PAGE =
+  /(this domain (is|may be|might be) (for sale|available)|buy this domain|domain( name)? (is )?for sale|godaddy|sedo(parking)?|afternic|hugedomains|dan\.com|parkingcrew|bodis|website is parked|domain( is)? parked|under construction|coming soon|account (has been )?suspended|page (you requested )?(was )?not found|404\b[^0-9]{0,20}(not found|error)|the requested (page|url|document)[^.]{0,40}(not|could not) (be )?found|no longer (exists|available)|this page (does not|doesn't) exist)/i;
 
-/** A publicly-reachable, free-to-read, authoritative page? Fails closed on any doubt. */
-export async function linkAccessible(url: string): Promise<boolean> {
-  if (isLowQualityUrl(url)) return false;
+/** qwen "thinking" models wrap reasoning in <think>…</think>; drop it. */
+function stripThink(s: string): string {
+  return s.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+}
+
+/** Fetch a page's readable text for verification; "" on any failure. */
+async function fetchForVerify(url: string): Promise<string> {
   try {
-    const res = await fetch(url, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(6000),
-      headers: { "User-Agent": VERIFY_UA },
-    });
-    if (!res.ok) return false; // 4xx/5xx, incl. 401/403 gates
-    // Redirected to a login/subscribe/consent page ⇒ not really accessible.
-    const finalPath = new URL(res.url).pathname;
-    if (/\/(login|sign[_-]?in|subscribe|register|account|paywall|consent)\b/i.test(finalPath))
-      return false;
-    return true;
+    const t = await fetchUrlText(url);
+    return typeof t === "string" ? t.trim() : "";
   } catch {
-    return false; // timeout, DNS, TLS, network — treat as inaccessible
+    return "";
   }
 }
 
 /**
- * Verify every external markdown link in the answer and demote the unreachable,
- * gated, or low-authority ones to plain text (keeping the label). Runs the
- * checks concurrently over the distinct URLs so it adds a fixed ~few seconds,
- * not per-link. The `[n]` citations (no `(url)`) are untouched.
+ * Batched local-LLM relevance judge: given the question and the real fetched
+ * text of each candidate link, return url → keep?. One Ollama call for the whole
+ * set — Ollama serves one model at a time, so batching keeps this to a single
+ * ~few-second call regardless of link count. Fail-closed: any parse/network
+ * trouble drops the link rather than risk citing junk.
  */
-export async function verifyExternalLinks(answer: string): Promise<string> {
+async function judgeLinks(
+  query: string,
+  items: { url: string; text: string }[],
+): Promise<Map<string, boolean>> {
+  const verdict = new Map<string, boolean>(items.map((it) => [it.url, false]));
+  if (items.length === 0) return verdict;
+  const list = items
+    .map((it, i) => `[${i}] URL: ${it.url}\n${it.text.replace(/\s+/g, " ").slice(0, 900)}`)
+    .join("\n\n");
+  const system =
+    'You verify web links for a research answer. For each numbered page you get its URL and the actual text fetched from it. Mark a page "yes" ONLY if BOTH hold: (1) it is a REAL, live, publicly-readable page (not a domain-for-sale/parking page, not an error/404, not a login/subscribe wall, not empty/placeholder), AND (2) its content substantively covers the SPECIFIC topic asked about — not merely the broader field. Example: if the topic is "XDR", a general cybersecurity-framework page that never actually discusses XDR is "no". When in doubt, answer "no". Reply with ONLY a JSON object mapping each index to "yes" or "no" — no prose.';
+  const user = `USER TOPIC: ${query}\n\nPAGES:\n${list}\n\nReply with JSON like {"0":"yes","1":"no"}`;
+  try {
+    const res = await fetch(`${OLLAMA_BASE}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: JUDGE_MODEL,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        temperature: 0,
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) return verdict;
+    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const raw = stripThink(data.choices?.[0]?.message?.content ?? "");
+    const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
+    const map = JSON.parse(json) as Record<string, string>;
+    items.forEach((it, i) => {
+      const v = String(map[i] ?? map[String(i)] ?? "").toLowerCase();
+      verdict.set(it.url, v.startsWith("y"));
+    });
+  } catch {
+    // fail-closed — leave everything as false
+  }
+  return verdict;
+}
+
+/**
+ * Verify every external markdown link in the answer and DEMOTE the ones that
+ * aren't real, usable, on-topic resources to plain text (keeping the label). A
+ * link survives only if it clears all three checks: the cheap domain gate, a
+ * parked/for-sale/404 content signature over its FETCHED text, and a local-LLM
+ * relevance judge against the question. The `[n]` citations (no `(url)`) are
+ * untouched. Fail-closed throughout — a link we can't confirm is stripped.
+ */
+export async function verifyExternalLinks(answer: string, query = ""): Promise<string> {
   const linkRe = /\[([^\]]+)\]\(((?:https?:)?\/\/[^)\s]+)\)/gi;
   const urls = [...new Set([...answer.matchAll(linkRe)].map((m) => m[2]))];
   if (urls.length === 0) return answer;
-  const ok = new Map<string, boolean>();
-  await Promise.all(urls.map(async (u) => ok.set(u, await linkAccessible(u))));
-  return answer.replace(linkRe, (whole, label, url) => (ok.get(url) ? whole : label));
+
+  // Cheap domain gate + fetch content + parked/404 signature (concurrent network).
+  const candidates: { url: string; text: string }[] = [];
+  const rejected = new Set<string>();
+  await Promise.all(
+    urls.map(async (u) => {
+      if (isLowQualityUrl(u)) {
+        rejected.add(u);
+        return;
+      }
+      const text = await fetchForVerify(u);
+      if (text.length < 120 || DEAD_PAGE.test(text.slice(0, 3000))) {
+        rejected.add(u);
+        return;
+      }
+      candidates.push({ url: u, text });
+    }),
+  );
+
+  // One local-LLM judge over everything that survived the cheap checks.
+  const verdict = await judgeLinks(query, candidates);
+  const keep = (u: string) => !rejected.has(u) && verdict.get(u) === true;
+  return answer.replace(linkRe, (whole, label, url) => (keep(url) ? whole : label));
 }

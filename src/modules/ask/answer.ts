@@ -227,7 +227,7 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
       : null,
     web.length > 0 ? "" : null,
     `Answer the question using these sources for the substance, and cite them inline as [1], [2], etc. Sources 1-${ownCount} are the user's own data and are the backbone of the answer; don't invent facts beyond what the sources support. If they don't actually answer it, say so plainly rather than guessing. Be thorough when the sources are a complete project dossier — surface everything relevant, not just one line.`,
-    "You MAY add a few high-quality EXTERNAL links to enrich the answer, but hold them to a professional bar: prefer the provided \"web\" sources, and otherwise link ONLY to PRIMARY, AUTHORITATIVE, publicly-readable pages — standards bodies and frameworks (NIST, ISO, IETF/RFCs, OWASP, MITRE ATT&CK/CVE, CISA), official product/vendor documentation, government or inter-governmental pages (.gov, europa.eu), and reputable technical primary sources. Do NOT link to tertiary or crowd/SEO sources (Wikipedia, Medium, blogs, Reddit, StackOverflow, W3Schools/GeeksforGeeks-style tutorial sites) or to paywalled/login-gated pages (Gartner, Forrester, IDC, WSJ, etc.). Use real markdown links `[label](https://…)`. These enrich; the [n] citations to the user's own data remain the backbone. If you can't name a genuinely authoritative source, add no link rather than a weak one.",
+    "EXTERNAL LINKS — strict: only ever link to one of the provided \"web\" sources above (use its EXACT url from the source list). NEVER write a URL from memory, and never guess or construct a link — invented links are almost always dead, parked (domain-for-sale), or off-topic, and are automatically fetched-and-checked, so a bad one is stripped and just wastes the reader's trust. If none of the provided web sources fit, add NO link at all — a plain, unlinked mention is better than a broken one. The [n] citations to the user's own data remain the backbone.",
   ]
     .filter((line) => line !== null)
     .join("\n");
@@ -235,7 +235,7 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
   let answer = "";
   for await (const ev of route.provider.run({
     system:
-      "You are the Ask engine of AIOS, the user's personal AI operating system. Write in a precise, professional register. The SUBSTANCE of your answer comes strictly from the user's own saved data — notes, knowledge, vault, ideas, tasks, files, mail, calendar, people, Telegram, and past answers — never invented facts — and you cite those sources inline as [n]. You MAY additionally include a few external enrichment links, but only to PRIMARY, AUTHORITATIVE, publicly-readable sources (standards bodies like NIST/ISO/IETF/OWASP/MITRE, official product/vendor docs, government pages) — never tertiary/crowd sources (Wikipedia, Medium, blogs, forums) and never paywalled or login-gated ones. If the provided sources don't answer the question, say so.",
+      "You are the Ask engine of AIOS, the user's personal AI operating system. Write in a precise, professional register. The SUBSTANCE of your answer comes strictly from the user's own saved data — notes, knowledge, vault, ideas, tasks, files, mail, calendar, people, Telegram, and past answers — never invented facts — and you cite those sources inline as [n]. For external links, use ONLY the exact URLs of the provided \"web\" sources; NEVER invent, guess, or reconstruct a URL from memory (they are fetched and verified, so a fabricated link is stripped). If the provided sources don't answer the question, say so.",
     messages: [{ role: "user", content: material }],
     tools: [],
     toolCtx: { db },
@@ -248,11 +248,11 @@ export async function answerQuestion(query: string): Promise<AskAnswer> {
     if (ev.type === "error") throw new Error(ev.message);
   }
 
-  // The model may add external enrichment links, but they're often paywalled or
-  // hallucinated. Verify each is actually reachable + free to read; keep the
-  // good ones as links, demote the rest to plain text. The [n] citations (no
-  // `(url)`) are untouched.
-  const cleaned = await verifyExternalLinks(answer.trim());
+  // Any external link the model emitted is FETCHED and checked — parked/for-sale
+  // /404 pages by content signature, then a local-LLM judge for real on-topic
+  // usefulness against the question. Survivors stay links; the rest demote to
+  // plain text. The [n] citations (no `(url)`) are untouched.
+  const cleaned = await verifyExternalLinks(answer.trim(), q);
 
   return {
     answer: cleaned,
