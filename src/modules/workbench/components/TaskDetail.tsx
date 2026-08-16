@@ -28,10 +28,13 @@ import {
   deleteTask,
   requestPR,
   retryTask,
+  setTaskProject,
   unarchiveTask,
   updateTaskPrompt,
   updateTaskTitle,
 } from "../actions";
+import { ProjectPicker } from "@/modules/projects/components/ProjectPicker";
+import type { ProjectOption } from "@/modules/projects/queries";
 import type { TaskDetail as Detail } from "../queries";
 import { STATUS_META } from "./TaskBoard";
 import { ReportPanel } from "./ReportPanel";
@@ -208,7 +211,13 @@ function JudgePanel({
   );
 }
 
-export function TaskDetailView({ detail }: { detail: Detail }) {
+export function TaskDetailView({
+  detail,
+  projectOptions = [],
+}: {
+  detail: Detail;
+  projectOptions?: ProjectOption[];
+}) {
   const { task, attempts, events, diff } = detail;
   const [pending, start] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -322,6 +331,16 @@ export function TaskDetailView({ detail }: { detail: Detail }) {
               </span>
             )}
             {latest?.costUsd && <span>${Number(latest.costUsd).toFixed(2)}</span>}
+          </div>
+          <div className="mt-2">
+            <ProjectPicker
+              options={projectOptions}
+              value={task.projectRef ?? null}
+              onChange={async (ref) => {
+                await setTaskProject(task.id, ref);
+                router.refresh();
+              }}
+            />
           </div>
         </div>
 
