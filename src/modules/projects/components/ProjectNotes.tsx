@@ -34,7 +34,7 @@ export function ProjectNotes({
           onClick={() =>
             startTransition(async () => {
               const row = await createNote({
-                projectRef: `projects:${projectId}`,
+                projectRefs: [`projects:${projectId}`],
               });
               router.push(`/m/notes/${row.id}`);
             })

@@ -3,32 +3,32 @@
 import { desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/core/db/client";
-import { notes } from "./schema";
+import { filedUnder, notes } from "./schema";
 
 export async function listNotes() {
   return db.select().from(notes).orderBy(desc(notes.updatedAt));
 }
 
-/** Notes linked to one project (entity-ref "projects:<uuid>"). */
+/** Notes filed under one project/area (entity-ref "projects:<uuid>"). */
 export async function listNotesForProject(projectId: string) {
   return db
     .select()
     .from(notes)
-    .where(eq(notes.projectRef, `projects:${projectId}`))
+    .where(filedUnder(projectId))
     .orderBy(desc(notes.updatedAt));
 }
 
 export async function createNote(input?: {
   title?: string;
   body?: string;
-  projectRef?: string | null;
+  projectRefs?: string[];
 }) {
   const [row] = await db
     .insert(notes)
     .values({
       title: input?.title?.trim() || "Untitled note",
       body: input?.body ?? "",
-      projectRef: input?.projectRef ?? null,
+      projectRefs: input?.projectRefs ?? [],
     })
     .returning();
   revalidatePath("/");
@@ -36,20 +36,19 @@ export async function createNote(input?: {
   return row;
 }
 
-/** Assign/clear a note's project. Pass null to unlink. */
-export async function setNoteProject(id: string, projectId: string | null) {
+/** Set the projects/areas a note is filed under (multi). Pass [] to clear all. */
+export async function setNoteProjects(id: string, refs: string[]) {
+  // Normalize + dedupe to canonical "projects:<uuid>" refs.
+  const clean = [...new Set(refs.filter((r) => r?.startsWith("projects:")))];
   const [row] = await db
     .update(notes)
-    .set({
-      projectRef: projectId ? `projects:${projectId}` : null,
-      updatedAt: new Date(),
-    })
+    .set({ projectRefs: clean, updatedAt: new Date() })
     .where(eq(notes.id, id))
     .returning();
   revalidatePath("/m/notes");
   revalidatePath(`/m/notes/${id}`);
   revalidatePath("/m/projects");
-  if (projectId) revalidatePath(`/m/projects/${projectId}`);
+  for (const r of clean) revalidatePath(`/m/projects/${r.split(":")[1]}`);
   return row;
 }
 
@@ -59,7 +58,7 @@ export async function updateNote(
     title: string;
     body: string;
     tags: string[] | null;
-    projectRef: string | null;
+    projectRefs: string[];
   }>,
 ) {
   // Re-embedding on content change is handled by the search-index content-hash

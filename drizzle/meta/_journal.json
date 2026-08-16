@@ -323,6 +323,20 @@
       "when": 1786889703718,
       "tag": "0045_slow_lizard",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1786906894220,
+      "tag": "0046_fat_black_bird",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1786906912469,
+      "tag": "0047_smart_infant_terrible",
+      "breakpoints": true
     }
   ]
 }

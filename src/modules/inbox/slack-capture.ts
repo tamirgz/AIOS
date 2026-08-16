@@ -46,7 +46,8 @@ async function linkToProject(
     await db.update(tasks).set({ projectRef: ref }).where(eq(tasks.id, itemId));
   } else if (kind === "note") {
     const { notes } = await import("@/modules/notes/schema");
-    await db.update(notes).set({ projectRef: ref }).where(eq(notes.id, itemId));
+    // Notes are multi-filed — set the array to this single matched project.
+    await db.update(notes).set({ projectRefs: [ref] }).where(eq(notes.id, itemId));
   } else if (kind === "idea") {
     const { ideas } = await import("@/modules/ideas/schema");
     await db.update(ideas).set({ projectRef: ref }).where(eq(ideas.id, itemId));

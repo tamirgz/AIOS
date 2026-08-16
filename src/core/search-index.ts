@@ -200,8 +200,8 @@ const INTERNAL_SOURCES: InternalSource[] = [
       insert into search_index ${COLS}
       select 'note', id::text, title, left(body, 160),
              title || E'\n' || body, '/m/notes/' || id::text,
-             md5(title || E'\n' || body || '|' || coalesce(project_ref, '')),
-             ${REFS("project_ref")}
+             md5(title || E'\n' || body || '|' || coalesce(project_refs::text, '[]')),
+             project_refs
         from notes where true ${scope}
       ${ON_CONFLICT}`,
     orphan: dsql`delete from search_index where kind='note' and source_id not in (select id::text from notes)`,
@@ -302,11 +302,11 @@ const INTERNAL_SOURCES: InternalSource[] = [
       select 'project', p.id::text, p.name, left(coalesce(p.description, p.goal, ''), 160),
              concat_ws(' · ', p.name, p.goal, p.description, p.next_action,
                (select string_agg(t.title, ' · ') from tasks t where t.project_ref = 'projects:' || p.id::text),
-               (select string_agg(n.title, ' · ') from notes n where n.project_ref = 'projects:' || p.id::text)),
+               (select string_agg(n.title, ' · ') from notes n where n.project_refs @> jsonb_build_array('projects:' || p.id::text))),
              '/m/projects/' || p.id::text,
              md5(concat_ws('|', p.name, p.goal, p.description, p.next_action,
                (select string_agg(t.title, ',') from tasks t where t.project_ref = 'projects:' || p.id::text),
-               (select string_agg(n.title, ',') from notes n where n.project_ref = 'projects:' || p.id::text))),
+               (select string_agg(n.title, ',') from notes n where n.project_refs @> jsonb_build_array('projects:' || p.id::text)))),
              '[]'::jsonb
         from projects p where true ${scope}
       ${ON_CONFLICT}`,
