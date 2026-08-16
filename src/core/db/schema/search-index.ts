@@ -35,8 +35,16 @@ export const searchIndex = pgTable(
     snippet: text("snippet"),
     /** Where clicking the hit goes. */
     href: text("href"),
-    /** Projects/areas this item belongs to (Phase 3 grounds the orphaned ones). */
+    /** Projects/areas this item belongs to (precise, user- or source-set). */
     projectRefs: jsonb("project_refs").$type<string[]>().notNull().default([]),
+    /**
+     * Coarse "drawer" this item was auto-classified into — an area-of-development
+     * ref ("projects:<area-uuid>"), or "none" when it fits no area. Null = not
+     * yet classified. Assigned by a LOCAL LLM (topic, cross-language) rather than
+     * embeddings, which cluster by language. Retrieval opens the relevant drawer
+     * for a query instead of tagging items to a wrong specific project.
+     */
+    areaRef: text("area_ref"),
     /** Hash of the embedded text; on change the sync nulls `embedding` to re-embed. */
     contentHash: text("content_hash").notNull(),
     /** Local nomic-embed-text vector, filled by the worker's embedding sweep. */
