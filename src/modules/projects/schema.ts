@@ -8,7 +8,6 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { bytea } from "@/core/db/bytea";
-import { embeddingVector } from "@/core/db/vector";
 
 export const PROJECT_STATUSES = ["active", "paused", "done", "archived"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
@@ -94,8 +93,6 @@ export const projects = pgTable("projects", {
    * attached repo's recent commits, refreshed on a schedule. Feeds the advisor. */
   repoDigest: text("repo_digest"),
   repoDigestAt: timestamp("repo_digest_at", { withTimezone: true }),
-  /** name + description embedding, for the relations/suggestions layer. */
-  embedding: embeddingVector("embedding"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -172,8 +169,6 @@ export const projectFiles = pgTable(
       .notNull()
       .default("processing"),
     statusDetail: text("status_detail"),
-    /** Embedding of filename + extractedText, filled by the worker's sweep. */
-    embedding: embeddingVector("embedding"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

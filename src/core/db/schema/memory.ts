@@ -6,7 +6,6 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
-import { embeddingVector } from "@/core/db/vector";
 
 /**
  * Letta-style labeled memory blocks — small, size-budgeted context injected
@@ -47,7 +46,6 @@ export const memoryEntries = pgTable(
     text: text("text").notNull(),
     /** Where it came from: "chat", "agent:<name>", "block:<label>". */
     source: text("source").notNull(),
-    embedding: embeddingVector("embedding"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -158,6 +158,214 @@ const UPSERTS = [
       updated_at=now()`,
 ] as const;
 
+// ── Internal sources (Phase 2) ───────────────────────────────────────────────
+// The modules that used to own an `embedding` column now flow through here too,
+// so there is one vector space and one query surface. These differ from the
+// external sources above in two ways:
+//   • they carry `embed_text` — the RICH text to embed (a note's full body, a
+//     vault excerpt, a project's linked work), kept apart from the short display
+//     `snippet` so long-form content doesn't lose its signal to truncation;
+//   • each is exposed as a `(scope) => SQL` builder so the SAME projection drives
+//     both the batch sync (scope = TRUE) and `indexRow` (scope = one id), which
+//     the real-time write paths use to keep the index fresh without waiting for
+//     the 2-min sweep.
+const COLS = dsql.raw(
+  "(kind, source_id, title, snippet, embed_text, href, content_hash, project_refs)",
+);
+const ON_CONFLICT = dsql.raw(`on conflict (kind, source_id) do update set
+    title=excluded.title, snippet=excluded.snippet, embed_text=excluded.embed_text,
+    href=excluded.href, content_hash=excluded.content_hash, project_refs=excluded.project_refs,
+    embedding = case when search_index.content_hash <> excluded.content_hash then null else search_index.embedding end,
+    updated_at=now()`);
+
+/** A single project_ref text column → the jsonb array the index expects. */
+const REFS = (col: string) =>
+  dsql.raw(
+    `case when ${col} is not null and ${col} <> '' then jsonb_build_array(${col}) else '[]'::jsonb end`,
+  );
+
+interface InternalSource {
+  kind: string;
+  /** SQL expression that yields `source_id` — also the key `indexRow` scopes on. */
+  pk: string;
+  upsert: (scope: ReturnType<typeof dsql>) => ReturnType<typeof dsql>;
+  orphan: ReturnType<typeof dsql>;
+}
+
+const INTERNAL_SOURCES: InternalSource[] = [
+  {
+    kind: "note",
+    pk: "id::text",
+    upsert: (scope) => dsql`
+      insert into search_index ${COLS}
+      select 'note', id::text, title, left(body, 160),
+             title || E'\n' || body, '/m/notes/' || id::text,
+             md5(title || E'\n' || body || '|' || coalesce(project_ref, '')),
+             ${REFS("project_ref")}
+        from notes where true ${scope}
+      ${ON_CONFLICT}`,
+    orphan: dsql`delete from search_index where kind='note' and source_id not in (select id::text from notes)`,
+  },
+  {
+    kind: "task",
+    pk: "id::text",
+    upsert: (scope) => dsql`
+      insert into search_index ${COLS}
+      select 'task', id::text, title, left(coalesce(notes, ''), 160),
+             title || E'\n' || coalesce(notes, ''), '/m/tasks',
+             md5(title || '|' || coalesce(notes, '') || '|' || coalesce(project_ref, '')),
+             ${REFS("project_ref")}
+        from tasks where true ${scope}
+      ${ON_CONFLICT}`,
+    orphan: dsql`delete from search_index where kind='task' and source_id not in (select id::text from tasks)`,
+  },
+  {
+    kind: "idea",
+    pk: "id::text",
+    upsert: (scope) => dsql`
+      insert into search_index ${COLS}
+      select 'idea', id::text, title, left(coalesce(notes, ''), 160),
+             title || E'\n' || coalesce(notes, ''), '/m/ideas/' || id::text,
+             md5(title || '|' || coalesce(notes, '') || '|' || coalesce(project_ref, '')),
+             ${REFS("project_ref")}
+        from ideas where true ${scope}
+      ${ON_CONFLICT}`,
+    orphan: dsql`delete from search_index where kind='idea' and source_id not in (select id::text from ideas)`,
+  },
+  {
+    // Only enriched ('ready') items — half-fetched rows have no useful text yet.
+    kind: "knowledge",
+    pk: "id::text",
+    upsert: (scope) => dsql`
+      insert into search_index ${COLS}
+      select 'knowledge', id::text, coalesce(nullif(title, ''), left(input, 80)),
+             left(coalesce(insight->>'summary', note, input), 160),
+             concat_ws(' · ', coalesce(nullif(title,''), left(input,80)), note,
+               insight->>'summary', insight->>'relevance',
+               (select string_agg(v, ' ') from jsonb_array_elements_text(insight->'keyIdeas') v),
+               (select string_agg(v, ' ') from jsonb_array_elements_text(insight->'tags') v)),
+             '/m/knowledge/' || id::text,
+             md5(coalesce(title,'') || '|' || coalesce(note,'') || '|' || coalesce(insight->>'summary','')),
+             '[]'::jsonb
+        from knowledge_items where status = 'ready' ${scope}
+      ${ON_CONFLICT}`,
+    orphan: dsql`delete from search_index where kind='knowledge' and source_id not in (select id::text from knowledge_items where status='ready')`,
+  },
+  {
+    // Vault key is the file PATH (powers the obsidian:// deep link), not the uuid.
+    kind: "vault",
+    pk: "path",
+    upsert: (scope) => dsql`
+      insert into search_index ${COLS}
+      select 'vault', path, title, left(excerpt, 160),
+             title || E'\n' || excerpt, null,
+             md5(title || E'\n' || excerpt), '[]'::jsonb
+        from obsidian_notes where true ${scope}
+      ${ON_CONFLICT}`,
+    orphan: dsql`delete from search_index where kind='vault' and source_id not in (select path from obsidian_notes)`,
+  },
+  {
+    kind: "notion",
+    pk: "id",
+    upsert: (scope) => dsql`
+      insert into search_index ${COLS}
+      select 'notion', id, title, left(coalesce(content, ''), 160),
+             title || E'\n' || coalesce(content, ''), null,
+             md5(title || E'\n' || coalesce(content, '')), '[]'::jsonb
+        from notion_pages where true ${scope}
+      ${ON_CONFLICT}`,
+    orphan: dsql`delete from search_index where kind='notion' and source_id not in (select id from notion_pages)`,
+  },
+  {
+    kind: "file",
+    pk: "id::text",
+    upsert: (scope) => dsql`
+      insert into search_index ${COLS}
+      select 'file', id::text, filename, left(coalesce(extracted_text, ''), 160),
+             filename || E'\n' || coalesce(extracted_text, ''), null,
+             md5(filename || E'\n' || coalesce(extracted_text, '')),
+             jsonb_build_array('projects:' || project_id::text)
+        from project_files where status = 'ready' ${scope}
+      ${ON_CONFLICT}`,
+    orphan: dsql`delete from search_index where kind='file' and source_id not in (select id::text from project_files where status='ready')`,
+  },
+  {
+    // Project vector is grounded in its REAL work — name+goal+description+next
+    // plus linked task/note titles — so a thin description can't make a project
+    // look like unrelated text (which is what let agents mis-anchor cards). The
+    // content_hash covers the linked titles, so it re-embeds as work drifts (no
+    // nightly re-embed job needed).
+    kind: "project",
+    pk: "id::text",
+    upsert: (scope) => dsql`
+      insert into search_index ${COLS}
+      select 'project', p.id::text, p.name, left(coalesce(p.description, p.goal, ''), 160),
+             concat_ws(' · ', p.name, p.goal, p.description, p.next_action,
+               (select string_agg(t.title, ' · ') from tasks t where t.project_ref = 'projects:' || p.id::text),
+               (select string_agg(n.title, ' · ') from notes n where n.project_ref = 'projects:' || p.id::text)),
+             '/m/projects/' || p.id::text,
+             md5(concat_ws('|', p.name, p.goal, p.description, p.next_action,
+               (select string_agg(t.title, ',') from tasks t where t.project_ref = 'projects:' || p.id::text),
+               (select string_agg(n.title, ',') from notes n where n.project_ref = 'projects:' || p.id::text))),
+             '[]'::jsonb
+        from projects p where true ${scope}
+      ${ON_CONFLICT}`,
+    orphan: dsql`delete from search_index where kind='project' and source_id not in (select id::text from projects)`,
+  },
+  {
+    // OPEN attention only — dedup compares against live cards, and closed ones
+    // orphan-delete out. embed_text is the TITLE alone (dedup is title-based).
+    kind: "attention",
+    pk: "id::text",
+    upsert: (scope) => dsql`
+      insert into search_index ${COLS}
+      select 'attention', id::text, title, left(coalesce(body, ''), 160),
+             title, href,
+             md5(title || '|' || coalesce(body, '')),
+             ${REFS("project_ref")}
+        from attention_items where status = 'open' ${scope}
+      ${ON_CONFLICT}`,
+    orphan: dsql`delete from search_index where kind='attention' and source_id not in (select id::text from attention_items where status='open')`,
+  },
+  {
+    kind: "memory",
+    pk: "id::text",
+    upsert: (scope) => dsql`
+      insert into search_index ${COLS}
+      select 'memory', id::text, left(text, 80), left(text, 200),
+             text, null, md5(text), '[]'::jsonb
+        from memory_entries where true ${scope}
+      ${ON_CONFLICT}`,
+    orphan: dsql`delete from search_index where kind='memory' and source_id not in (select id::text from memory_entries)`,
+  },
+];
+
+/**
+ * Upsert ONE source row into the index right now (real-time freshness), instead
+ * of waiting for the 2-min sync. Used by write paths that need the index current
+ * immediately — attention raise-time dedup compares against sibling cards. When
+ * a freshly-computed `embedding` is passed, it's stored inline so the very next
+ * read (e.g. the next agent's dedup) sees a fully-embedded row. Best-effort.
+ */
+export async function indexRow(
+  kind: string,
+  sourceId: string,
+  embedding?: number[] | null,
+): Promise<void> {
+  const src = INTERNAL_SOURCES.find((s) => s.kind === kind);
+  if (!src) return;
+  try {
+    await db.execute(src.upsert(dsql`and ${dsql.raw(src.pk)} = ${sourceId}`));
+    if (embedding && embedding.length) {
+      await db.execute(dsql`
+        update search_index set embedding = ${`[${embedding.join(",")}]`}::vector
+         where kind = ${kind} and source_id = ${sourceId}`);
+    }
+  } catch {
+    // the 2-min sync will pick it up regardless — never block the write path
+  }
+}
+
 /** Delete index rows whose source item is gone (kept in step with each source). */
 const ORPHAN_DELETES = [
   dsql`delete from search_index where kind='mail' and source_id not in (select id from gmail_messages)`,
@@ -173,14 +381,19 @@ const ORPHAN_DELETES = [
 
 /** Upsert every source into the unified index, then drop orphans. Best-effort. */
 export async function syncSearchIndex(log: (m: string) => void = () => {}): Promise<void> {
-  for (const q of UPSERTS) {
+  const upserts = [
+    ...UPSERTS,
+    ...INTERNAL_SOURCES.map((s) => s.upsert(dsql``)),
+  ];
+  for (const q of upserts) {
     try {
       await db.execute(q);
     } catch (e) {
       log(`search-index upsert failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
-  for (const q of ORPHAN_DELETES) {
+  const orphans = [...ORPHAN_DELETES, ...INTERNAL_SOURCES.map((s) => s.orphan)];
+  for (const q of orphans) {
     try {
       await db.execute(q);
     } catch {

@@ -173,10 +173,10 @@ async function syncOne(token: string, workspace: string): Promise<number> {
       const leIso = lastEdited ? lastEdited.toISOString() : null;
       await db
         .insert(notionPages)
-        .values({ id: p.id, workspace, title, url: p.url ?? null, content, lastEdited, embedding: null })
+        .values({ id: p.id, workspace, title, url: p.url ?? null, content, lastEdited })
         .onConflictDoUpdate({
           target: notionPages.id,
-          set: { workspace, title, url: p.url ?? null, content, lastEdited, embedding: null },
+          set: { workspace, title, url: p.url ?? null, content, lastEdited },
           // Re-embed only changed pages; always keep workspace attribution correct.
           setWhere: dsql`${notionPages.lastEdited} is distinct from ${leIso}::timestamptz or ${notionPages.workspace} is distinct from ${workspace}`,
         });
