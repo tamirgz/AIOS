@@ -14,7 +14,7 @@ import { spawn } from "node:child_process";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { subscriptionEnv } from "@/core/ai/auth";
+import { harnessEnv } from "./sandbox";
 import type { Adapter, AdapterContext, AdapterEvent, AdapterResult } from "./types";
 
 /** Tools per task type — a research task has no business editing the repo. */
@@ -152,11 +152,14 @@ export const claudeHeadlessAdapter: Adapter = {
       // (bash, git, node) — signalling only the parent leaves orphans.
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
-      // Subscription auth only — an inherited API key would silently switch
-      // this run from the Max plan to per-token billing. PWD is pinned to the
-      // worktree so a tool that trusts $PWD over cwd can't resolve back to the
-      // AIOS project (the bug that made the CLI executors edit the wrong repo).
-      env: subscriptionEnv({ CI: "1", PWD: ctx.workdir }),
+      // Subscription auth only (an inherited API key would silently switch this
+      // run from the Max plan to per-token billing) AND an isolated HOME: the
+      // run reads the user's real config (skills/settings/hooks are linked in)
+      // but writes session history + auto-memory into ~/.aios/harness-home/claude
+      // instead of the real ~/.claude — so the auto-memory scrub below is now
+      // belt-and-suspenders. PWD is pinned to the worktree so a tool that trusts
+      // $PWD over cwd can't resolve back to the AIOS project.
+      env: harnessEnv("claude", { CI: "1", PWD: ctx.workdir }),
     });
     if (child.pid) ctx.onPid?.(child.pid);
 

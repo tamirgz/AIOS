@@ -16,9 +16,8 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { subscriptionEnv } from "@/core/ai/auth";
 import { childPath, resolveBin } from "./opencode-env";
+import { harnessEnv } from "./sandbox";
 import type { Adapter, AdapterContext, AdapterEvent, AdapterResult } from "./types";
 
 /** Research/docs read, coding tasks may write their worktree. */
@@ -121,14 +120,15 @@ export const codexHeadlessAdapter: Adapter = {
       cwd: ctx.workdir,
       detached: true, // own process group so a timeout kills the CLI + children
       stdio: ["ignore", "pipe", "pipe"],
-      // Subscription auth only: subscriptionEnv deletes OPENAI_API_KEY et al., so
-      // this can never fall through to metered billing. PATH is widened because
-      // launchd hands the worker a minimal one that can't see ~/.local/bin.
-      env: subscriptionEnv({
+      // Subscription auth only (harnessEnv → subscriptionEnv strips OPENAI_API_KEY
+      // et al., so this can never fall through to metered billing) AND an isolated
+      // HOME so the run reads the linked auth.json/config.toml but writes its
+      // session state into ~/.aios/harness-home/codex, not your real ~/.codex.
+      // PATH is widened because launchd hands the worker a minimal one.
+      env: harnessEnv("codex", {
         CI: "1",
         PWD: ctx.workdir,
         PATH: childPath(),
-        HOME: process.env.HOME ?? homedir(),
       }),
     });
     if (child.pid) ctx.onPid?.(child.pid);
