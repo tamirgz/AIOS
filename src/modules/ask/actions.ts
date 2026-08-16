@@ -38,12 +38,10 @@ export async function deleteAskHistoryEntry(id: string): Promise<void> {
   revalidatePath("/m/ask");
 }
 
-/** File an answer under a project/area ("projects:<uuid>"), or unfile (null). */
-export async function setAskProject(id: string, projectRef: string | null): Promise<void> {
-  await db
-    .update(askHistory)
-    .set({ projectRef: projectRef || null })
-    .where(eq(askHistory.id, id));
+/** File an answer under any number of projects/areas (["projects:<uuid>", …]). */
+export async function setAskProjects(id: string, projectRefs: string[]): Promise<void> {
+  const refs = [...new Set(projectRefs.filter(Boolean))];
+  await db.update(askHistory).set({ projectRefs: refs }).where(eq(askHistory.id, id));
   revalidatePath("/m/ask");
 }
 

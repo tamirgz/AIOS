@@ -28,12 +28,12 @@ import {
   deleteTask,
   requestPR,
   retryTask,
-  setTaskProject,
+  setTaskProjects,
   unarchiveTask,
   updateTaskPrompt,
   updateTaskTitle,
 } from "../actions";
-import { ProjectPicker } from "@/modules/projects/components/ProjectPicker";
+import { ProjectMultiPicker } from "@/modules/projects/components/ProjectMultiPicker";
 import type { ProjectOption } from "@/modules/projects/queries";
 import type { TaskDetail as Detail } from "../queries";
 import { STATUS_META } from "./TaskBoard";
@@ -335,11 +335,11 @@ export function TaskDetailView({
             {latest?.costUsd && <span>${Number(latest.costUsd).toFixed(2)}</span>}
           </div>
           <div className="mt-2">
-            <ProjectPicker
+            <ProjectMultiPicker
               options={projectOptions}
-              value={task.projectRef ?? null}
-              onChange={async (ref) => {
-                await setTaskProject(task.id, ref);
+              value={task.projectRefs ?? []}
+              onChange={async (refs) => {
+                await setTaskProjects(task.id, refs);
                 router.refresh();
               }}
             />

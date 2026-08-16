@@ -45,11 +45,12 @@ export async function updateTaskPrompt(taskId: string, prompt: string) {
   revalidate(taskId);
 }
 
-/** File a task under a project/area ("projects:<uuid>"), or unfile (null). */
-export async function setTaskProject(taskId: string, projectRef: string | null) {
+/** File a task under any number of projects/areas (["projects:<uuid>", …]). */
+export async function setTaskProjects(taskId: string, projectRefs: string[]) {
+  const refs = [...new Set(projectRefs.filter(Boolean))];
   await db
     .update(workbenchTasks)
-    .set({ projectRef: projectRef || null, updatedAt: new Date() })
+    .set({ projectRefs: refs, updatedAt: new Date() })
     .where(eq(workbenchTasks.id, taskId));
   revalidate(taskId);
 }
