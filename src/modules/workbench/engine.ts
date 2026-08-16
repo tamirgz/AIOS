@@ -443,10 +443,15 @@ export async function runAttempt(attemptId: string): Promise<void> {
     if (task.taskType === "research") {
       const rc = await gatherResearchContext(task.prompt, workdir);
       researchBlock = rc.block;
-      if (rc.articles > 0) {
+      if (rc.articles > 0 || rc.knowledge > 0) {
         await emitEvent(attempt.id, {
           type: "status",
-          payload: { phase: "fetched", articles: rc.articles, related: rc.related },
+          payload: {
+            phase: "fetched",
+            articles: rc.articles,
+            related: rc.related,
+            knowledge: rc.knowledge,
+          },
         });
       }
     }
