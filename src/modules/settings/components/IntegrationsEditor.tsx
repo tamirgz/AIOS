@@ -3,6 +3,12 @@
 import { useState, useTransition } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/core/ui/cn";
+import {
+  CATEGORY_LABEL,
+  CATEGORY_ORDER,
+  INTEGRATIONS,
+  type Integration,
+} from "@/core/integrations/registry";
 import { saveIntegration } from "../actions";
 import { GoogleConnect } from "./GoogleConnect";
 
@@ -124,153 +130,125 @@ function IntegrationToggle({
   );
 }
 
-export function IntegrationsEditor({
-  icsUrl,
-  slackWebhook,
-  obsidianPath,
-  googleClientId,
-  googleClientSecret,
+type Status = { label: string; tone: "on" | "warn" | "off" };
+
+function statusOf(
+  i: Integration,
+  values: Record<string, string>,
+  googleConnected: boolean,
+): Status {
+  if (i.connect === "google") {
+    if (googleConnected) return { label: "connected", tone: "on" };
+    if (values.google_client_id && values.google_client_secret)
+      return { label: "not connected", tone: "warn" };
+    return { label: "not set", tone: "off" };
+  }
+  const configured = i.fields.some(
+    (f) => f.kind !== "toggle" && (values[f.key] ?? "").trim() !== "",
+  );
+  return configured
+    ? { label: "configured", tone: "on" }
+    : { label: "not set", tone: "off" };
+}
+
+function StatusPill({ status }: { status: Status }) {
+  const tone =
+    status.tone === "on"
+      ? "border-ion/30 bg-ion/10 text-ion"
+      : status.tone === "warn"
+        ? "border-solar/30 bg-solar/10 text-solar"
+        : "border-white/10 text-ink-faint";
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest",
+        tone,
+      )}
+    >
+      {status.label}
+    </span>
+  );
+}
+
+/** One integration: header (label · blurb · status) then its fields. */
+function IntegrationCard({
+  integration,
+  values,
   googleConnected,
-  slackBotToken,
-  slackReportChannels,
-  slackInboxChannels,
-  geminiApiKey,
-  searxngUrl,
-  webSearchOn,
-  readerProxyUrl,
-  mlxBaseUrl,
-  mlxModels,
 }: {
-  icsUrl: string;
-  slackWebhook: string;
-  obsidianPath: string;
-  googleClientId: string;
-  googleClientSecret: string;
+  integration: Integration;
+  values: Record<string, string>;
   googleConnected: boolean;
-  slackBotToken: string;
-  slackReportChannels: string;
-  slackInboxChannels: string;
-  geminiApiKey: string;
-  searxngUrl: string;
-  webSearchOn: boolean;
-  readerProxyUrl: string;
-  mlxBaseUrl: string;
-  mlxModels: string;
 }) {
   return (
-    <div className="flex flex-col gap-2.5">
-      <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
-        integrations
-      </p>
-      <IntegrationToggle
-        settingKey="ask_web_search"
-        label="Ask · web-search enrichment"
-        hint="When on, Ask supplements your own data with a few current, authoritative pages fetched via SearXNG below (standards bodies, official docs — never paywalls or Wikipedia). Your saved data stays the source of truth; the web only enriches. Off ⇒ Ask answers from your corpus alone."
-        initialOn={webSearchOn}
-      />
-      <IntegrationField
-        settingKey="searxng_url"
-        label="SearXNG endpoint (for Ask web search)"
-        hint="Base URL of a self-hosted SearXNG with the JSON format enabled — keyless and free (no paid search API). Leave blank to use the SEARXNG_URL env var. Example: https://your-host/searxng"
-        placeholder="https://your-host/searxng"
-        initial={searxngUrl}
-        secret={false}
-      />
-      <IntegrationField
-        settingKey="reader_proxy_url"
-        label="Reader proxy (for Workbench research)"
-        hint="Reads article URLs that block a direct fetch (403 bot-walls), returning clean text. Only the public URL is sent — keyless, no cost. Blank uses the default r.jina.ai; set 'off' to stay local-only; or point at a self-hosted reader. Example: https://r.jina.ai/"
-        placeholder="https://r.jina.ai/"
-        initial={readerProxyUrl}
-        secret={false}
-      />
-      <IntegrationField
-        settingKey="mlx_base_url"
-        label="Apple MLX endpoint (LM Studio)"
-        hint="Base URL of LM Studio's OpenAI-compatible server. Runs MLX-format models on Apple silicon — measured ~1.25–1.5× Ollama's throughput (and much faster time-to-first-token) on the same 35B-A3B model — and manages the model lifecycle natively (JIT load on request, idle-TTL unload). Blank uses MLX_BASE_URL or the default http://localhost:1234/v1. Start it in LM Studio → Developer → Start Server, and set JIT Loading ON + a JIT TTL there so the model unloads when idle."
-        placeholder="http://localhost:1234/v1"
-        initial={mlxBaseUrl}
-        secret={false}
-      />
-      <IntegrationField
-        settingKey="mlx_models"
-        label="Available MLX models"
-        hint="Comma- or newline-separated LM Studio model ids you've downloaded (Discover tab, filter by MLX) — these appear as selectable models for the 'mlx' provider in AI Routing above. LM Studio JIT-loads any of them on demand. Qwen3 reasoning models are sent reasoning_effort=none for snappy replies. Example: qwen/qwen3.6-35b-a3b"
-        placeholder="qwen/qwen3.6-35b-a3b"
-        initial={mlxModels}
-        secret={false}
-      />
-      <IntegrationField
-        settingKey="gemini_api_key"
-        label="Gemini API key (metered)"
-        hint="A Google AI Studio key (aistudio.google.com/apikey) — NOT your Gemini app subscription, which has no API. Enables Gemini as a routable brain in AI Routing above. This one is billed per-token by Google (free tier available), unlike the Claude/Codex subscriptions."
-        placeholder="AIza…"
-        initial={geminiApiKey}
-      />
-      <IntegrationField
-        settingKey="calendar_ics_url"
-        label="Google Calendar (read-only ICS)"
-        hint="Google Calendar → Settings → your calendar → 'Secret address in iCal format'. Paste that URL; the worker syncs events every 5 minutes."
-        placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
-        initial={icsUrl}
-      />
-      <IntegrationField
-        settingKey="slack_webhook_url"
-        label="Slack notifications"
-        hint="An incoming-webhook URL (api.slack.com/apps → Incoming Webhooks). Every AIOS notification — agent reports, briefs — is also delivered there."
-        placeholder="https://hooks.slack.com/services/…"
-        initial={slackWebhook}
-      />
-      <IntegrationField
-        settingKey="slack_bot_token"
-        label="Slack bot token (read agent reports)"
-        hint="A bot token (xoxb-…) with channels:history. Lets AIOS read the channels your Claude Desktop routines post to — that's how their output reaches the Agents page."
-        placeholder="xoxb-…"
-        initial={slackBotToken}
-      />
-      <IntegrationField
-        settingKey="slack_report_channels"
-        label="Slack channels to ingest"
-        hint="Comma-separated channel IDs the bot has been invited to. Each new message becomes an external report."
-        placeholder="C0B7TLBJ4LU, C0B7VNRPQSV"
-        initial={slackReportChannels}
-        secret={false}
-      />
-      <IntegrationField
-        settingKey="slack_inbox_channels"
-        label="Slack capture channels → Inbox"
-        hint="Comma-separated channel IDs (e.g. #ai-os) the bot has been invited to. Every new message is captured to the Inbox and auto-triaged into a task, note, idea, etc. — the bot then replies in-thread with how/where it filed (add chat:write + reactions:write scopes for that). Keep this separate from report channels."
-        placeholder="C0ABCDEFG"
-        initial={slackInboxChannels}
-        secret={false}
-      />
-      <IntegrationField
-        settingKey="obsidian_vault_path"
-        label="Obsidian vault (read-only index)"
-        hint="Absolute path to your vault folder. AIOS indexes the .md files into semantic search so chat and agents answer from your notes — nothing is ever written back."
-        placeholder="/Users/you/Documents/SecondBrain"
-        initial={obsidianPath}
-        secret={false}
-      />
-      <IntegrationField
-        settingKey="google_client_id"
-        label="Google OAuth client ID"
-        hint="From console.cloud.google.com → Credentials → OAuth client (Web application, redirect URI http://localhost:3777/api/google/callback)."
-        placeholder="…apps.googleusercontent.com"
-        initial={googleClientId}
-        secret={false}
-      />
-      <IntegrationField
-        settingKey="google_client_secret"
-        label="Google OAuth client secret"
-        hint="From the same OAuth client. Stored locally in your Postgres only."
-        placeholder="GOCSPX-…"
-        initial={googleClientSecret}
-      />
-      <GoogleConnect
-        hasCredentials={!!googleClientId && !!googleClientSecret}
-        connected={googleConnected}
-      />
+    <div className="flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-2 px-1">
+        <div className="min-w-0">
+          <p className="text-sm text-ink">{integration.label}</p>
+          <p className="text-xs leading-snug text-ink-dim">{integration.blurb}</p>
+        </div>
+        <StatusPill status={statusOf(integration, values, googleConnected)} />
+      </div>
+      {integration.fields.map((f) =>
+        f.kind === "toggle" ? (
+          <IntegrationToggle
+            key={f.key}
+            settingKey={f.key}
+            label={f.label}
+            hint={f.hint}
+            // Toggles default ON unless explicitly stored "off".
+            initialOn={(values[f.key] ?? "") !== "off"}
+          />
+        ) : (
+          <IntegrationField
+            key={f.key}
+            settingKey={f.key}
+            label={f.label}
+            hint={f.hint}
+            placeholder={f.placeholder ?? ""}
+            initial={values[f.key] ?? ""}
+            secret={f.kind === "secret"}
+          />
+        ),
+      )}
+      {integration.connect === "google" && (
+        <GoogleConnect
+          hasCredentials={!!values.google_client_id && !!values.google_client_secret}
+          connected={googleConnected}
+        />
+      )}
+    </div>
+  );
+}
+
+export function IntegrationsEditor({
+  values,
+  googleConnected,
+}: {
+  values: Record<string, string>;
+  googleConnected: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-5">
+      {CATEGORY_ORDER.map((cat) => {
+        const items = INTEGRATIONS.filter((i) => i.category === cat);
+        if (!items.length) return null;
+        return (
+          <div key={cat} className="flex flex-col gap-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
+              {CATEGORY_LABEL[cat]}
+            </p>
+            {items.map((i) => (
+              <IntegrationCard
+                key={i.id}
+                integration={i}
+                values={values}
+                googleConnected={googleConnected}
+              />
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
