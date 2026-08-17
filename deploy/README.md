@@ -41,10 +41,11 @@ Change the web port with `AIOS_WEB_PORT=3800 docker compose …`.
 ## Limitation — Workbench executors
 The Workbench CLI harnesses (`claude-headless`, `codex`, `opencode`, `pi`) are
 host-tied — they need host CLIs, their auth, git worktrees, and the macOS
-seatbelt — so they **do not run inside the container**. Everything else
-(chat, agents, pipelines, enrichment, search, integrations) works in-container.
-For full Workbench, use the native install (see the root README) or run just the
-worker natively. This is tracked for a follow-up.
+seatbelt — so they **do not run inside the container**. AIOS detects this: those
+executors are **cleanly disabled** (shown unavailable in the picker; they never
+run or reach for host CLI config), and tasks fall back to the `native` executor.
+Everything else (chat, agents, pipelines, enrichment, search, integrations)
+works in-container. For full Workbench (CLI agents), use the native install.
 
 The worker's nightly `pg_dump` backup is a **no-op in the container** (the Node
 image has no `pg_dump`, and it would need to match Postgres 17) — it logs a
