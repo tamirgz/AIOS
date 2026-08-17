@@ -186,17 +186,17 @@ export function IntegrationsEditor({
       />
       <IntegrationField
         settingKey="mlx_base_url"
-        label="Apple MLX endpoint (mlx_lm.server)"
-        hint="Base URL of a running mlx_lm.server (OpenAI-compatible). Serves MLX-format models on Apple silicon — measured ~5× Ollama's throughput on MoE models (Qwen3-Coder-30B-A3B). Blank uses MLX_BASE_URL or the default http://localhost:8080/v1. Start it with: mlx_lm.server --port 8080"
-        placeholder="http://localhost:8080/v1"
+        label="Apple MLX endpoint (LM Studio)"
+        hint="Base URL of LM Studio's OpenAI-compatible server. Runs MLX-format models on Apple silicon — measured ~1.25–1.5× Ollama's throughput (and much faster time-to-first-token) on the same 35B-A3B model — and manages the model lifecycle natively (JIT load on request, idle-TTL unload). Blank uses MLX_BASE_URL or the default http://localhost:1234/v1. Start it in LM Studio → Developer → Start Server, and set JIT Loading ON + a JIT TTL there so the model unloads when idle."
+        placeholder="http://localhost:1234/v1"
         initial={mlxBaseUrl}
         secret={false}
       />
       <IntegrationField
         settingKey="mlx_models"
         label="Available MLX models"
-        hint="Comma- or newline-separated MLX model ids (HuggingFace ids or local paths) you've downloaded — these appear as selectable models for the 'mlx' provider in AI Routing above. One mlx_lm.server loads any of them on demand. Example: mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit, mlx-community/Qwen3-8B-4bit"
-        placeholder="mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit"
+        hint="Comma- or newline-separated LM Studio model ids you've downloaded (Discover tab, filter by MLX) — these appear as selectable models for the 'mlx' provider in AI Routing above. LM Studio JIT-loads any of them on demand. Qwen3 reasoning models are sent reasoning_effort=none for snappy replies. Example: qwen/qwen3.6-35b-a3b"
+        placeholder="qwen/qwen3.6-35b-a3b"
         initial={mlxModels}
         secret={false}
       />

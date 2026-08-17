@@ -47,10 +47,13 @@ export async function POST(req: Request) {
     "ideas.capture",
     "notify.send",
   ]);
-  const tools =
-    route.providerId === "ollama"
-      ? getAllTools().filter((t) => LEAN_TOOLS.has(t.name))
-      : getAllTools();
+  // Local models (Ollama, or MLX via LM Studio) get a lean, high-value subset —
+  // fewer tool definitions means far less context burned (the full registry is
+  // ~10k tokens) and better tool selection. Claude handles the full set.
+  const isLocal = route.providerId === "ollama" || route.providerId === "mlx";
+  const tools = isLocal
+    ? getAllTools().filter((t) => LEAN_TOOLS.has(t.name))
+    : getAllTools();
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

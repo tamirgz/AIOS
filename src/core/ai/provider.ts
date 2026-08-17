@@ -3,6 +3,10 @@ import type { AIProviderId } from "@/core/db/schema/ai-routes";
 
 export type AIEvent =
   | { type: "text"; text: string }
+  // Chain-of-thought from a reasoning model (LM Studio/MLX emit it on a separate
+  // `reasoning_content` channel). Surfaced so the UI can show a "thinking…"
+  // state instead of dead air; it is NOT part of the final answer.
+  | { type: "reasoning"; text: string }
   | { type: "tool_call"; name: string; input: unknown }
   | { type: "tool_result"; name: string; result: unknown }
   | { type: "usage"; inputTokens: number; outputTokens: number }
