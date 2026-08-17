@@ -1,14 +1,98 @@
 # AIOS — Personal AI Operating System
 
-One futuristic dashboard replacing scattered apps: tasks, projects, notes, an ideas
-pipeline, a paste-anything knowledge base, calendar/mail, and autonomous AI agents — with
-a plugin architecture where **adding a module is a folder + two registry lines**.
+> **One calm home for your projects, notes, and ideas — everything ingested and interconnected, so you can _ask_ across all of it and get cited answers. Runs entirely on your own Mac. Private by default, free by default.**
 
-**Local-first.** With Docker + Ollama running, AIOS works end-to-end on free local models
-— no account, no API keys, nothing billed. Claude and other cloud providers are optional
-upgrades you turn on later, per task, in Settings.
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="AIOS dashboard — today's needs-you queue, agenda, active projects, and agent activity in one view" width="900">
+</p>
 
-<!-- TODO: add a screenshot / demo GIF here before publishing. -->
+<p align="center">
+  <em>Your day at a glance — what needs you, what's on, what's moving — assembled from every part of your system.</em>
+</p>
+
+---
+
+## Why I built it
+
+I'd been living in Notion, Obsidian, and a rotating cast of great apps to manage my
+projects, ideas, and to‑do lists. Nothing ever stuck. Not because the tools are bad —
+they're excellent — but because they keep growing: more features, more integrations, more
+surface. All that richness starts to create confusion, and every few months you're
+re‑learning the tool instead of using it.
+
+So I built the thing I actually wanted: **one system where my projects, ideas, and notes —
+work and personal — are all ingested and interconnected.** When I ask a question, the
+answer is grounded in _everything_ I've connected and everything I've written, not one silo
+at a time. (I still love Obsidian for local, private, easily‑interlinked notes — inspired
+by [Andrej Karpathy's LLM‑wiki idea](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
+— and AIOS reads that vault too.)
+
+**Why local‑first?** Three reasons. So anyone with a decent machine can run it and get the
+full benefit without a bill. So I can explore and think through ideas **privately**. And so
+the cost stays under my control. (Also: it was genuinely fascinating to build.)
+
+If you've bounced between beautiful tools that never quite stuck — this is meant to be the
+one that does: **an operating system for your work that helps you make progress every day.**
+
+---
+
+## What you get
+
+### 🧠 Ask your own knowledge — with citations
+Ask a question in plain language; get an answer synthesized from your notes, knowledge,
+Obsidian vault, ideas, tasks, and files — **and nothing from the open web unless you say
+so.** Every claim is cited back to the source it came from.
+
+> _Reach for it when:_ "What did I save about X, and which of my projects does it touch?" —
+> the answer no single app could give you, because your stuff was scattered across all of them.
+
+<p align="center"><img src="docs/screenshots/ask.png" alt="Ask — a cited answer synthesized across knowledge, ideas, and projects" width="820"></p>
+
+### 🤖 Autonomous agents that work while you don't
+Named, scheduled agents that read your system and act — a morning digest, a project‑health
+pulse, an inbox triager. They run on **free local models**, keep a live transcript, and
+never double‑do work. Install one from a module template, or write your own.
+
+> _Reach for it when:_ you want the routine stuff — "what moved, what's stale, what needs me" —
+> handled before you sit down, without paying per token.
+
+<p align="center"><img src="docs/screenshots/agents.png" alt="Agents — scheduled autonomous agents plus a gallery of module-contributed templates" width="820"></p>
+
+### 💡 An ideas pipeline with an AI reality‑check
+Capture a spark; AIOS pressure‑tests it — a verdict (pursue / explore / park), a score,
+strengths, risks, and concrete validation steps — then lets you promote the good ones
+straight into a project.
+
+> _Reach for it when:_ you have ten ideas and need an honest second opinion on which one is
+> actually worth your next month.
+
+<p align="center"><img src="docs/screenshots/ideas.png" alt="Ideas — a Sparks→Exploring→Validated→Parked board with AI verdicts and scores" width="820"></p>
+
+### 📥 Capture anything → it becomes searchable
+Paste a link, a repo, a video, a quote, a stray thought. AIOS fetches, summarizes, tags,
+and files it — then embeds it into one **semantic search** across your whole system
+(pgvector + a local embedding model). Capture cost approaches zero; the filing is the
+machine's job.
+
+> _Reach for it when:_ you find something worth keeping and don't want to decide, right now,
+> where it goes.
+
+<p align="center"><img src="docs/screenshots/knowledge.png" alt="Knowledge — paste-anything capture with enriched, tagged, searchable cards" width="820"></p>
+
+### 🗂️ The everyday surfaces, connected
+**Tasks, Projects, Calendar, Inbox, Notes, People** — the ordinary building blocks, but
+cross‑linked (a task knows its project; a note knows its idea) and rolled up into one
+Dashboard and a "Today / needs‑you" queue. One ⌘K bar drives all of it.
+
+### 🔒 Local & private — no metered bill can start by accident
+Everything runs on **your** machine on free local models via [Ollama](https://ollama.com).
+Metered API keys are actively **stripped** from the app and every process it spawns, so a
+stray key can never quietly start billing you. Claude (via a Max/Pro subscription, no API
+key) and other providers are **optional** upgrades you turn on per‑task later.
+
+<p align="center"><img src="docs/screenshots/connections.png" alt="Connections — subscription/local auth only; metered API keys disabled by policy" width="820"></p>
+
+---
 
 ## Requirements
 
@@ -107,3 +191,7 @@ Nav entry, routes (`/m/foo`), dashboard widgets, ⌘K commands, AI tools, agent 
 ## License
 
 [MIT](LICENSE).
+
+---
+
+<sub>Screenshots are from a demo instance seeded with fictional data — no personal information.</sub>
