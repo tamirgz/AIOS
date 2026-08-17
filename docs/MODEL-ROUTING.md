@@ -8,7 +8,7 @@ The dividing principle:
 
 Three runtimes, by design (see [RUNTIME.md](./RUNTIME.md) for process topology):
 
-- **LM Studio** serves MLX models over an OpenAI-compatible API at `http://localhost:1234/v1` (provider id `mlx`). It manages the model lifecycle natively — JIT load on request, idle-TTL unload, "Only Keep Last JIT Model" so one ~20 GB model is resident at a time. GUI app: its server only runs while LM Studio is open, so it's used **only for interactive, user-present tasks**.
+- **LM Studio** serves MLX models over an OpenAI-compatible API at `http://localhost:1234/v1` (provider id `mlx`). It manages the model lifecycle natively — JIT load on request, idle-TTL unload, "Only Keep Last JIT Model" so one ~20 GB model is resident at a time. It runs **headless via the `llmster` daemon** (no GUI), auto-started on login by the `com.aios.lmstudio` LaunchAgent — see [Running LM Studio (headless)](#running-lm-studio-headless). Used for **interactive, user-present tasks** (fast; the model cold-loads in ~10–25 s after idle-unload).
 - **Ollama** is a headless LaunchAgent daemon (`localhost:11434`), always up, survives reboots. It hosts everything **background / periodic / infra** — it keeps several small models co-resident without eviction, and never depends on a GUI session.
 - **Claude** (Anthropic, via the Max subscription — no API key) for deep reasoning and safety-net fallbacks.
 
@@ -74,6 +74,32 @@ This table is a snapshot; the actual routing lives in code + DB. When you change
 3. **Agent-template default models**: `grep -rn 'defaultModel:' src/modules/*/manifest.server.ts`.
 4. **Embedding model**: `DEFAULT_EMBEDDING_MODEL` in `src/core/embeddings.ts`.
 5. **MLX provider + endpoint**: `src/core/ai/mlx.ts` (base URL, `reasoning_effort`), plus the `mlx_base_url` / `mlx_models` app settings.
+
+### Running LM Studio (headless)
+
+LM Studio runs GUI-free via the `llmster` daemon (install once with
+`curl -fsSL https://lmstudio.ai/install.sh | bash`). The `com.aios.lmstudio`
+LaunchAgent (`~/Library/LaunchAgents/com.aios.lmstudio.plist`) starts it on
+login — a one-shot that runs `lms daemon up && lms server start --port 1234`;
+llmster stays running detached. Log: `~/Library/Logs/aios-lmstudio.log`.
+
+> Keep the **LM Studio.app out of Login Items** — if the GUI auto-launches it
+> fights the daemon for port 1234. Opening the app manually (to browse/download
+> models) is fine; quit it when done or it holds the port until next reboot.
+
+Manage it from the CLI (no GUI needed):
+
+```bash
+lms daemon status              # is the headless daemon running?
+lms server status              # is the OpenAI server on :1234 up?
+lms ps                         # which model(s) are loaded right now
+lms ls                         # models available on disk
+lms server start --port 1234   # (re)start the server
+lms daemon down                # stop the daemon (frees all RAM)
+
+# restart via the LaunchAgent (what login does):
+launchctl kickstart -k gui/$(id -u)/com.aios.lmstudio
+```
 
 ### Provisioning notes
 - LM Studio models live in `~/.lmstudio/models/<org>/<repo>/`; download with `lms get https://huggingface.co/<org>/<Repo> -y` (use the **full HF URL** — a bare id gets lowercased and fails to resolve). Deleting a model downloaded via the LM Studio catalog also requires removing its virtual-model wrapper in `~/.lmstudio/hub/models/<publisher>/<name>/`, or the GUI shows a "failed to resolve" warning.
