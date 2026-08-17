@@ -78,19 +78,48 @@ export function NotionConsole({
 
   if (workspaces.length === 0) {
     return (
-      <div className="mx-auto flex max-w-xl flex-col items-center gap-4 rounded-2xl px-6 py-14 text-center">
-        <Plug className="size-7 text-ink-dim" />
-        <h2 className="font-display text-xl font-semibold text-ink">Connect Notion</h2>
-        <p className="text-sm leading-relaxed text-ink-dim">
-          For each workspace: create an internal integration at{" "}
-          <span className="font-mono text-xs text-ink">notion.so/my-integrations</span>, share the
-          pages/databases with it, then paste its token. AIOS indexes titles + text (read-only) so{" "}
-          <span className="text-plasma">Ask</span> and search cover Notion. You can add multiple
-          workspaces — one token each.
-        </p>
-        <div className="w-full">
-          <AddWorkspaceForm />
+      <div className="mx-auto flex max-w-xl flex-col gap-4 rounded-2xl px-6 py-12">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <Plug className="size-7 text-ink-dim" />
+          <h2 className="font-display text-xl font-semibold text-ink">Connect Notion</h2>
+          <p className="text-sm leading-relaxed text-ink-dim">
+            AIOS indexes your Notion titles + text (read-only) so{" "}
+            <span className="text-plasma">Ask</span> and search cover it. Three steps
+            — add more workspaces later, one token each.
+          </p>
         </div>
+
+        <ol className="flex flex-col gap-3">
+          <li className="glass rounded-xl p-3">
+            <p className="text-sm text-ink">1 · Create an internal integration</p>
+            <p className="mb-2 text-xs leading-snug text-ink-dim">
+              New integration → your workspace → copy its{" "}
+              <span className="text-ink">Internal Integration Secret</span> (secret_…).
+            </p>
+            <a
+              href="https://www.notion.so/my-integrations"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ion/30 bg-ion/8 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-ion transition hover:bg-ion/15"
+            >
+              Open notion.so/my-integrations
+              <ExternalLink className="size-3" />
+            </a>
+          </li>
+          <li className="glass rounded-xl p-3">
+            <p className="text-sm text-ink">2 · Share your pages with it</p>
+            <p className="text-xs leading-snug text-ink-dim">
+              In Notion, open a page or database →{" "}
+              <span className="text-ink">•••</span> →{" "}
+              <span className="text-ink">Connections</span> → add your integration.
+              Only shared pages are visible — this is the step people miss.
+            </p>
+          </li>
+          <li className="flex flex-col gap-2">
+            <p className="px-1 text-sm text-ink">3 · Paste the token</p>
+            <AddWorkspaceForm />
+          </li>
+        </ol>
       </div>
     );
   }
