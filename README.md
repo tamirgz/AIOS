@@ -92,6 +92,14 @@ key) and other providers are **optional** upgrades you turn on per‑task later.
 
 <p align="center"><img src="docs/screenshots/connections.png" alt="Connections — subscription/local auth only; metered API keys disabled by policy" width="820"></p>
 
+### 🎨 Five looks, one keystroke
+Re-skin the whole app from **Settings › Appearance** — a real light mode, a retro terminal, and more. Not just recolors: surfaces, glow, background, and even the type change.
+
+| Mission&nbsp;Control | Daybreak | Nebula | Phosphor | Slate |
+|:--:|:--:|:--:|:--:|:--:|
+| <img src="docs/screenshots/theme-mission.png" alt="Mission Control theme" width="320"> | <img src="docs/screenshots/theme-daybreak.png" alt="Daybreak theme" width="320"> | <img src="docs/screenshots/theme-nebula.png" alt="Nebula theme" width="320"> | <img src="docs/screenshots/theme-phosphor.png" alt="Phosphor theme" width="320"> | <img src="docs/screenshots/theme-slate.png" alt="Slate theme" width="320"> |
+| deep-space _(default)_ | true light mode | cosmic violet | amber terminal | flat minimal |
+
 ---
 
 ## Requirements
