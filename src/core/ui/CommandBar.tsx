@@ -17,7 +17,6 @@ import { modules } from "@/modules/registry";
 import { captureToInbox } from "@/modules/inbox/actions";
 import { createTask } from "@/modules/tasks/actions";
 import { createNote } from "@/modules/notes/actions";
-import { warmMlx } from "@/core/ai/warm-mlx";
 import { cn } from "./cn";
 
 /**
@@ -35,6 +34,7 @@ function parseFastPath(search: string) {
 type ChatEvent =
   | { type: "meta"; provider: string; model: string }
   | { type: "text"; text: string }
+  | { type: "reasoning"; text: string }
   | { type: "tool_call"; name: string; input: unknown }
   | { type: "tool_result"; name: string; result: unknown }
   | { type: "usage"; inputTokens: number; outputTokens: number }
@@ -46,6 +46,7 @@ interface ChatTurn {
   content: string;
   toolCalls?: { name: string }[];
   pending?: boolean;
+  thinking?: boolean;
   error?: string;
 }
 
@@ -96,6 +97,10 @@ function useChat() {
               if (event.type === "text" || event.type === "done") {
                 if (event.text) cur.content = event.text;
                 if (event.type === "done") cur.pending = false;
+              } else if (event.type === "reasoning") {
+                // A reasoning model is thinking before it answers — flag it so
+                // the pending bubble shows "thinking…" instead of bare dots.
+                cur.thinking = true;
               } else if (event.type === "tool_call") {
                 cur.toolCalls = [...(cur.toolCalls ?? []), { name: event.name }];
               } else if (event.type === "error") {
@@ -186,14 +191,21 @@ function ChatView({
                 <p className="whitespace-pre-wrap">{t.content}</p>
               )}
               {t.pending && !t.content && (
-                <span className="inline-flex gap-1">
-                  {[0, 1, 2].map((d) => (
-                    <span
-                      key={d}
-                      className="size-1.5 animate-pulse-soft rounded-full bg-plasma"
-                      style={{ animationDelay: `${d * 0.25}s` }}
-                    />
-                  ))}
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex gap-1">
+                    {[0, 1, 2].map((d) => (
+                      <span
+                        key={d}
+                        className="size-1.5 animate-pulse-soft rounded-full bg-plasma"
+                        style={{ animationDelay: `${d * 0.25}s` }}
+                      />
+                    ))}
+                  </span>
+                  {t.thinking && (
+                    <span className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
+                      thinking…
+                    </span>
+                  )}
                 </span>
               )}
               {t.error && (
@@ -217,7 +229,6 @@ function ChatView({
         <input
           ref={inputRef}
           autoFocus
-          onFocus={() => warmMlx()}
           placeholder={chat.busy ? "thinking…" : "Message the AI core…"}
           className="h-9 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-faint"
         />

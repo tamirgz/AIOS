@@ -13,6 +13,10 @@ export async function* runOpenAICompatible(
   baseURL: string,
   apiKey: string,
   opts: AIRunOptions,
+  // Extra fields merged into each chat-completions request — e.g. LM Studio's
+  // `reasoning_effort: "none"` to keep a Qwen3 reasoning model snappy. Ollama
+  // ignores unknown fields, so this stays empty for it.
+  extraBody: Record<string, unknown> = {},
 ): AsyncIterable<AIEvent> {
   const openai = new OpenAI({ baseURL, apiKey });
   const maxTurns = opts.maxTurns ?? 8;
@@ -46,11 +50,13 @@ export async function* runOpenAICompatible(
           tools: tools.length ? tools : undefined,
           stream: true,
           stream_options: { include_usage: true },
+          ...extraBody,
         },
         { signal: opts.signal },
       );
 
       let turnText = "";
+      let turnReasoning = "";
       const toolCallAcc = new Map<
         number,
         { id: string; name: string; args: string }
@@ -64,6 +70,17 @@ export async function* runOpenAICompatible(
         }
         const delta = chunk.choices[0]?.delta;
         if (!delta) continue;
+        // Reasoning models (e.g. Qwen3 MoE via LM Studio/MLX) stream their
+        // chain-of-thought on a separate `reasoning_content` field before any
+        // answer content. Surface it as a distinct event so the UI shows a
+        // "thinking…" state — this phase can run many seconds — but keep it out
+        // of the answer text and out of finalText.
+        const reasoningDelta = (delta as { reasoning_content?: string })
+          .reasoning_content;
+        if (reasoningDelta) {
+          turnReasoning += reasoningDelta;
+          yield { type: "reasoning", text: turnReasoning };
+        }
         if (delta.content) {
           turnText += delta.content;
           yield { type: "text", text: turnText };

@@ -28,7 +28,6 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
-import { warmMlx } from "@/core/ai/warm-mlx";
 import { useDraft } from "@/core/ui/useDraft";
 import {
   ask,
@@ -328,7 +327,6 @@ export function AskConsole({
           ref={inputRef}
           rows={1}
           placeholder="Ask anything about what you've saved…"
-          onFocus={() => warmMlx()}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
