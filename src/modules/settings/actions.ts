@@ -20,6 +20,8 @@ const ALLOWED_INTEGRATION_KEYS = new Set([
   "searxng_url",
   "ask_web_search",
   "reader_proxy_url",
+  "mlx_base_url",
+  "mlx_models",
 ]);
 
 export async function disconnectGoogle() {
