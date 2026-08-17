@@ -85,8 +85,15 @@ node process:
   So these agents **cannot touch the filesystem or shell** — they only call the
   module tools you granted them.
 - **Ollama** = OpenAI-compatible HTTP to `localhost:11434`.
+- **LM Studio (MLX)** = OpenAI-compatible HTTP to `localhost:1234` (provider id
+  `mlx`); serves MLX models for interactive tasks (chat/ask) with native JIT
+  load + idle-unload. See `src/core/ai/mlx.ts`.
 - Periodic/background agents deliberately run **local models** (e.g. `qwen3:8b`)
   to avoid draining the Max allowance; Claude is reserved for on-demand work.
+
+**Which model serves which action** — the full runtime division (LM Studio vs.
+Ollama vs. Claude), with maintenance pointers, is in
+[MODEL-ROUTING.md](./MODEL-ROUTING.md).
 
 These are the Agents-module agents. They are sandboxed to tools; they do **not**
 create worktrees or use your global CLI config.
