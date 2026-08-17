@@ -1,0 +1,14 @@
+# Build context for the container edition (deploy/Dockerfile).
+node_modules
+.next
+.git
+.claude
+.githooks
+drizzle/meta/_journal.json.lock
+*.log
+.env
+.env.local
+.env.*.local
+Backups
+.DS_Store
+# keep: src, package.json, pnpm-lock.yaml, pnpm-workspace.yaml, drizzle/, next.config.ts, tsconfig.json, .env.example
