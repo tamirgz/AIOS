@@ -69,7 +69,13 @@ export function NewTaskBox({
   projectRepos = [],
 }: {
   defaultRepo: string;
-  executors: { id: string; name: string; defaultModel: string | null }[];
+  executors: {
+    id: string;
+    name: string;
+    defaultModel: string | null;
+    available?: boolean;
+    unavailableReason?: string | null;
+  }[];
   /** Free models each executor may use (local + its free cloud tiers). */
   freeModels: Record<string, string[]>;
   /** Projects with an attached, cloned repo — pickable for a code task.
@@ -236,11 +242,20 @@ export function NewTaskBox({
           className="rounded-lg border border-white/8 bg-abyss/60 px-2 py-1 font-mono text-[10px] text-ink-dim outline-none focus:border-plasma/40 [color-scheme:dark]"
         >
           <option value="">auto (by type)</option>
-          {executors.map((x) => (
-            <option key={x.id} value={x.id}>
-              {x.name}
-            </option>
-          ))}
+          {executors.map((x) => {
+            const off = x.available === false;
+            return (
+              <option
+                key={x.id}
+                value={x.id}
+                disabled={off}
+                title={off ? (x.unavailableReason ?? undefined) : undefined}
+              >
+                {x.name}
+                {off ? " — unavailable here" : ""}
+              </option>
+            );
+          })}
         </select>
         {executorId && (
           <>
