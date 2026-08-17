@@ -162,8 +162,11 @@ if curl -fsS --max-time 3 http://localhost:11434/api/tags >/dev/null 2>&1; then
   ok "Ollama serving on :11434"
 else
   say "starting Ollama…"
+  # Bind to all interfaces so the containers can reach it via host.docker.internal
+  # (127.0.0.1 — the default — is not reachable from a container). On macOS the
+  # brew service ignores this; the reachability check below prints the fix if so.
   if [ "$OS" = Darwin ]; then run "$BREW" services start ollama
-  else run sh -c "(ollama serve >/dev/null 2>&1 &)"; fi
+  else run sh -c "(OLLAMA_HOST=0.0.0.0 ollama serve >/dev/null 2>&1 &)"; fi
   for _ in $(seq 1 30); do curl -fsS --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1 && break; sleep 1; done
 fi
 

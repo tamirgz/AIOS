@@ -109,55 +109,84 @@ Re-skin the whole app from **Settings › Appearance** — a real light mode, a 
 ## Requirements
 
 - **macOS (Apple Silicon)** — full support, both editions (and MLX if you opt in).
-- **Windows & Linux** — the container edition runs here too (on Windows, inside WSL2). See [Windows & Linux](#windows--linux-via-docker) below.
+- **Windows & Linux** — the container edition runs here too (on Windows, inside WSL2). See the [per-platform install steps](#install) below.
 - **Docker** — [OrbStack](https://orbstack.dev) / Docker Desktop (macOS) or Docker Engine (Linux/WSL2).
 - **[Ollama](https://ollama.com)** — local models + embeddings (runs on the host).
 - **Node 20+** and **pnpm** — only for the native (dev) edition; the container edition doesn't need them.
 
-## Quickstart — one command (fully local, no accounts)
+## Install
+
+`./install.sh` does everything — but it's genuinely **one command only on macOS**. On **Windows** and **Linux** you install Docker first (a few steps), then run the same command. Jump to your platform:
+
+- [macOS (Apple Silicon)](#macos-apple-silicon)
+- [Windows (step by step)](#windows-step-by-step)
+- [Linux](#linux)
+
+### macOS (Apple Silicon)
+
+Open **Terminal** (⌘-Space, type `Terminal`, Enter), then paste:
 
 ```bash
 git clone https://github.com/tamirgz/AIOS.git && cd AIOS
 ./install.sh
 ```
 
-That's the **container edition** (default): on macOS it installs any missing prerequisites
-(Homebrew, Colima, Ollama); on Linux/WSL2 it installs Ollama and expects Docker to be
-present. It then auto-picks a model set from your RAM, pulls the models, and brings the app
-up in Docker with Ollama on the host. When it's done it opens **http://localhost:3777**.
-Re-runnable and safe. Options:
+`install.sh` installs anything missing (Homebrew, Colima for Docker, Ollama), picks a model set from your RAM, pulls the models, and starts the app in Docker with Ollama on the host. It opens **http://localhost:3777** when it's done. Re-runnable and safe.
+
+**Options** (work on every platform):
 
 ```bash
 ./install.sh --dry-run       # print the plan, change nothing
 ./install.sh --tier lite     # smaller model set (lite | standard | full)
 ./install.sh --brain cloud   # low-spec: local embeddings + free OpenRouter reasoning
-./install.sh --native        # host-native (launchd), for full Workbench CLI agents (macOS)
+./install.sh --native        # macOS only: host-native (launchd) + full Workbench CLI agents
 ```
 
-The two editions: **container** (default — `deploy/docker-compose.yml`, Ollama on host,
-see [`deploy/README.md`](deploy/README.md)) and **native** (advanced — launchd services,
-`docs/RUNTIME.md`).
+### Windows (step by step)
 
-### Windows & Linux (via Docker)
+AIOS runs in Linux containers, so on Windows you run it inside **WSL2** — a real Linux environment built into Windows. Do these in order:
 
-The whole app runs in **Linux containers**, so on Windows the reliable path is to run everything inside **WSL2** (a real Linux environment) — then `install.sh` (a bash script) works exactly as it does on Linux.
-
-**Windows (WSL2):**
-
-1. In PowerShell (as admin): `wsl --install -d Ubuntu`, reboot, and set up your Ubuntu username/password.
-2. *(GPU, optional)* install the latest **NVIDIA Windows driver** — CUDA then works inside WSL2 automatically.
-3. Open the **Ubuntu** shell and install Docker Engine there:
-   ```bash
-   curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER   # then re-open the shell
+1. **Install WSL2 + Ubuntu.** Open **PowerShell as Administrator** — click **Start**, type `PowerShell`, right-click **Windows PowerShell**, choose **Run as administrator** — then run:
+   ```powershell
+   wsl --install -d Ubuntu
    ```
-4. Run the [Quickstart](#quickstart--one-command-fully-local-no-accounts) **in that Ubuntu shell** — `install.sh` installs Ollama, pulls the models, and brings up the stack, all inside WSL2.
-5. Open **http://localhost:3777** in your Windows browser (WSL2 forwards localhost automatically).
+   **Reboot** when it asks. After the reboot an **Ubuntu** window opens and asks you to create a username and password — type them (this is your Linux login; the password stays invisible as you type, which is normal).
+2. **(Optional) GPU.** If your PC has an NVIDIA GPU, install the latest **[NVIDIA Windows driver](https://www.nvidia.com/download/index.aspx)** — CUDA then works inside WSL2 automatically. No NVIDIA GPU? Skip this; AIOS still runs (use `--brain cloud` in step 5 if the machine is low-spec).
+3. **Open the Ubuntu shell.** Click **Start → Ubuntu** (or open Windows Terminal and pick the **Ubuntu** tab). Everything below is typed **in this Ubuntu window**, not in PowerShell.
+4. **Install Docker Engine.** Paste this whole line and press Enter (type your Ubuntu password if asked — invisible again):
+   ```bash
+   curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER
+   ```
+   Then **close the Ubuntu window and open it again** so the Docker permission takes effect. Check it worked:
+   ```bash
+   docker ps      # should print a header row with no error
+   ```
+5. **Install AIOS** (still in Ubuntu):
+   ```bash
+   git clone https://github.com/tamirgz/AIOS.git && cd AIOS && ./install.sh
+   ```
+   This installs Ollama, pulls the models, and starts the app — all inside WSL2. Low-spec PC? use `./install.sh --brain cloud` (see [cloud-brain](#low-spec-machine-use-the-free-cloud-brain)).
+6. **Open the app.** In your normal Windows browser, go to **http://localhost:3777** (WSL2 forwards it for you).
 
-**Linux:** install Docker Engine + [Ollama](https://ollama.com), then run the Quickstart.
+> **Rather use Docker Desktop + Ollama-for-Windows?** It works at runtime, but `install.sh` can't drive a *Windows-native* Ollama from WSL2. You'd install [Ollama for Windows](https://ollama.com/download) (set `OLLAMA_HOST=0.0.0.0`), `ollama pull` your models **on Windows**, then from your WSL2 checkout start just the stack: `docker compose -f deploy/docker-compose.yml up -d --build`. The all-in-WSL2 path above is simpler.
 
-**Shared gotcha:** the containers reach Ollama at `host.docker.internal:11434`, so Ollama must listen on **all interfaces** (`OLLAMA_HOST=0.0.0.0`). `install.sh` **auto-detects** if the container can't reach Ollama and prints the exact fix.
+### Linux
 
-> **Prefer Docker Desktop + Ollama-for-Windows?** That works at runtime, but `install.sh` can't drive a *Windows-native* Ollama from inside WSL2 — you'd install [Ollama for Windows](https://ollama.com/download) (with `OLLAMA_HOST=0.0.0.0`), `ollama pull` your models **on Windows**, then start just the stack from your WSL2 checkout with `docker compose -f deploy/docker-compose.yml up -d --build`. The all-in-WSL2 path above is simpler.
+1. **Install Docker Engine** (Debian/Ubuntu shown; reopen your shell afterwards so the group applies):
+   ```bash
+   curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER
+   ```
+2. **Install AIOS:**
+   ```bash
+   git clone https://github.com/tamirgz/AIOS.git && cd AIOS && ./install.sh
+   ```
+   It installs Ollama, pulls the models, and starts the stack.
+3. **Open http://localhost:3777.**
+
+### Editions & Ollama networking
+
+- **Two editions:** **container** (default — `deploy/docker-compose.yml`, Ollama on the host; see [`deploy/README.md`](deploy/README.md)) and **native** (macOS only — launchd services + full Workbench CLI agents; see [`docs/RUNTIME.md`](docs/RUNTIME.md)).
+- **Ollama networking:** the containers reach Ollama at `host.docker.internal:11434`, so it must listen on all interfaces (`OLLAMA_HOST=0.0.0.0`). The installer starts it that way for you — and if Ollama was already running on localhost only, the reachability check prints the exact one-line fix for your OS. You don't configure it by hand.
 
 ### Low-spec machine? Use the free "cloud-brain"
 
