@@ -34,6 +34,10 @@ the cost stays under my control. (Also: it was genuinely fascinating to build.)
 If you've bounced between beautiful tools that never quite stuck — this is meant to be the
 one that does: **an operating system for your work that helps you make progress every day.**
 
+> **The guiding principle:** don't overload it with capabilities. Every feature has to earn
+> its place. The aim is a system that stays simple to use and keeps you moving at your own
+> daily pace — not one you have to re‑learn every few months.
+
 ---
 
 ## What you get
@@ -195,6 +199,36 @@ See [`docs/RUNTIME.md`](docs/RUNTIME.md) for the full topology and
 3. `pnpm db:generate && pnpm db:migrate`, restart dev + worker.
 
 Nav entry, routes (`/m/foo`), dashboard widgets, ⌘K commands, AI tools, agent templates, and background jobs all appear with zero core edits.
+
+## What's inside today
+
+- **Capture** — a universal Inbox with AI triage (plus a zero‑token ⌘K fast‑path: `task:` / `note:`) · paste‑anything Knowledge (links, repos, video, quotes → auto‑fetched, summarized, tagged) · read‑only Obsidian‑vault ingest · markdown Notes.
+- **Think & decide** — **Ask** (cited answers across your whole corpus) · an **Ideas** pipeline with an AI reality‑check → promote to project · **Projects** with health, goals, next‑action + a per‑project advisor · **Tasks** (board, priorities, due dates, project/feature links).
+- **Automate** — autonomous **Agents** (cron‑scheduled, live transcripts, idempotent ledger, install‑from‑template) · a **Workbench** to delegate longer jobs to CLI executors · an approvals queue for risky actions · notifications to the bell + Slack.
+- **Connect & control** — per‑task **AI routing** (local Ollama · Apple MLX · optional Claude subscription · optional Gemini) · memory blocks injected into every call · **Calendar** (Google/ICS sync) + a Today "needs‑you" queue · People · integrations for Google, Slack (two‑way), Notion, Obsidian, keyless web search & a reader proxy · 5 themes.
+- **Foundation** — one **semantic search** across everything · local‑first & private (no metered key can start billing) · a plugin architecture (a module = a folder + two registry lines) · container & native editions with a one‑command installer.
+
+## Roadmap
+
+Guided by the same principle — **nothing ships just because it's possible.** Each of these lands only when it earns its place and stays out of your way. Rough order, not promises:
+
+**Next**
+
+- 🎙️ **Voice capture** — speak a thought; it's transcribed locally and triaged into the right module.
+- 📱 **Quick‑capture companion** — a menubar drop‑zone and a phone PWA, synced back to your system.
+- 🗣️ **Spoken daily brief** — your morning digest as local text‑to‑speech, ready before coffee.
+- 🕸️ **Constellation view** — an interactive graph of how your notes, ideas, and projects connect.
+
+**Exploring**
+
+- 🔁 **Offline‑first sync** — CRDT‑based, so your system travels across devices and merges later.
+- ✉️ **Email co‑pilot** — draft replies grounded in your own context; triage the inbox for you.
+- 🧩 **Module marketplace** — install community modules and agents in a click.
+- 🔐 **Encrypted vault** — at‑rest encryption for the truly private stuff.
+- 🖥️ **Linux & Windows editions** — beyond the macOS / Apple‑Silicon v1.
+- 🎨 **Theme editor** — design your own look, not just the five.
+
+Have an idea, or want to build a module? Issues and PRs are welcome.
 
 ## License
 
