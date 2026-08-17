@@ -8,6 +8,7 @@ import { cn } from "@/core/ui/cn";
 const TABS = [
   { href: "/m/settings/models", label: "Models & Routing", match: ["", "models"] },
   { href: "/m/settings/connections", label: "Connections", match: ["connections"] },
+  { href: "/m/settings/appearance", label: "Appearance", match: ["appearance"] },
   { href: "/m/settings/memory", label: "Memory", match: ["memory"] },
   { href: "/m/settings/usage", label: "Usage", match: ["usage"] },
 ];

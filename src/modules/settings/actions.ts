@@ -6,6 +6,7 @@ import { getSetting, setSetting } from "@/core/app-settings";
 import { sql } from "@/core/db/client";
 import type { AIProviderId } from "@/core/db/schema/ai-routes";
 import { INTEGRATION_SETTING_KEYS } from "@/core/integrations/registry";
+import { THEME_IDS } from "@/core/theme";
 
 // Generated from the integration registry, so every field the Connections UI
 // renders is saveable by construction. Plus a few non-connection settings that
@@ -77,6 +78,14 @@ export async function saveRoute(
   if (!model.trim()) throw new Error("model is required");
   await setRoute(taskKey, provider, model);
   revalidatePath("/m/settings");
+}
+
+/** Persist the selected appearance theme (applied as <html data-theme>). */
+export async function saveTheme(id: string) {
+  if (!THEME_IDS.includes(id)) throw new Error("unknown theme");
+  await setSetting("theme", id);
+  // Re-render the root layout so the SSR data-theme matches on next load.
+  revalidatePath("/", "layout");
 }
 
 // ── Local one-click auto-detect (B2) ─────────────────────────────────────────

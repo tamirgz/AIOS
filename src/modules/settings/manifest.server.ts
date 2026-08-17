@@ -3,6 +3,7 @@ import { ModelsPage } from "./pages/ModelsPage";
 import { ConnectionsPage } from "./pages/ConnectionsPage";
 import { MemoryPage } from "./pages/MemoryPage";
 import { UsagePage } from "./pages/UsagePage";
+import { AppearancePage } from "./pages/AppearancePage";
 
 export const settingsServerManifest: ModuleServerManifest = {
   id: "settings",
@@ -12,6 +13,7 @@ export const settingsServerManifest: ModuleServerManifest = {
     "": ModelsPage,
     models: ModelsPage,
     connections: ConnectionsPage,
+    appearance: AppearancePage,
     memory: MemoryPage,
     usage: UsagePage,
   },
