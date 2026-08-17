@@ -1,1 +1,0 @@
-This repository contains n8n nodes and workflows for automating various tasks.
