@@ -21,6 +21,7 @@ const COST_REASON: Record<AIProviderId, string> = {
   nvidia: "NVIDIA free tier — the agent layer refuses any model that isn't confirmed $0 (fail-closed)",
   anthropic: "Claude Max subscription — flat-rate, no per-token metering (no API key is configured)",
   gemini: "Google AI Studio API key — METERED, billed per-token by Google (free tier available)",
+  openrouter: "OpenRouter API key — METERED per-token, but models ending ':free' cost $0",
 };
 
 /** Per-agent token/run aggregates for the last 30 days, plus which mode (cloud/local) each currently runs on. */
@@ -110,7 +111,9 @@ export async function UsagePanel() {
                         title={COST_REASON[effProvider]}
                         className="font-mono text-xs tabular-nums text-ink-faint"
                       >
-                        $0
+                        {effProvider === "gemini" || effProvider === "openrouter"
+                          ? "meter"
+                          : "$0"}
                       </span>
                     </td>
                   </tr>
@@ -121,10 +124,10 @@ export async function UsagePanel() {
         )}
       </div>
       <p className="px-1 font-mono text-[9px] leading-relaxed text-ink-faint">
-        C = cloud (network call to Anthropic/NVIDIA) · L = local (runs on this
-        machine, via Ollama). Every route in this app is either local, a
-        fail-closed-free NVIDIA model, or your flat-rate Claude Max plan — so
-        cost is always $0 here; hover a cost cell for why.
+        C = cloud · L = local (Ollama, on this machine). Local models, the
+        fail-closed-free NVIDIA tier, and your flat-rate Claude Max plan are $0;
+        Gemini and non-‘:free’ OpenRouter models are metered by the provider.
+        Hover a cost cell for why.
       </p>
     </div>
   );

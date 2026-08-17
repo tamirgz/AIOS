@@ -108,10 +108,11 @@ Re-skin the whole app from **Settings › Appearance** — a real light mode, a 
 
 ## Requirements
 
-- **macOS on Apple Silicon** (the v1 target — launchd services, and MLX if you opt in).
-- **Docker** via [OrbStack](https://orbstack.dev) (or Docker Desktop) — for Postgres only.
-- **Node 20+** and **pnpm**.
-- **[Ollama](https://ollama.com)** — local models + embeddings.
+- **macOS (Apple Silicon)** — full support, both editions (and MLX if you opt in).
+- **Windows & Linux** — the container edition runs here too (Windows via WSL2 + Docker Desktop). See [Windows & Linux](#windows--linux-via-docker) below.
+- **Docker** — [OrbStack](https://orbstack.dev) / Docker Desktop (macOS) or Docker Engine (Linux/WSL2).
+- **[Ollama](https://ollama.com)** — local models + embeddings (runs on the host).
+- **Node 20+** and **pnpm** — only for the native (dev) edition; the container edition doesn't need them.
 
 ## Quickstart — one command (fully local, no accounts)
 
@@ -128,12 +129,33 @@ models, and brings the app up in Docker with Ollama on the host. When it's done 
 ```bash
 ./install.sh --dry-run       # print the plan, change nothing
 ./install.sh --tier lite     # smaller model set (lite | standard | full)
-./install.sh --native        # host-native (launchd), for full Workbench CLI agents
+./install.sh --brain cloud   # low-spec: local embeddings + free OpenRouter reasoning
+./install.sh --native        # host-native (launchd), for full Workbench CLI agents (macOS)
 ```
 
 The two editions: **container** (default — `deploy/docker-compose.yml`, Ollama on host,
 see [`deploy/README.md`](deploy/README.md)) and **native** (advanced — launchd services,
 `docs/RUNTIME.md`).
+
+### Windows & Linux (via Docker)
+
+The whole app runs in **Linux containers** — only Ollama runs on the host — so it behaves the same everywhere:
+
+- **Windows:** install **Docker Desktop** (enable **WSL2** integration) and **[Ollama for Windows](https://ollama.com/download)**, then run the quickstart **inside your WSL2 shell**. GPU works natively (CUDA).
+- **Linux:** install Docker Engine + Ollama, then run the quickstart.
+- **The one shared gotcha:** the container reaches Ollama at `host.docker.internal:11434`, so Ollama must listen on **all interfaces** — set `OLLAMA_HOST=0.0.0.0` and restart it. `install.sh` **auto-detects** if the container can't reach Ollama and prints the exact fix for your OS.
+
+### Low-spec machine? Use the free "cloud-brain"
+
+No powerful GPU or much RAM? AIOS still works. Embeddings run on a **tiny local model** (`nomic-embed-text`, ~300 MB — runs on almost anything), and the **reasoning** (chat, agents, Ask) uses **[OpenRouter](https://openrouter.ai)'s free tier** instead of a local chat model.
+
+`install.sh` auto-selects this under ~8 GB RAM, or force it with `--brain cloud`:
+
+1. **`./install.sh --brain cloud`** — pulls only the embedding model.
+2. Get a **free** key at **[openrouter.ai/keys](https://openrouter.ai/keys)** — paste it when prompted, or add it later in **Settings → Connections → OpenRouter**.
+3. Done — reasoning is routed to a free model automatically. Change it anytime in **Settings → AI Routing** (any model id ending `:free` is $0).
+
+Your data still lives only on your machine — only the reasoning prompt is sent to OpenRouter; search, embeddings, and storage stay local.
 
 <details><summary>Manual setup (dev / without the installer)</summary>
 
@@ -164,13 +186,18 @@ gui/$(id -u)/com.aios.web` (and `.worker`).
   subscription — no per-token API key.
 - **Apple MLX** (faster local inference via LM Studio, Apple Silicon): opt-in — see
   [`docs/MODEL-ROUTING.md`](docs/MODEL-ROUTING.md).
+- **OpenRouter** (cloud models, incl. a **free tier**): add a key from
+  [openrouter.ai/keys](https://openrouter.ai/keys) in **Settings → Connections**, then route
+  any task to it in **AI Routing**. This is also the [low-spec "cloud-brain"](#low-spec-machine-use-the-free-cloud-brain)
+  path — free reasoning without a capable GPU.
 - **Integrations** (Calendar, Gmail, Slack, Obsidian, Notion, web search): connect each in
   **Settings → Connections**. All optional; AIOS is fully useful with none.
 
 ## What runs on your machine — and what it never touches
 
-- **Only Postgres runs in Docker.** The web app, the worker, and all AI run **natively**
-  on the host (Apple Silicon, full speed). Docker is just the database.
+- **Ollama runs on the host** and does the AI locally (full GPU). In the default **container
+  edition** the app + Postgres run in Docker; the **native edition** runs the app on the
+  host with only Postgres in Docker. Either way, the model inference is on your machine.
 - **No metered billing can start by accident:** metered API keys
   (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …) are stripped from the process and every child
   at startup — local models and subscription auth only.

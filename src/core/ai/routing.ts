@@ -7,6 +7,7 @@ import { ollamaProvider } from "./ollama";
 import { mlxProvider } from "./mlx";
 import { nvidiaProvider } from "./nvidia";
 import { geminiProvider } from "./gemini";
+import { openrouterProvider } from "./openrouter";
 
 export const providers: Record<AIProviderId, AIProvider> = {
   anthropic: anthropicProvider,
@@ -14,6 +15,7 @@ export const providers: Record<AIProviderId, AIProvider> = {
   mlx: mlxProvider,
   nvidia: nvidiaProvider,
   gemini: geminiProvider,
+  openrouter: openrouterProvider,
 };
 
 // Re-exported for server-side callers that already import this module —
@@ -36,38 +38,58 @@ export interface ResolvedRoute {
 // rows (`ensureDefaultRoutes`), so they never override a user's choices.
 // (Tiering: a "Lite" install may only have qwen3:8b — route resolution should
 // fall back to an available local model; see the distribution plan.)
+//
+// CLOUD-BRAIN (low-spec machines): when the installer detects a machine that
+// can't comfortably run a local chat model, it sets AIOS_DEFAULT_BRAIN=openrouter
+// (+ an optional AIOS_DEFAULT_MODEL and the OPENROUTER_API_KEY) in .env.local.
+// The reasoning tasks below then seed to OpenRouter's free tier instead of
+// Ollama, while EMBEDDINGS stay local (nomic-embed-text runs on any machine).
+// Unset (the normal case) → everything stays local-first on Ollama. These seeds
+// only fill MISSING rows, so a user can still re-route anything in Settings.
+const CLOUD_BRAIN = process.env.AIOS_DEFAULT_BRAIN === "openrouter";
+const CLOUD_MODEL =
+  process.env.AIOS_DEFAULT_MODEL?.trim() ||
+  "meta-llama/llama-3.3-70b-instruct:free";
+// "Capable" = the heavier reasoning tier; "light" = high-frequency gates.
+const CAPABLE: { provider: AIProviderId; model: string } = CLOUD_BRAIN
+  ? { provider: "openrouter", model: CLOUD_MODEL }
+  : { provider: "ollama", model: "qwen3-coder:30b" };
+const LIGHT: { provider: AIProviderId; model: string } = CLOUD_BRAIN
+  ? { provider: "openrouter", model: CLOUD_MODEL }
+  : { provider: "ollama", model: "qwen3:8b" };
+
 const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
-  { taskKey: "chat", provider: "ollama", model: "qwen3-coder:30b" },
-  { taskKey: "agent.default", provider: "ollama", model: "qwen3-coder:30b" },
-  { taskKey: "knowledge.enrich", provider: "ollama", model: "qwen3-coder:30b" },
-  { taskKey: "inbox.triage", provider: "ollama", model: "qwen3:8b" },
-  { taskKey: "ideas.analyze", provider: "ollama", model: "qwen3-coder:30b" },
+  { taskKey: "chat", ...CAPABLE },
+  { taskKey: "agent.default", ...CAPABLE },
+  { taskKey: "knowledge.enrich", ...CAPABLE },
+  { taskKey: "inbox.triage", ...LIGHT },
+  { taskKey: "ideas.analyze", ...CAPABLE },
   // Ask (cited Q&A over the user's corpus). Escalate to Claude in Settings for
   // deeper synthesis.
-  { taskKey: "ask", provider: "ollama", model: "qwen3-coder:30b" },
+  { taskKey: "ask", ...CAPABLE },
   // Every key below is seeded so it shows up in Settings → AI Routing.
   //
   // Workbench "docs"/native tasks (AIOS's own data + module tools).
-  { taskKey: "workbench.native", provider: "ollama", model: "qwen3-coder:30b" },
+  { taskKey: "workbench.native", ...CAPABLE },
   // The verifying judge that gates delegated work: reads the ask + the produced
   // result and decides whether the result satisfies the ask (A2 · Trust). Local
   // so verification is free and never depends on a rate-limited cloud plan; the
   // fallback below covers the primary being down. Both editable in Settings.
-  { taskKey: "workbench.judge", provider: "ollama", model: "qwen3-coder:30b" },
-  // Safety-net judge — used ONLY when the primary can't run. A lighter local
-  // model by default; point it at Claude in Settings if you've connected it.
-  { taskKey: "workbench.judge.fallback", provider: "ollama", model: "qwen3:8b" },
+  { taskKey: "workbench.judge", ...CAPABLE },
+  // Safety-net judge — used ONLY when the primary can't run. A lighter model by
+  // default; point it at Claude in Settings if you've connected it.
+  { taskKey: "workbench.judge.fallback", ...LIGHT },
   // The routine BUILDER — composes a routine from a plain-English description.
   // Runs ONCE per routine at create time. Settings only — never on the card.
-  { taskKey: "routine.builder", provider: "ollama", model: "qwen3:8b" },
+  { taskKey: "routine.builder", ...LIGHT },
   // The source relevance gate: cheaply decides whether an incoming item is worth
-  // an expensive routine run. Free LOCAL — it runs on every post. Configurable.
-  { taskKey: "source.relevance", provider: "ollama", model: "qwen3:8b" },
+  // an expensive routine run. Runs on every post. Configurable.
+  { taskKey: "source.relevance", ...LIGHT },
   // The COMMIT relevance gate: on a commit trigger, cheaply decides whether the
   // change touches anything a routine documents before spending the executor.
-  { taskKey: "routine.gate", provider: "ollama", model: "qwen3:8b" },
+  { taskKey: "routine.gate", ...LIGHT },
   // Per-project advisor read + the on-demand "different angle" re-read.
-  { taskKey: "project.advisor", provider: "ollama", model: "qwen3:8b" },
+  { taskKey: "project.advisor", ...LIGHT },
 ];
 
 /** Insert default rows once so the Settings UI always has something to edit.

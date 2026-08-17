@@ -88,6 +88,22 @@ export const INTEGRATIONS: Integration[] = [
     ],
   },
   {
+    id: "openrouter",
+    label: "OpenRouter",
+    category: "ai",
+    blurb:
+      "OpenRouter API key — routable cloud models with a large free tier (the low-spec 'cloud-brain' default).",
+    fields: [
+      {
+        key: "openrouter_api_key",
+        label: "OpenRouter API key",
+        kind: "secret",
+        placeholder: "sk-or-v1-…",
+        hint: "From openrouter.ai/keys. Enables OpenRouter models in AI Routing — including many free ones (ids ending ':free', $0). Used as the reasoning brain on machines that can't run a local chat model, while embeddings stay on Ollama. Metered per-token for non-free models.",
+      },
+    ],
+  },
+  {
     id: "obsidian",
     label: "Obsidian vault",
     category: "knowledge",

@@ -12,6 +12,16 @@ Three runtimes, by design (see [RUNTIME.md](./RUNTIME.md) for process topology):
 - **Ollama** is a headless LaunchAgent daemon (`localhost:11434`), always up, survives reboots. It hosts everything **background / periodic / infra** — it keeps several small models co-resident without eviction, and never depends on a GUI session.
 - **Claude** (Anthropic, via the Max subscription — no API key) for deep reasoning and safety-net fallbacks.
 
+### ☁️ Cloud-brain — for machines that can't run a local chat model
+
+`install.sh --brain cloud` (auto-selected under ~8 GB RAM) keeps **embeddings local**
+(`nomic-embed-text` runs on almost anything) and routes every *reasoning* task key
+(`chat`, `ask`, `agent.default`, `ideas.analyze`, …) to **OpenRouter's free tier**
+(provider `openrouter`, a model id ending `:free`) instead of a local Ollama model. It's
+driven by `AIOS_DEFAULT_BRAIN=openrouter` at first-seed time; everything below still applies
+the moment you have the RAM/GPU — switch any route back to Ollama/MLX/Claude in
+**Settings → AI Routing**.
+
 ---
 
 ## 🟣 LM Studio / MLX — interactive, user-present
