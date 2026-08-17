@@ -146,3 +146,37 @@ export async function detectMlx(): Promise<{
     return { ok: false, models: 0 };
   }
 }
+
+/** List the Slack channels the bot can see, for the channel picker (replaces
+ *  pasting comma-separated IDs). Needs channels:read / groups:read on the token. */
+export async function listSlackChannels(): Promise<{
+  ok: boolean;
+  error?: string;
+  channels?: { id: string; name: string; member: boolean }[];
+}> {
+  const token = (await getSetting("slack_bot_token"))?.trim();
+  if (!token) return { ok: false, error: "add a bot token first" };
+  try {
+    const { slackApi } = await import("@/modules/agents/slack-intake");
+    const data = await slackApi<{
+      channels: { id: string; name: string; is_member: boolean }[];
+    }>(token, "conversations.list", {
+      types: "public_channel,private_channel",
+      exclude_archived: "true",
+      limit: "1000",
+    });
+    const channels = (data.channels ?? [])
+      .map((c) => ({ id: c.id, name: c.name, member: c.is_member }))
+      .sort((a, b) => Number(b.member) - Number(a.member) || a.name.localeCompare(b.name));
+    return { ok: true, channels };
+  } catch (e) {
+    const msg = String(e);
+    if (/missing_scope/.test(msg))
+      return {
+        ok: false,
+        error:
+          "the bot lacks channels:read / groups:read — re-install the app with the manifest above",
+      };
+    return { ok: false, error: msg.replace(/^Error:\s*/, "") };
+  }
+}

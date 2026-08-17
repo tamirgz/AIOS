@@ -39,8 +39,9 @@ export interface Integration {
   category: IntegrationCategory;
   /** Short one-liner for the card header. */
   blurb: string;
-  /** Renders the Google OAuth "connect" widget under the fields. */
-  connect?: "google";
+  /** Renders a guided setup wizard under the header instead of plain fields
+   *  ("google" = OAuth flow; "slack" = app-manifest + channel picker). */
+  connect?: "google" | "slack";
   /** Local one-click detection (fills the fields from a running service or the
    *  OS): "obsidian" reads the vault registry, "mlx" probes LM Studio. */
   detect?: "obsidian" | "mlx";
@@ -182,6 +183,7 @@ export const INTEGRATIONS: Integration[] = [
     label: "Slack",
     category: "chat",
     blurb: "Deliver notifications out, and read channels into reports / Inbox.",
+    connect: "slack",
     fields: [
       {
         key: "slack_webhook_url",
