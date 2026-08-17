@@ -13,6 +13,7 @@ import {
   detectMlx,
   detectObsidianVaults,
   disconnectGoogle,
+  listSlackChannels,
   saveIntegration,
   useObsidianVault,
 } from "../actions";
@@ -412,6 +413,220 @@ function GoogleWizard({
   );
 }
 
+const SLACK_MANIFEST = `display_information:
+  name: AIOS
+features:
+  bot_user:
+    display_name: AIOS
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - channels:history
+      - channels:read
+      - groups:history
+      - groups:read
+      - chat:write
+      - reactions:write
+      - incoming-webhook
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false`;
+
+/** Pick Slack channels by name (checkboxes) instead of pasting IDs. Lists the
+ *  channels the bot can see, then saves the selected IDs to `settingKey`. */
+function SlackChannelPicker({
+  settingKey,
+  label,
+  current,
+}: {
+  settingKey: string;
+  label: string;
+  current: string;
+}) {
+  const [pending, start] = useTransition();
+  const [channels, setChannels] = useState<
+    { id: string; name: string; member: boolean }[] | null
+  >(null);
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(current.split(",").map((s) => s.trim()).filter(Boolean)),
+  );
+  const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  return (
+    <div className="glass rounded-xl p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-ink">
+          {label}{" "}
+          <span className="font-mono text-[9px] uppercase tracking-widest text-ink-faint">
+            {settingKey}
+          </span>
+        </p>
+        {channels === null ? (
+          <button
+            type="button"
+            disabled={pending}
+            className={detectBtn}
+            onClick={() =>
+              start(async () => {
+                setErr(null);
+                const r = await listSlackChannels();
+                if (!r.ok) setErr(r.error ?? "failed");
+                else setChannels(r.channels ?? []);
+              })
+            }
+          >
+            {pending ? "loading…" : "Pick channels"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={pending}
+            className={detectBtn}
+            onClick={() =>
+              start(async () => {
+                await saveIntegration(settingKey, [...selected].join(", "));
+                setSaved(true);
+                setTimeout(() => setSaved(false), 1500);
+              })
+            }
+          >
+            {saved ? "saved" : "save selection"}
+          </button>
+        )}
+      </div>
+      {err && <p className="mt-1 text-xs text-flare">{err}</p>}
+      {channels === null && selected.size > 0 && (
+        <p className="mt-1 text-xs text-ink-dim">
+          {selected.size} channel{selected.size === 1 ? "" : "s"} selected — Pick
+          channels to edit
+        </p>
+      )}
+      {channels &&
+        (channels.length === 0 ? (
+          <p className="mt-2 text-xs text-ink-dim">
+            no channels found — invite the bot to a channel first
+          </p>
+        ) : (
+          <div className="mt-2 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
+            {channels.map((c) => {
+              const on = selected.has(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  title={c.member ? undefined : "invite the bot to read this channel"}
+                  onClick={() => {
+                    const n = new Set(selected);
+                    if (on) n.delete(c.id);
+                    else n.add(c.id);
+                    setSelected(n);
+                  }}
+                  className={cn(
+                    "rounded-lg border px-2 py-1 font-mono text-[10px] transition",
+                    on
+                      ? "border-ion/40 bg-ion/12 text-ion"
+                      : "border-white/10 text-ink-faint hover:text-ink-dim",
+                  )}
+                >
+                  {on ? "✓ " : ""}#{c.name}
+                  {c.member ? "" : " ·"}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+    </div>
+  );
+}
+
+/** Guided setup for Slack: create the app from a prebuilt manifest (all scopes
+ *  pre-set), paste the bot token, then pick channels by name. Still BYO-app. */
+function SlackWizard({ values }: { values: Record<string, string> }) {
+  const [copied, setCopied] = useState(false);
+  const hasToken = !!values.slack_bot_token;
+
+  return (
+    <div className="glass flex flex-col gap-3 rounded-xl p-3">
+      <div className="flex flex-col gap-1.5">
+        <p className="text-xs font-semibold text-ink">1 · Create the Slack app</p>
+        <ul className="flex flex-col gap-1 text-xs leading-snug text-ink-dim">
+          <li>
+            ·{" "}
+            <a
+              className={stepLink}
+              target="_blank"
+              rel="noreferrer"
+              href="https://api.slack.com/apps?new_app=1"
+            >
+              Create a Slack app
+              <ExternalLink className="ml-0.5 inline size-3 align-[-1px]" />
+            </a>{" "}
+            → <span className="text-ink">From an app manifest</span> → your
+            workspace
+          </li>
+          <li>
+            · Paste this manifest (all scopes pre-set) → Create →{" "}
+            <span className="text-ink">Install to Workspace</span>:
+          </li>
+        </ul>
+        <div className="flex items-start gap-2">
+          <pre className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-white/10 bg-abyss px-2 py-1.5 font-mono text-[10px] leading-snug text-ink">
+            {SLACK_MANIFEST}
+          </pre>
+          <button
+            type="button"
+            className={detectBtn}
+            onClick={() => {
+              void navigator.clipboard?.writeText(SLACK_MANIFEST);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            }}
+          >
+            <Copy className="mr-1 inline size-3 align-[-1px]" />
+            {copied ? "copied" : "copy"}
+          </button>
+        </div>
+        <p className="mt-1 text-xs font-semibold text-ink">
+          2 · Paste the bot token (+ optional notifications webhook)
+        </p>
+      </div>
+      <IntegrationField
+        key={`slack_bot_token:${values.slack_bot_token ?? ""}`}
+        settingKey="slack_bot_token"
+        label="Bot token"
+        hint="OAuth & Permissions → Bot User OAuth Token (xoxb-…), after Install to Workspace."
+        placeholder="xoxb-…"
+        initial={values.slack_bot_token ?? ""}
+        secret
+      />
+      <IntegrationField
+        key={`slack_webhook_url:${values.slack_webhook_url ?? ""}`}
+        settingKey="slack_webhook_url"
+        label="Notifications webhook (optional)"
+        hint="Incoming Webhooks → Add New Webhook → pick a channel. Every AIOS notification posts there."
+        placeholder="https://hooks.slack.com/services/…"
+        initial={values.slack_webhook_url ?? ""}
+        secret
+      />
+      <p className="text-xs font-semibold text-ink">
+        3 · Pick channels{hasToken ? "" : " — add the bot token first"}
+      </p>
+      <SlackChannelPicker
+        settingKey="slack_report_channels"
+        label="Channels → reports"
+        current={values.slack_report_channels ?? ""}
+      />
+      <SlackChannelPicker
+        settingKey="slack_inbox_channels"
+        label="Channels → Inbox"
+        current={values.slack_inbox_channels ?? ""}
+      />
+    </div>
+  );
+}
+
 /** One integration: header (label · blurb · status) then its fields. */
 function IntegrationCard({
   integration,
@@ -433,6 +648,8 @@ function IntegrationCard({
       </div>
       {integration.connect === "google" ? (
         <GoogleWizard values={values} connected={googleConnected} />
+      ) : integration.connect === "slack" ? (
+        <SlackWizard values={values} />
       ) : (
         <>
           {integration.detect && <DetectPanel kind={integration.detect} />}
