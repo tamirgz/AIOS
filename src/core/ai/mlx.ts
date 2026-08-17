@@ -1,15 +1,22 @@
 /**
- * Apple MLX runtime provider — talks OpenAI-compatible HTTP to a running
- * `mlx_lm.server` (`mlx_lm.server --model <hf-id-or-path> --port 8080`).
+ * Apple-MLX provider — served by **LM Studio** (OpenAI-compatible, default
+ * `http://localhost:1234/v1`).
  *
- * Why: measured ~1.9× the tokens/sec of Ollama's GGUF engine for the same model
- * on Apple silicon, because MLX runs the model natively. AIOS routes local work
- * through Ollama by default; point a route at the `mlx` provider to serve an
- * MLX-format model through this instead.
+ * Why LM Studio rather than a raw `mlx_lm.server`: it runs models on Apple's MLX
+ * framework (measured ~1.25–1.5× Ollama's throughput and far better TTFT on the
+ * same 35B-A3B model, M4 Pro) AND manages the model lifecycle natively — JIT
+ * load on first request, idle-TTL unload — so AIOS no longer has to babysit a
+ * launchd process to avoid a 17GB model sitting resident. Configure JIT/TTL in
+ * LM Studio → Developer.
+ *
+ * Reasoning: the Qwen3 MoE models default to chain-of-thought, which streams on
+ * a separate `reasoning_content` channel and adds seconds of latency before any
+ * answer. For a snappy assistant we send `reasoning_effort: "none"` to disable
+ * it. (When reasoning is left on, openai-compat surfaces it as `reasoning`
+ * events so the UI can show a "thinking…" state instead of dead air.)
  *
  * Local + free (no key), so it's classified `local` (never in CLOUD_PROVIDERS).
- * Configure the endpoint with the `mlx_base_url` setting (Settings · Connections)
- * or the `MLX_BASE_URL` env var; defaults to mlx_lm.server's `http://localhost:8080/v1`.
+ * Point the endpoint at `mlx_base_url` (Settings · Connections) or `MLX_BASE_URL`.
  */
 import type { AIProvider } from "./provider";
 import { runOpenAICompatible } from "./openai-compat";
@@ -17,7 +24,7 @@ import { runOpenAICompatible } from "./openai-compat";
 async function mlxBase(): Promise<string> {
   const { getSetting } = await import("@/core/app-settings");
   const fromSetting = (await getSetting("mlx_base_url").catch(() => null))?.trim();
-  const base = fromSetting || process.env.MLX_BASE_URL || "http://localhost:8080/v1";
+  const base = fromSetting || process.env.MLX_BASE_URL || "http://localhost:1234/v1";
   return base.replace(/\/$/, "");
 }
 
@@ -25,10 +32,9 @@ export const mlxProvider: AIProvider = {
   id: "mlx",
 
   async listModels() {
-    // Prefer the user-curated list (Settings · Connections · `mlx_models`) — a
-    // single mlx_lm.server loads any of them on demand by HF id/path, so this is
-    // what should appear in the routing dropdown. Falls back to whatever the
-    // server currently reports if the list isn't configured.
+    // Prefer the user-curated list (Settings · Connections · `mlx_models`) — LM
+    // Studio JIT-loads any of them on demand by id, so this is what should
+    // appear in the routing dropdown. Falls back to whatever LM Studio reports.
     const { getSetting } = await import("@/core/app-settings");
     const configured = (await getSetting("mlx_models").catch(() => null))?.trim();
     if (configured) {
@@ -39,13 +45,17 @@ export const mlxProvider: AIProvider = {
     }
     const base = await mlxBase();
     const res = await fetch(`${base}/models`, { signal: AbortSignal.timeout(4000) });
-    if (!res.ok) throw new Error(`mlx_lm.server ${base}/models → ${res.status}`);
+    if (!res.ok) throw new Error(`LM Studio ${base}/models → ${res.status}`);
     const data = (await res.json()) as { data?: { id: string }[] };
     return (data.data ?? []).map((m) => m.id);
   },
 
   async *run(opts) {
+    // LM Studio JIT-loads the model on this request and TTL-unloads it later —
+    // no process management here. Disable reasoning for responsiveness.
     const base = await mlxBase();
-    yield* runOpenAICompatible(base, "mlx", opts);
+    yield* runOpenAICompatible(base, "lmstudio", opts, {
+      reasoning_effort: "none",
+    });
   },
 };
