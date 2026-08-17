@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { db, sql } from "@/core/db/client";
 import { clipToObsidianRaw } from "@/core/obsidian-clip";
 import { deleteBranchIfMerged, removeIsolation } from "./git";
-import { TYPE_DEFAULT_EXECUTOR } from "./defaults";
+import { pickExecutor } from "./queries";
 import { assertFreeModel } from "./models";
 import {
   attemptEvents,
@@ -130,7 +130,7 @@ export async function createTask(input: {
     .values({
       taskId: task.id,
       seq: 1,
-      executorId: input.executorId ?? TYPE_DEFAULT_EXECUTOR[input.taskType],
+      executorId: await pickExecutor(input.executorId, input.taskType),
       model: input.model ?? null,
     })
     .returning();
@@ -168,8 +168,10 @@ export async function retryTask(
     .values({
       taskId,
       seq: (last?.seq ?? 0) + 1,
-      executorId:
-        executorId ?? last?.executorId ?? TYPE_DEFAULT_EXECUTOR[task.taskType],
+      executorId: await pickExecutor(
+        executorId ?? last?.executorId ?? undefined,
+        task.taskType,
+      ),
       // An explicit model pins this attempt (e.g. a free-model comparison run);
       // otherwise inherit the previous attempt's model.
       model: model !== undefined ? model : (last?.model ?? null),
