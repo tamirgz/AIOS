@@ -18,7 +18,22 @@ function ParticleField() {
     let height = 0;
     let raf = 0;
 
-    const COLORS = ["0, 229, 199", "125, 211, 252", "255, 180, 84"];
+    // Particle colors follow the active theme's accents (read from CSS vars),
+    // so motes match whichever theme is applied.
+    const hexToRgb = (hex: string): string | null => {
+      const m = hex.trim().match(/^#?([0-9a-f]{6})$/i);
+      if (!m) return null;
+      const n = parseInt(m[1], 16);
+      return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+    };
+    let COLORS = ["0, 229, 199", "125, 211, 252", "255, 180, 84"];
+    const readColors = () => {
+      const cs = getComputedStyle(document.documentElement);
+      const next = ["--color-plasma", "--color-ion", "--color-solar"]
+        .map((v) => hexToRgb(cs.getPropertyValue(v)))
+        .filter((c): c is string => !!c);
+      if (next.length) COLORS = next;
+    };
     type Mote = {
       x: number;
       y: number;
@@ -32,6 +47,7 @@ function ParticleField() {
     let motes: Mote[] = [];
 
     const resize = () => {
+      readColors();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       width = window.innerWidth;
       height = window.innerHeight;
@@ -76,9 +92,16 @@ function ParticleField() {
     resize();
     raf = requestAnimationFrame(tick);
     window.addEventListener("resize", resize);
+    // Re-read accent colors when the theme changes (data-theme on <html>).
+    const themeObserver = new MutationObserver(resize);
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
+      themeObserver.disconnect();
     };
   }, []);
 
@@ -86,7 +109,7 @@ function ParticleField() {
     <canvas
       ref={canvasRef}
       aria-hidden
-      className="pointer-events-none fixed inset-0 -z-1"
+      className="bg-particles pointer-events-none fixed inset-0 -z-1"
     />
   );
 }

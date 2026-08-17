@@ -173,3 +173,219 @@ body {
   border-radius: 9999px;
   box-shadow: 0 0 10px 1px currentColor;
 }
+
+/* particle canvas opacity is theme-controlled (0 disables it on light/flat themes) */
+.bg-particles {
+  opacity: var(--bg-particle-opacity, 1);
+}
+
+/* ===========================================================================
+   THEMES — each is a distinct *look*, not just a recolor. A theme overrides
+   the design tokens AND the surface/background/glow treatments. Default
+   (no [data-theme]) is "Mission Control" defined above. Applied via
+   <html data-theme="…"> (SSR, so no flash).
+   ======================================================================== */
+
+/* ── Daybreak — a true light mode: warm paper, soft shadows, no glow ────── */
+:root[data-theme="daybreak"] {
+  color-scheme: light;
+  --color-void: #f4f1ea;
+  --color-abyss: #ece6da;
+  --color-panel: #fbf8f2;
+  --color-raise: #ffffff;
+  --color-ink: #1c2430;
+  --color-ink-dim: #566270;
+  --color-ink-faint: #93a0ac;
+  --color-plasma: #0b9a86;
+  --color-plasma-dim: #0a806f;
+  --color-solar: #c67d1e;
+  --color-ion: #2f7fc4;
+  --color-flare: #d94a63;
+  --color-violet: #7c5cf0;
+  --color-orchid: #b455cf;
+  --color-gold: #b8891a;
+  --bg-particle-opacity: 0;
+}
+[data-theme="daybreak"] .glass {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--color-raise) 92%, transparent),
+    color-mix(in oklab, var(--color-panel) 80%, transparent)
+  );
+  backdrop-filter: blur(10px) saturate(115%);
+  -webkit-backdrop-filter: blur(10px) saturate(115%);
+  border: 1px solid color-mix(in oklab, var(--color-ink) 10%, transparent);
+  box-shadow:
+    0 1px 0 0 rgb(255 255 255 / 0.6) inset,
+    0 18px 40px -30px rgb(28 36 48 / 0.4);
+}
+[data-theme="daybreak"] .glass-edge {
+  border-color: color-mix(in oklab, var(--color-plasma) 45%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-plasma) 15%, transparent);
+}
+[data-theme="daybreak"] .text-glow {
+  text-shadow: none;
+}
+[data-theme="daybreak"] .bg-aurora {
+  opacity: 0.6;
+  filter: blur(80px) saturate(110%);
+  background:
+    radial-gradient(42% 34% at 18% 22%, rgb(11 154 134 / 0.1), transparent 70%),
+    radial-gradient(38% 30% at 82% 12%, rgb(47 127 196 / 0.08), transparent 70%),
+    radial-gradient(46% 38% at 74% 82%, rgb(198 125 30 / 0.07), transparent 70%);
+}
+[data-theme="daybreak"] .bg-grid {
+  background-image:
+    linear-gradient(rgb(28 36 48 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(28 36 48 / 0.05) 1px, transparent 1px);
+}
+[data-theme="daybreak"] .bg-grain {
+  opacity: 0;
+}
+
+/* ── Slate — flat & minimal: solid panels, no blur, no aurora, no glow ──── */
+:root[data-theme="slate"] {
+  --color-void: #15171c;
+  --color-abyss: #1a1d23;
+  --color-panel: #20242e;
+  --color-raise: #272c38;
+  --color-ink: #e7e9ee;
+  --color-ink-dim: #99a0ac;
+  --color-ink-faint: #626b78;
+  --color-plasma: #7c8cf8;
+  --color-plasma-dim: #5b6bd6;
+  --color-solar: #e0a458;
+  --color-ion: #7dd3fc;
+  --color-flare: #f2748a;
+  --color-violet: #b197fc;
+  --color-orchid: #e6a6f0;
+  --color-gold: #e6c34d;
+  --radius-panel: 0.6rem;
+  --bg-particle-opacity: 0;
+}
+[data-theme="slate"] .glass {
+  background: var(--color-panel);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid color-mix(in oklab, var(--color-ink) 10%, transparent);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+}
+[data-theme="slate"] .glass-edge {
+  border-color: color-mix(in oklab, var(--color-plasma) 45%, transparent);
+  box-shadow: none;
+}
+[data-theme="slate"] .text-glow {
+  text-shadow: none;
+}
+[data-theme="slate"] .bg-aurora {
+  opacity: 0;
+}
+[data-theme="slate"] .bg-grid {
+  opacity: 0.4;
+  background-image:
+    linear-gradient(color-mix(in oklab, var(--color-ink) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in oklab, var(--color-ink) 5%, transparent) 1px, transparent 1px);
+}
+[data-theme="slate"] .bg-grain {
+  opacity: 0;
+}
+
+/* ── Phosphor — retro terminal: amber CRT, mono, sharp, scanlines ───────── */
+:root[data-theme="phosphor"] {
+  --color-void: #080600;
+  --color-abyss: #0f0b02;
+  --color-panel: #151005;
+  --color-raise: #1c1608;
+  --color-ink: #f4e4c0;
+  --color-ink-dim: #b89a63;
+  --color-ink-faint: #6e5c3a;
+  --color-plasma: #ffb000;
+  --color-plasma-dim: #c78700;
+  --color-solar: #ff7b1a;
+  --color-ion: #9be15d;
+  --color-flare: #ff5555;
+  --color-violet: #d0a0ff;
+  --color-orchid: #ffa0e0;
+  --color-gold: #ffd000;
+  --radius-panel: 0.3rem;
+  --bg-particle-opacity: 0.5;
+}
+[data-theme="phosphor"] body {
+  font-family: var(--font-mono);
+}
+[data-theme="phosphor"] .glass {
+  background: color-mix(in oklab, var(--color-panel) 92%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  border: 1px solid color-mix(in oklab, var(--color-plasma) 26%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--color-plasma) 6%, transparent),
+    0 0 24px -14px color-mix(in oklab, var(--color-plasma) 40%, transparent);
+}
+[data-theme="phosphor"] .glass-edge {
+  border-color: color-mix(in oklab, var(--color-plasma) 45%, transparent);
+  box-shadow: 0 0 22px -6px color-mix(in oklab, var(--color-plasma) 45%, transparent);
+}
+[data-theme="phosphor"] .text-glow {
+  text-shadow: 0 0 12px color-mix(in oklab, var(--color-plasma) 60%, transparent);
+}
+[data-theme="phosphor"] .bg-aurora {
+  opacity: 0.5;
+  filter: blur(60px);
+  background: radial-gradient(50% 40% at 50% 0%, rgb(255 176 0 / 0.1), transparent 70%);
+}
+[data-theme="phosphor"] .bg-grid {
+  background-image:
+    repeating-linear-gradient(0deg, rgb(255 176 0 / 0.06) 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, rgb(255 176 0 / 0.04) 1px, transparent 1px);
+  background-size:
+    auto,
+    56px 56px;
+  mask-image: radial-gradient(ellipse 95% 90% at 50% 30%, black 30%, transparent 82%);
+}
+[data-theme="phosphor"] .bg-grain {
+  opacity: 0.08;
+}
+
+/* ── Nebula — richer cosmic dark: violet/magenta + cyan, soft bloom ─────── */
+:root[data-theme="nebula"] {
+  --color-void: #08060f;
+  --color-abyss: #0e0a1c;
+  --color-panel: #171029;
+  --color-raise: #211738;
+  --color-ink: #ece6ff;
+  --color-ink-dim: #a99fc9;
+  --color-ink-faint: #655a86;
+  --color-plasma: #c04bff;
+  --color-plasma-dim: #8f2fd6;
+  --color-solar: #ffb454;
+  --color-ion: #38bdf8;
+  --color-flare: #ff5fa8;
+  --color-violet: #a78bfa;
+  --color-orchid: #f0abfc;
+  --color-gold: #ffd43b;
+  --bg-particle-opacity: 1;
+}
+[data-theme="nebula"] .glass {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklab, var(--color-raise) 85%, transparent),
+    color-mix(in oklab, var(--color-abyss) 60%, transparent)
+  );
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid color-mix(in oklab, var(--color-violet) 18%, transparent);
+  box-shadow:
+    0 1px 0 0 color-mix(in oklab, var(--color-ink) 8%, transparent) inset,
+    0 30px 70px -30px rgb(80 20 120 / 0.7);
+}
+[data-theme="nebula"] .text-glow {
+  text-shadow: 0 0 20px color-mix(in oklab, var(--color-plasma) 55%, transparent);
+}
+[data-theme="nebula"] .bg-aurora {
+  background:
+    radial-gradient(42% 34% at 18% 22%, rgb(192 75 255 / 0.16), transparent 70%),
+    radial-gradient(38% 30% at 82% 12%, rgb(56 189 248 / 0.12), transparent 70%),
+    radial-gradient(46% 38% at 74% 82%, rgb(255 95 168 / 0.1), transparent 70%),
+    radial-gradient(30% 26% at 32% 88%, rgb(167 139 250 / 0.1), transparent 70%);
+}

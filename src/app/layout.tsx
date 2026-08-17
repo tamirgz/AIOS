@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Chakra_Petch, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
+import { getSetting } from "@/core/app-settings";
+import { themeAttr } from "@/core/theme";
 import "./globals.css";
 
 const chakra = Chakra_Petch({
@@ -25,14 +27,19 @@ export const metadata: Metadata = {
     "One intelligent workspace: tasks, projects, notes, content and autonomous AI agents.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Apply the saved appearance theme at SSR so there's no flash. Resilient: any
+  // failure (e.g. DB not ready during build) falls back to the default look.
+  const theme = await getSetting("theme").catch(() => null);
+  const attr = themeAttr(theme);
   return (
     <html
       lang="en"
+      data-theme={attr || undefined}
       className={`${chakra.variable} ${instrument.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full">{children}</body>
