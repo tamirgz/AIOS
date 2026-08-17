@@ -21,6 +21,7 @@ const COST_REASON: Record<AIProviderId, string> = {
   nvidia: "NVIDIA free tier — the agent layer refuses any model that isn't confirmed $0 (fail-closed)",
   anthropic: "Claude Max subscription — flat-rate, no per-token metering (no API key is configured)",
   gemini: "Google AI Studio API key — METERED, billed per-token by Google (free tier available)",
+  openrouter: "OpenRouter API key — METERED per-token, but models ending ':free' cost $0",
 };
 
 /** Per-agent token/run aggregates for the last 30 days, plus which mode (cloud/local) each currently runs on. */

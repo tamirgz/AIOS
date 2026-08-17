@@ -18,6 +18,12 @@ x-app: &app
     # Ask web-search uses the bundled SearXNG below (zero-config). The
     # `searxng_url` setting in Settings · Connections overrides this if set.
     SEARXNG_URL: http://searxng:8080
+    # Low-spec "cloud-brain": when install.sh detects a machine that can't run a
+    # local chat model it sets these (in .env) so reasoning routes to OpenRouter's
+    # free tier while embeddings stay local. Empty by default → fully local-first.
+    OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    AIOS_DEFAULT_BRAIN: ${AIOS_DEFAULT_BRAIN:-}
+    AIOS_DEFAULT_MODEL: ${AIOS_DEFAULT_MODEL:-}
   extra_hosts:
     # Lets the container reach host Ollama on Linux/Colima (Docker Desktop /
     # OrbStack provide host.docker.internal automatically; this is harmless there).
