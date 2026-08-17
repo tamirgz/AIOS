@@ -27,6 +27,28 @@ per-source one-click connects.
   and chip (`sysctl hw.memsize`, `machdep.cpu.brand_string` / `sysctl hw.model`) and
   **recommends** a tier (see A2), pre-selecting it; the user can override.
 - **MLX in v1: no** — Ollama-only default, MLX opt-in (above).
+- **Container edition is the DEFAULT distribution** — the app (web + worker +
+  Postgres) ships as one Docker Compose stack; **Ollama stays on the host**
+  (macOS containers get no Metal GPU, so Ollama-in-container would be CPU-only).
+  The native/launchd install becomes the *advanced* path. Any Docker engine works
+  (Colima/Docker Desktop/OrbStack — not OrbStack-specific).
+
+### Distribution model — two editions
+
+**Docker edition (default, recommended).** `docker compose -f deploy/docker-compose.yml
+up -d --build` runs postgres + web + worker; the containers reach host Ollama at
+`host.docker.internal:11434`. No host Node/pnpm/build, no launchd — Docker's
+`restart: unless-stopped` covers reboots. This is the deploy artifact users run and
+CI tests. Files: `deploy/Dockerfile`, `deploy/docker-compose.yml`, `deploy/README.md`.
+- **Limitation:** the Workbench CLI harnesses (`claude-headless`, `codex`, `opencode`,
+  `pi`) are host-tied (host CLIs + auth + git worktrees + macOS seatbelt) and do NOT
+  run in the container. Everything else works. Tracked as a follow-up: run just the
+  worker natively, or a host-side harness bridge. Chosen so the harnesses can never
+  touch a user's real CLI config from inside a container.
+
+**Native edition (advanced).** Host-native web + worker via the launchd templates
+(`launchd/*.plist.tmpl` + `scripts/render-launchd.sh`), for max performance and full
+Workbench. This is what P0 built and what this repo runs.
 
 ---
 
@@ -262,6 +284,25 @@ step presents (and the same text seeds the user docs). Ordered easiest → harde
 
 **Reader proxy** (bundled) — `reader_proxy_url`
 1. Nothing to do — defaults to `r.jina.ai`. _(Set `off` to stay local-only, or self-host.)_
+
+# Testing the clean deploy
+
+The container edition makes clean-room testing native — you test the exact artifact
+users run. Three layers:
+
+1. **Docker clean-room (built — `deploy/test-deploy.sh`).** Brings the compose stack up
+   in an ISOLATED compose project on a separate port (:3778) + its own Postgres volume,
+   sharing only the host's Ollama (read-only inference), so it never touches a live
+   host-native AIOS. Checks: web 200, `ai_routes` self-seeded, worker booted, a chat
+   round-trips against host Ollama. This is the CI backbone.
+   - Note: the in-image build pins **pnpm 10.33.0** (corepack's latest, pnpm 11, exits
+     non-zero on ignored build scripts) and ignores esbuild's build (prebuilt binary).
+2. **macOS clean-room (for the native edition / installer, P1).** Docker can't test
+   launchd/OrbStack/MLX — use a **[Tart](https://tart.run)** macOS VM (scriptable, CI-able
+   on Mac hardware) or a fresh macOS user account, or a `macos-14` GitHub runner for the
+   Homebrew/build parts.
+3. **CI (GitHub Actions).** Run layer 1 on every push (pull a tiny Ollama model, or stub
+   it); layer-2 smoke on release.
 
 # Milestones
 
