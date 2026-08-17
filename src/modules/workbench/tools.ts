@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, sql } from "@/core/db/client";
 import type { AiToolDef } from "@/core/modules/types.server";
-import { TYPE_DEFAULT_EXECUTOR } from "./defaults";
+import { pickExecutor } from "./queries";
 import { openPullRequest } from "./git";
 import { TASK_TYPES, taskAttempts, workbenchTasks } from "./schema";
 
@@ -47,7 +47,7 @@ export const workbenchTools: AiToolDef[] = [
         .values({
           taskId: task.id,
           seq: 1,
-          executorId: TYPE_DEFAULT_EXECUTOR[i.taskType],
+          executorId: await pickExecutor(undefined, i.taskType),
         })
         .returning();
       await sql.notify("workbench_run", attempt.id);

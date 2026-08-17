@@ -26,6 +26,7 @@ import { nativeAdapter } from "./adapters/native";
 import { researchAdapter } from "./adapters/research";
 import { gatherResearchContext } from "./research";
 import type { Adapter, AdapterEvent } from "./adapters/types";
+import { executorAvailability } from "./adapters/capabilities";
 import {
   commitCheckpoint,
   createClone,
@@ -388,6 +389,19 @@ export async function runAttempt(attemptId: string): Promise<void> {
 
   try {
     if (!adapter) throw new Error(`no adapter for "${attempt.executorId}"`);
+
+    // Hard availability gate: a CLI executor whose host binary isn't installed
+    // (e.g. inside a container) must fail here — BEFORE any git worktree or
+    // spawn — so it never runs and never reaches for host CLI config.
+    const avail = executorAvailability(executor?.kind ?? attempt.executorId, {
+      commandTemplate: executor?.commandTemplate,
+      taskType: task.taskType,
+    });
+    if (!avail.ok) {
+      throw new Error(
+        `executor "${attempt.executorId}" is unavailable on this host — ${avail.reason}`,
+      );
+    }
 
     // ── isolation ──────────────────────────────────────────────────────
     // A CLI agent needs the workdir to BE the git root (a local clone), or it
