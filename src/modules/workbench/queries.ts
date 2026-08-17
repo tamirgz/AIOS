@@ -1,6 +1,8 @@
 import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/core/db/client";
 import { diffSince, type DiffSummary } from "./git";
+import { executorAvailability } from "./adapters/capabilities";
+import { TYPE_DEFAULT_EXECUTOR } from "./defaults";
 import {
   attemptEvents,
   executors,
@@ -9,6 +11,7 @@ import {
   workbenchTasks,
   type AttemptEvent,
   type TaskAttempt,
+  type TaskType,
   type WorkbenchTask,
 } from "./schema";
 
@@ -127,9 +130,11 @@ export async function listRunningTasks() {
     .limit(5);
 }
 
-/** Executors offered in the new-task override and edited in Settings. */
+/** Executors offered in the new-task override and edited in Settings. Each row
+ *  carries whether it can actually run on THIS host (its CLI binary is present),
+ *  so the picker can disable/annotate the ones that can't (e.g. in a container). */
 export async function listExecutors() {
-  return db
+  const rows = await db
     .select({
       id: executors.id,
       name: executors.name,
@@ -141,4 +146,28 @@ export async function listExecutors() {
     })
     .from(executors)
     .orderBy(asc(executors.id));
+  return rows.map((r) => {
+    const a = executorAvailability(r.kind, { commandTemplate: r.commandTemplate });
+    return { ...r, available: a.ok, unavailableReason: a.reason ?? null };
+  });
+}
+
+/** Resolve the executor a new task should run on. Falls back to `native` (always
+ *  available) when the chosen/default executor's CLI isn't installed here, so a
+ *  container never queues a task doomed to fail on a missing binary. */
+export async function pickExecutor(
+  explicitId: string | undefined,
+  taskType: TaskType,
+): Promise<string> {
+  const id = explicitId || TYPE_DEFAULT_EXECUTOR[taskType];
+  const [row] = await db
+    .select({ kind: executors.kind, commandTemplate: executors.commandTemplate })
+    .from(executors)
+    .where(eq(executors.id, id));
+  if (!row) return id; // unknown id — let the engine's gate report it
+  const a = executorAvailability(row.kind, {
+    commandTemplate: row.commandTemplate,
+    taskType,
+  });
+  return a.ok ? id : "native";
 }
