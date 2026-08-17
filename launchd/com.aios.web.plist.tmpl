@@ -1,22 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Template: rendered by scripts/render-launchd.sh (substitutes {{...}}). -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
   <key>Label</key>
   <string>com.aios.web</string>
+  <!-- Rebuild-if-stale then serve — a restart always runs the latest code. -->
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/pnpm</string>
-    <string>start</string>
+    <string>{{AIOS_DIR}}/scripts/web-launch.sh</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/tamirgz/Projects/github/AIOS</string>
+  <string>{{AIOS_DIR}}</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <string>{{BREW_BIN}}:/usr/local/bin:/usr/bin:/bin</string>
     <key>HOME</key>
-    <string>/Users/tamirgz</string>
+    <string>{{AIOS_HOME}}</string>
+    <key>AIOS_DIR</key>
+    <string>{{AIOS_DIR}}</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
@@ -25,8 +28,8 @@
   <key>ThrottleInterval</key>
   <integer>15</integer>
   <key>StandardOutPath</key>
-  <string>/Users/tamirgz/Library/Logs/aios-web.log</string>
+  <string>{{AIOS_HOME}}/Library/Logs/aios-web.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/tamirgz/Library/Logs/aios-web.log</string>
+  <string>{{AIOS_HOME}}/Library/Logs/aios-web.log</string>
 </dict>
 </plist>

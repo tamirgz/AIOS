@@ -28,68 +28,46 @@ export interface ResolvedRoute {
   model: string;
 }
 
+// LOCAL-FIRST defaults: a fresh install runs entirely on Ollama (free, no
+// account). Two model tiers are used — `qwen3-coder:30b` for capable work
+// (chat, ask, enrichment, judging) and `qwen3:8b` for the light, high-frequency
+// gates. Connecting Claude is an OPT-IN: the user re-routes any task to the
+// `anthropic` provider in Settings → AI Routing. These seeds only fill MISSING
+// rows (`ensureDefaultRoutes`), so they never override a user's choices.
+// (Tiering: a "Lite" install may only have qwen3:8b — route resolution should
+// fall back to an available local model; see the distribution plan.)
 const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
-  { taskKey: "chat", provider: "anthropic", model: "claude-sonnet-5" },
-  { taskKey: "agent.default", provider: "anthropic", model: "claude-sonnet-5" },
-  {
-    taskKey: "knowledge.enrich",
-    provider: "anthropic",
-    model: "claude-sonnet-5",
-  },
-  {
-    taskKey: "inbox.triage",
-    provider: "anthropic",
-    model: "claude-haiku-4-5-20251001",
-  },
-  {
-    taskKey: "ideas.analyze",
-    provider: "anthropic",
-    model: "claude-sonnet-5",
-  },
-  // Ask (cited Q&A over the user's corpus) — Ollama-first, free by default.
-  // Editable in Settings; escalate to Claude there if you want deeper synthesis.
+  { taskKey: "chat", provider: "ollama", model: "qwen3-coder:30b" },
+  { taskKey: "agent.default", provider: "ollama", model: "qwen3-coder:30b" },
+  { taskKey: "knowledge.enrich", provider: "ollama", model: "qwen3-coder:30b" },
+  { taskKey: "inbox.triage", provider: "ollama", model: "qwen3:8b" },
+  { taskKey: "ideas.analyze", provider: "ollama", model: "qwen3-coder:30b" },
+  // Ask (cited Q&A over the user's corpus). Escalate to Claude in Settings for
+  // deeper synthesis.
   { taskKey: "ask", provider: "ollama", model: "qwen3-coder:30b" },
-  // Every key below is seeded ONLY so it shows up in Settings → AI Routing.
-  // Each is seeded at the model it already resolved to, so adding the row
-  // changes nothing until you change it — the point is visibility, not a
-  // silent re-route. Token policy: ONE-STOP-PLAN §4.
+  // Every key below is seeded so it shows up in Settings → AI Routing.
   //
-  // Workbench "docs"/native tasks (AIOS's own data + module tools). Previously
-  // fell through to agent.default; §4's target for this job is a local model.
-  { taskKey: "workbench.native", provider: "anthropic", model: "claude-sonnet-5" },
-  // The verifying judge that gates delegated work: it reads the ask + the
-  // produced result and decides whether the result actually satisfies the ask
-  // (A2 · Trust). LOCAL-FIRST by default so verification is free and never
-  // depends on a rate-limited cloud plan; the fallback below covers the local
-  // model being down. Both editable in Settings.
+  // Workbench "docs"/native tasks (AIOS's own data + module tools).
+  { taskKey: "workbench.native", provider: "ollama", model: "qwen3-coder:30b" },
+  // The verifying judge that gates delegated work: reads the ask + the produced
+  // result and decides whether the result satisfies the ask (A2 · Trust). Local
+  // so verification is free and never depends on a rate-limited cloud plan; the
+  // fallback below covers the primary being down. Both editable in Settings.
   { taskKey: "workbench.judge", provider: "ollama", model: "qwen3-coder:30b" },
-  // The online safety-net judge — used ONLY when the local primary can't run.
-  { taskKey: "workbench.judge.fallback", provider: "anthropic", model: "claude-sonnet-5" },
-  // The routine BUILDER — composes a routine from a plain-English description
-  // (title, trigger, target files) and keeps the ask faithful. Runs ONCE per
-  // routine at create time, so a cheap metered model is fine (and it doesn't
-  // break the free-model rule, which only governs PERIODIC agents). Settings
-  // only — never exposed on the routine card. Default: cheap Haiku.
-  {
-    taskKey: "routine.builder",
-    provider: "ollama",
-    model: "qwen3:8b",
-  },
-  // The source relevance gate: cheaply decides whether an incoming item (a
-  // Telegram post, etc.) is worth an expensive routine run. A free LOCAL model
-  // by default — it runs on every post, so it must never bill. Configurable.
+  // Safety-net judge — used ONLY when the primary can't run. A lighter local
+  // model by default; point it at Claude in Settings if you've connected it.
+  { taskKey: "workbench.judge.fallback", provider: "ollama", model: "qwen3:8b" },
+  // The routine BUILDER — composes a routine from a plain-English description.
+  // Runs ONCE per routine at create time. Settings only — never on the card.
+  { taskKey: "routine.builder", provider: "ollama", model: "qwen3:8b" },
+  // The source relevance gate: cheaply decides whether an incoming item is worth
+  // an expensive routine run. Free LOCAL — it runs on every post. Configurable.
   { taskKey: "source.relevance", provider: "ollama", model: "qwen3:8b" },
   // The COMMIT relevance gate: on a commit trigger, cheaply decides whether the
-  // change touches anything a routine documents before spending the (possibly
-  // expensive) executor. Free LOCAL default — it runs on every commit. A routine
-  // may override it per-row; this is the global default.
+  // change touches anything a routine documents before spending the executor.
   { taskKey: "routine.gate", provider: "ollama", model: "qwen3:8b" },
   // Per-project advisor read + the on-demand "different angle" re-read.
-  {
-    taskKey: "project.advisor",
-    provider: "anthropic",
-    model: "claude-haiku-4-5-20251001",
-  },
+  { taskKey: "project.advisor", provider: "ollama", model: "qwen3:8b" },
 ];
 
 /** Insert default rows once so the Settings UI always has something to edit.

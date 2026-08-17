@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Template: rendered by scripts/render-launchd.sh (substitutes {{...}}). -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.aios.orbstack</string>
+  <!-- One-shot at login: bring up the OrbStack engine so the aios-postgres
+       container (restart: unless-stopped) comes back, without depending on
+       OrbStack's own GUI "start at login" toggle. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{BREW_BIN}}/orb</string>
+    <string>start</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>{{BREW_BIN}}:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>{{AIOS_HOME}}</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>{{AIOS_HOME}}/Library/Logs/aios-orbstack.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{AIOS_HOME}}/Library/Logs/aios-orbstack.log</string>
+</dict>
+</plist>
