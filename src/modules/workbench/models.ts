@@ -23,7 +23,7 @@ export const FREE_MODEL_HEALTH_KEY = "free_model_health_summary";
 /**
  * The free-model catalog for CLI executors.
  *
- * Policy (Tamir): local executors may use any model from their library **only
+ * Policy: local executors may use any model from their library **only
  * when it is free** — never billed per token. "Free" is decided by real price,
  * not by provider:
  *

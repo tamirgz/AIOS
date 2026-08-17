@@ -203,7 +203,7 @@ export const INTEGRATIONS: Integration[] = [
         key: "slack_report_channels",
         label: "Slack channels to ingest → reports",
         kind: "text",
-        placeholder: "C0B7TLBJ4LU, C0B7VNRPQSV",
+        placeholder: "C0A1B2C3D4E, C0F5G6H7I8J",
         hint: "Comma-separated channel IDs the bot has been invited to. Each new message becomes an external report on the Agents page.",
       },
       {

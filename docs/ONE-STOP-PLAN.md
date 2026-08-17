@@ -35,7 +35,7 @@
 | Notion | ✅ **Built (read-only, token-gated, multi-workspace)** — add one integration token per workspace; pages are mirrored + embedded (attributed to their workspace) and folded into Ask/search. Awaiting tokens to activate |
 | NotebookLM | ✅ **Replaced by the Ask module** — cited Q&A over your own corpus (notes/knowledge/vault/ideas/tasks/Notion), Ollama-first. Honest limit: no audio overviews |
 
-**Activation ✅ done (2026-08-10).** ~~GCP OAuth client~~ ✅ Google connected. ~~① Slack bot token + channel IDs `C0B7TLBJ4LU, C0B7VNRPQSV`~~ ✅ set. ~~② Slack incoming webhook~~ ✅ set. Both Google and Slack are fully live — nothing else awaiting you here.
+**Activation ✅ done.** GCP OAuth client → Google connected. Slack bot token + channel IDs → set. Slack incoming webhook → set. Both Google and Slack integrations are wired end-to-end.
 
 **Meeting-link finding (2026-07-21, measured not assumed):** Google exposes the join URL as `hangoutLink`/`conferenceData` (31 of 72 events) and only 3 events mention it in the description — but the **Zoom add-on writes it into `location` with no conferenceData at all**, so the fallback chain is hangoutLink → conferenceData → location → description. ICS carries the same thing as `X-GOOGLE-CONFERENCE` (116 VEVENTs).
 

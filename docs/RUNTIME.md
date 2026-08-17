@@ -44,7 +44,7 @@ host (macOS, Apple Silicon)
 ```
 
 - Both AIOS services are **KeepAlive** LaunchAgents in `~/Library/LaunchAgents/`,
-  `WorkingDirectory` = this repo, `HOME=/Users/tamirgz`, minimal `PATH`
+  `WorkingDirectory` = this repo, `HOME=$HOME` (your home dir), minimal `PATH`
   (`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`). Logs at
   `~/Library/Logs/aios-{web,worker}.log`.
 - `web-launch.sh` rebuilds `.next` only when `src/`, `next.config.ts`,
