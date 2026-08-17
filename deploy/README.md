@@ -26,9 +26,11 @@ docker compose -f deploy/docker-compose.yml up -d --build
 # → http://localhost:3777
 ```
 `migrate` applies the schema once (routes self-seed), then `web` and `worker`
-start. Data lives in the `app_pgdata` volume. Update with `git pull` then re-run
-the same command. Stop with `docker compose -f deploy/docker-compose.yml down`
-(add `-v` to also drop the database volume).
+start. A bundled **SearXNG** container gives Ask web-search zero-config (JSON API
+enabled in `searxng/settings.yml`; not published to the host — only the app
+reaches it). Data lives in the `app_pgdata` volume. Update with `git pull` then
+re-run the same command. Stop with `docker compose -f deploy/docker-compose.yml
+down` (add `-v` to also drop the database volume).
 
 Change the web port with `AIOS_WEB_PORT=3800 docker compose …`.
 

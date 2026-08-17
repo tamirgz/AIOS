@@ -1,0 +1,16 @@
+# Minimal SearXNG config for the AIOS container edition.
+# Inherits SearXNG's defaults, then: enables the JSON API that Ask fetches, and
+# turns off the rate limiter (a single local user, not a public instance).
+use_default_settings: true
+
+server:
+  # Localhost-only, single-user instance — this key is not a public secret.
+  # Regenerate it (`openssl rand -hex 32`) if you expose SearXNG beyond Docker.
+  secret_key: "aios-local-searxng-secret-change-me"
+  limiter: false
+  image_proxy: true
+
+search:
+  formats:
+    - html
+    - json
