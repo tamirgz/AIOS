@@ -1,6 +1,6 @@
 # AIOS — Personal AI Operating System
 
-> **One calm home for your projects, notes, and ideas — everything ingested and interconnected, so you can _ask_ across all of it and get cited answers. Runs entirely on your own Mac. Private by default, free by default.**
+> **One calm home for your projects, notes, and ideas — everything ingested and interconnected, so you can _ask_ across all of it and get cited answers. Runs entirely on your own machine. Private by default, free by default.**
 
 <p align="center">
   <img src="docs/screenshots/dashboard.png" alt="AIOS dashboard — today's needs-you queue, agenda, active projects, and agent activity in one view" width="900">
@@ -109,7 +109,7 @@ Re-skin the whole app from **Settings › Appearance** — a real light mode, a 
 ## Requirements
 
 - **macOS (Apple Silicon)** — full support, both editions (and MLX if you opt in).
-- **Windows & Linux** — the container edition runs here too (Windows via WSL2 + Docker Desktop). See [Windows & Linux](#windows--linux-via-docker) below.
+- **Windows & Linux** — the container edition runs here too (on Windows, inside WSL2). See [Windows & Linux](#windows--linux-via-docker) below.
 - **Docker** — [OrbStack](https://orbstack.dev) / Docker Desktop (macOS) or Docker Engine (Linux/WSL2).
 - **[Ollama](https://ollama.com)** — local models + embeddings (runs on the host).
 - **Node 20+** and **pnpm** — only for the native (dev) edition; the container edition doesn't need them.
@@ -121,10 +121,11 @@ git clone https://github.com/tamirgz/AIOS.git && cd AIOS
 ./install.sh
 ```
 
-That's the **container edition** (default): it installs any missing prerequisites
-(Homebrew, a Docker engine, Ollama), auto-picks a model set from your RAM, pulls the
-models, and brings the app up in Docker with Ollama on the host. When it's done it opens
-**http://localhost:3777**. Re-runnable and safe. Options:
+That's the **container edition** (default): on macOS it installs any missing prerequisites
+(Homebrew, Colima, Ollama); on Linux/WSL2 it installs Ollama and expects Docker to be
+present. It then auto-picks a model set from your RAM, pulls the models, and brings the app
+up in Docker with Ollama on the host. When it's done it opens **http://localhost:3777**.
+Re-runnable and safe. Options:
 
 ```bash
 ./install.sh --dry-run       # print the plan, change nothing
@@ -139,11 +140,24 @@ see [`deploy/README.md`](deploy/README.md)) and **native** (advanced — launchd
 
 ### Windows & Linux (via Docker)
 
-The whole app runs in **Linux containers** — only Ollama runs on the host — so it behaves the same everywhere:
+The whole app runs in **Linux containers**, so on Windows the reliable path is to run everything inside **WSL2** (a real Linux environment) — then `install.sh` (a bash script) works exactly as it does on Linux.
 
-- **Windows:** install **Docker Desktop** (enable **WSL2** integration) and **[Ollama for Windows](https://ollama.com/download)**, then run the quickstart **inside your WSL2 shell**. GPU works natively (CUDA).
-- **Linux:** install Docker Engine + Ollama, then run the quickstart.
-- **The one shared gotcha:** the container reaches Ollama at `host.docker.internal:11434`, so Ollama must listen on **all interfaces** — set `OLLAMA_HOST=0.0.0.0` and restart it. `install.sh` **auto-detects** if the container can't reach Ollama and prints the exact fix for your OS.
+**Windows (WSL2):**
+
+1. In PowerShell (as admin): `wsl --install -d Ubuntu`, reboot, and set up your Ubuntu username/password.
+2. *(GPU, optional)* install the latest **NVIDIA Windows driver** — CUDA then works inside WSL2 automatically.
+3. Open the **Ubuntu** shell and install Docker Engine there:
+   ```bash
+   curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER   # then re-open the shell
+   ```
+4. Run the [Quickstart](#quickstart--one-command-fully-local-no-accounts) **in that Ubuntu shell** — `install.sh` installs Ollama, pulls the models, and brings up the stack, all inside WSL2.
+5. Open **http://localhost:3777** in your Windows browser (WSL2 forwards localhost automatically).
+
+**Linux:** install Docker Engine + [Ollama](https://ollama.com), then run the Quickstart.
+
+**Shared gotcha:** the containers reach Ollama at `host.docker.internal:11434`, so Ollama must listen on **all interfaces** (`OLLAMA_HOST=0.0.0.0`). `install.sh` **auto-detects** if the container can't reach Ollama and prints the exact fix.
+
+> **Prefer Docker Desktop + Ollama-for-Windows?** That works at runtime, but `install.sh` can't drive a *Windows-native* Ollama from inside WSL2 — you'd install [Ollama for Windows](https://ollama.com/download) (with `OLLAMA_HOST=0.0.0.0`), `ollama pull` your models **on Windows**, then start just the stack from your WSL2 checkout with `docker compose -f deploy/docker-compose.yml up -d --build`. The all-in-WSL2 path above is simpler.
 
 ### Low-spec machine? Use the free "cloud-brain"
 
@@ -232,7 +246,7 @@ Nav entry, routes (`/m/foo`), dashboard widgets, ⌘K commands, AI tools, agent 
 - **Capture** — a universal Inbox with AI triage (plus a zero‑token ⌘K fast‑path: `task:` / `note:`) · paste‑anything Knowledge (links, repos, video, quotes → auto‑fetched, summarized, tagged) · read‑only Obsidian‑vault ingest · markdown Notes.
 - **Think & decide** — **Ask** (cited answers across your whole corpus) · an **Ideas** pipeline with an AI reality‑check → promote to project · **Projects** with health, goals, next‑action + a per‑project advisor · **Tasks** (board, priorities, due dates, project/feature links).
 - **Automate** — autonomous **Agents** (cron‑scheduled, live transcripts, idempotent ledger, install‑from‑template) · a **Workbench** to delegate longer jobs to CLI executors · an approvals queue for risky actions · notifications to the bell + Slack.
-- **Connect & control** — per‑task **AI routing** (local Ollama · Apple MLX · optional Claude subscription · optional Gemini) · memory blocks injected into every call · **Calendar** (Google/ICS sync) + a Today "needs‑you" queue · People · integrations for Google, Slack (two‑way), Notion, Obsidian, keyless web search & a reader proxy · 5 themes.
+- **Connect & control** — per‑task **AI routing** (local Ollama · Apple MLX · optional Claude subscription · optional Gemini · OpenRouter with a free tier) · memory blocks injected into every call · **Calendar** (Google/ICS sync) + a Today "needs‑you" queue · People · integrations for Google, Slack (two‑way), Notion, Obsidian, keyless web search & a reader proxy · 5 themes.
 - **Foundation** — one **semantic search** across everything · local‑first & private (no metered key can start billing) · a plugin architecture (a module = a folder + two registry lines) · container & native editions with a one‑command installer.
 
 ## Roadmap — thinking out loud
@@ -247,7 +261,7 @@ These are directions I'm considering, and I'm honestly trying to work out which 
 - ✉️ **Email co‑pilot** — draft replies grounded in your own context; triage the inbox for you.
 - 🧩 **Module marketplace** — install community modules and agents in a click.
 - 🔐 **Encrypted vault** — at‑rest encryption for the truly private stuff.
-- 🖥️ **Linux & Windows editions** — beyond the macOS / Apple‑Silicon v1.
+- 🖥️ **First-class Windows/Linux packaging** — one-command native installers beyond today's WSL2/Docker path.
 - 🎨 **Theme editor** — design your own look, not just the five.
 
 **Have a take?** Open an issue — or a 👍 on one that resonates — and that's how I'll decide what's actually worth building next. Want to build a module yourself? PRs welcome.
