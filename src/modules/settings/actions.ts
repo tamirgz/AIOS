@@ -5,23 +5,15 @@ import { setRoute } from "@/core/ai/routing";
 import { setSetting } from "@/core/app-settings";
 import { sql } from "@/core/db/client";
 import type { AIProviderId } from "@/core/db/schema/ai-routes";
+import { INTEGRATION_SETTING_KEYS } from "@/core/integrations/registry";
 
+// Generated from the integration registry, so every field the Connections UI
+// renders is saveable by construction. Plus a few non-connection settings that
+// also go through saveIntegration (e.g. the embedding model, set on the Models
+// page).
 const ALLOWED_INTEGRATION_KEYS = new Set([
-  "slack_webhook_url",
-  "calendar_ics_url",
-  "obsidian_vault_path",
+  ...INTEGRATION_SETTING_KEYS,
   "embedding_model",
-  "google_client_id",
-  "google_client_secret",
-  "slack_bot_token",
-  "slack_report_channels",
-  "slack_inbox_channels",
-  "gemini_api_key",
-  "searxng_url",
-  "ask_web_search",
-  "reader_proxy_url",
-  "mlx_base_url",
-  "mlx_models",
 ]);
 
 export async function disconnectGoogle() {
