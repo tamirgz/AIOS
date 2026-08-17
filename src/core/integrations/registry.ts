@@ -41,6 +41,9 @@ export interface Integration {
   blurb: string;
   /** Renders the Google OAuth "connect" widget under the fields. */
   connect?: "google";
+  /** Local one-click detection (fills the fields from a running service or the
+   *  OS): "obsidian" reads the vault registry, "mlx" probes LM Studio. */
+  detect?: "obsidian" | "mlx";
   fields: IntegrationField[];
 }
 
@@ -50,6 +53,7 @@ export const INTEGRATIONS: Integration[] = [
     label: "Apple MLX (LM Studio)",
     category: "ai",
     blurb: "Local MLX models via LM Studio — faster inference on Apple silicon.",
+    detect: "mlx",
     fields: [
       {
         key: "mlx_base_url",
@@ -87,6 +91,7 @@ export const INTEGRATIONS: Integration[] = [
     label: "Obsidian vault",
     category: "knowledge",
     blurb: "Read-only index of your vault's notes into semantic search.",
+    detect: "obsidian",
     fields: [
       {
         key: "obsidian_vault_path",

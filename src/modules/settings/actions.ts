@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { setRoute } from "@/core/ai/routing";
-import { setSetting } from "@/core/app-settings";
+import { getSetting, setSetting } from "@/core/app-settings";
 import { sql } from "@/core/db/client";
 import type { AIProviderId } from "@/core/db/schema/ai-routes";
 import { INTEGRATION_SETTING_KEYS } from "@/core/integrations/registry";
@@ -77,4 +77,72 @@ export async function saveRoute(
   if (!model.trim()) throw new Error("model is required");
   await setRoute(taskKey, provider, model);
   revalidatePath("/m/settings");
+}
+
+// ── Local one-click auto-detect (B2) ─────────────────────────────────────────
+
+/** Read Obsidian's own vault registry and return the vaults that still exist. */
+export async function detectObsidianVaults(): Promise<
+  { path: string; name: string }[]
+> {
+  const { homedir } = await import("node:os");
+  const { readFile } = await import("node:fs/promises");
+  const { existsSync } = await import("node:fs");
+  const { basename, join } = await import("node:path");
+  const cfg = join(
+    homedir(),
+    "Library",
+    "Application Support",
+    "obsidian",
+    "obsidian.json",
+  );
+  try {
+    const json = JSON.parse(await readFile(cfg, "utf8")) as {
+      vaults?: Record<string, { path?: string }>;
+    };
+    const seen = new Set<string>();
+    return Object.values(json.vaults ?? {})
+      .map((v) => v.path)
+      .filter((p): p is string => !!p && existsSync(p) && !seen.has(p) && (seen.add(p), true))
+      .map((p) => ({ path: p, name: basename(p) }));
+  } catch {
+    return [];
+  }
+}
+
+/** Point the Obsidian integration at a detected vault (reuses save's cleanup +
+ *  the obsidian_sync NOTIFY). */
+export async function useObsidianVault(path: string) {
+  await saveIntegration("obsidian_vault_path", path);
+}
+
+/** Probe a running LM Studio server; on success, save its endpoint + model list
+ *  so the `mlx` provider is wired with one click. Embedding models are skipped
+ *  (they belong to Ollama). */
+export async function detectMlx(): Promise<{
+  ok: boolean;
+  models: number;
+  baseUrl?: string;
+}> {
+  const base = (
+    (await getSetting("mlx_base_url")) ||
+    process.env.MLX_BASE_URL ||
+    "http://localhost:1234/v1"
+  ).replace(/\/$/, "");
+  try {
+    const res = await fetch(`${base}/models`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return { ok: false, models: 0 };
+    const data = (await res.json()) as { data?: { id: string }[] };
+    const ids = (data.data ?? [])
+      .map((m) => m.id)
+      .filter((id) => !/embed/i.test(id));
+    await setSetting("mlx_base_url", base);
+    if (ids.length) await setSetting("mlx_models", ids.join(", "));
+    revalidatePath("/m/settings");
+    return { ok: true, models: ids.length, baseUrl: base };
+  } catch {
+    return { ok: false, models: 0 };
+  }
 }

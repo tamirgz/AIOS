@@ -9,8 +9,96 @@ import {
   INTEGRATIONS,
   type Integration,
 } from "@/core/integrations/registry";
-import { saveIntegration } from "../actions";
+import {
+  detectMlx,
+  detectObsidianVaults,
+  saveIntegration,
+  useObsidianVault,
+} from "../actions";
 import { GoogleConnect } from "./GoogleConnect";
+
+const detectBtn =
+  "rounded-lg border border-plasma/30 bg-plasma/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-plasma transition hover:bg-plasma/20 disabled:opacity-40";
+
+/** One-click local detection for the Obsidian / MLX cards. */
+function DetectPanel({ kind }: { kind: "obsidian" | "mlx" }) {
+  const [pending, start] = useTransition();
+  const [vaults, setVaults] = useState<{ path: string; name: string }[] | null>(
+    null,
+  );
+  const [msg, setMsg] = useState<string | null>(null);
+
+  if (kind === "mlx") {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={pending}
+          className={detectBtn}
+          onClick={() =>
+            start(async () => {
+              setMsg(null);
+              const r = await detectMlx();
+              setMsg(
+                r.ok
+                  ? `✓ detected — saved ${r.models} model${r.models === 1 ? "" : "s"}`
+                  : "LM Studio isn't running on :1234",
+              );
+            })
+          }
+        >
+          {pending ? "detecting…" : "Detect from LM Studio"}
+        </button>
+        {msg && <span className="text-xs text-ink-dim">{msg}</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={pending}
+          className={detectBtn}
+          onClick={() =>
+            start(async () => {
+              setMsg(null);
+              const v = await detectObsidianVaults();
+              setVaults(v);
+              if (!v.length) setMsg("no Obsidian vaults found — paste the path below");
+            })
+          }
+        >
+          {pending ? "detecting…" : "Detect vaults"}
+        </button>
+        {msg && <span className="text-xs text-ink-dim">{msg}</span>}
+      </div>
+      {vaults && vaults.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {vaults.map((v) => (
+            <button
+              key={v.path}
+              type="button"
+              disabled={pending}
+              title={v.path}
+              className="rounded-lg border border-ion/30 bg-ion/8 px-2.5 py-1 font-mono text-[10px] text-ion transition hover:bg-ion/15 disabled:opacity-40"
+              onClick={() =>
+                start(async () => {
+                  await useObsidianVault(v.path);
+                  setVaults(null);
+                  setMsg(`✓ using "${v.name}"`);
+                })
+              }
+            >
+              use {v.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function IntegrationField({
   settingKey,
@@ -189,6 +277,7 @@ function IntegrationCard({
         </div>
         <StatusPill status={statusOf(integration, values, googleConnected)} />
       </div>
+      {integration.detect && <DetectPanel kind={integration.detect} />}
       {integration.fields.map((f) =>
         f.kind === "toggle" ? (
           <IntegrationToggle
@@ -201,7 +290,9 @@ function IntegrationCard({
           />
         ) : (
           <IntegrationField
-            key={f.key}
+            // Keyed by value so a one-click detect (which saves + revalidates)
+            // re-mounts the field with the freshly-detected value.
+            key={`${f.key}:${values[f.key] ?? ""}`}
             settingKey={f.key}
             label={f.label}
             hint={f.hint}
