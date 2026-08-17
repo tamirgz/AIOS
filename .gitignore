@@ -41,3 +41,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .claude/scheduled_tasks.lock
+
+# internal AI session snapshots — never publish
+.claude/memory/
