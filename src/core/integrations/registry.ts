@@ -106,7 +106,8 @@ export const INTEGRATIONS: Integration[] = [
     id: "websearch",
     label: "Ask web-search",
     category: "knowledge",
-    blurb: "Enrich Ask with current authoritative pages via SearXNG.",
+    blurb:
+      "Enrich Ask with current authoritative pages via SearXNG (bundled in the container edition).",
     fields: [
       {
         key: "ask_web_search",
@@ -119,7 +120,7 @@ export const INTEGRATIONS: Integration[] = [
         label: "SearXNG endpoint",
         kind: "text",
         placeholder: "https://your-host/searxng",
-        hint: "Base URL of a self-hosted SearXNG with the JSON format enabled — keyless and free (no paid search API). Leave blank to use the SEARXNG_URL env var.",
+        hint: "Base URL of a SearXNG instance with the JSON format enabled — keyless and free (no paid search API). The container edition bundles one; leave blank to use it (or the SEARXNG_URL env var), or point here at your own.",
       },
     ],
   },
