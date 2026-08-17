@@ -186,13 +186,18 @@ gui/$(id -u)/com.aios.web` (and `.worker`).
   subscription — no per-token API key.
 - **Apple MLX** (faster local inference via LM Studio, Apple Silicon): opt-in — see
   [`docs/MODEL-ROUTING.md`](docs/MODEL-ROUTING.md).
+- **OpenRouter** (cloud models, incl. a **free tier**): add a key from
+  [openrouter.ai/keys](https://openrouter.ai/keys) in **Settings → Connections**, then route
+  any task to it in **AI Routing**. This is also the [low-spec "cloud-brain"](#low-spec-machine-use-the-free-cloud-brain)
+  path — free reasoning without a capable GPU.
 - **Integrations** (Calendar, Gmail, Slack, Obsidian, Notion, web search): connect each in
   **Settings → Connections**. All optional; AIOS is fully useful with none.
 
 ## What runs on your machine — and what it never touches
 
-- **Only Postgres runs in Docker.** The web app, the worker, and all AI run **natively**
-  on the host (Apple Silicon, full speed). Docker is just the database.
+- **Ollama runs on the host** and does the AI locally (full GPU). In the default **container
+  edition** the app + Postgres run in Docker; the **native edition** runs the app on the
+  host with only Postgres in Docker. Either way, the model inference is on your machine.
 - **No metered billing can start by accident:** metered API keys
   (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, …) are stripped from the process and every child
   at startup — local models and subscription auth only.
