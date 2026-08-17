@@ -13,6 +13,20 @@ per-source one-click connects.
 - **Guided BYO-OAuth wizard** for Google/Slack/Notion — each user keeps their own
   OAuth app, but the flow is collapsed to a tight wizard. No AIOS-hosted OAuth broker
   (keeps it truly self-hosted, no shared-secret / hosting / app-verification burden).
+- **Ollama-only for v1.** The default installer provisions Ollama for all local models;
+  LM Studio / MLX is a documented **opt-in** (a separate "enable MLX" step), not part of
+  the default path — it's the heavier, more-manual half and Apple-only. Keeps the v1
+  installer simple and the local stack uniform.
+
+### Decisions (resolved)
+- **License: MIT.**
+- **Distribution: a single `install.sh`** (clone + provision). It **installs Homebrew
+  itself if missing** (then Node/pnpm/OrbStack/Ollama through it) — no "install brew
+  first" prerequisite on the user.
+- **Default model tier: auto-detected from hardware.** The installer reads the Mac's RAM
+  and chip (`sysctl hw.memsize`, `machdep.cpu.brand_string` / `sysctl hw.model`) and
+  **recommends** a tier (see A2), pre-selecting it; the user can override.
+- **MLX in v1: no** — Ollama-only default, MLX opt-in (above).
 
 ---
 
@@ -50,10 +64,12 @@ Postgres container, `.env.local`, DB migrations, and 4 templated launchd agents.
 One script (`curl -fsSL <raw>/install.sh | bash`, or `git clone && ./install.sh`) that
 is **idempotent** (safe to re-run) and prints progress. Steps:
 
-1. **Preflight:** assert macOS + `arm64`; else exit with a clear message. Check for
-   Homebrew; offer to install it.
+1. **Preflight:** assert macOS + `arm64` (else exit clearly); **detect hardware** —
+   `sysctl hw.memsize` (RAM) + `sysctl hw.model` / `machdep.cpu.brand_string` (chip) —
+   and pick the recommended model tier (A2). **Install Homebrew if missing**
+   (non-interactive `NONINTERACTIVE=1 .../install.sh`), then continue.
 2. **System deps via Homebrew** (skip if present): `node` (20+), `pnpm`, `orbstack`,
-   `ollama`. Optional prompt: LM Studio (cask) or llmster (`curl .../install.sh`).
+   `ollama`. (No LM Studio — MLX is a separate opt-in, A3b.)
 3. **Clone/checkout** into a chosen dir (default `~/Projects/AIOS` or `~/AIOS`); run
    `pnpm install`.
 4. **Database:** `orb start` → wait for `docker info` → `docker compose up -d` → poll
@@ -70,20 +86,25 @@ is **idempotent** (safe to re-run) and prints progress. Steps:
 10. **Verify + open:** health-check `curl localhost:3777`, `localhost:11434/api/tags`,
     and (if MLX) `localhost:1234/v1/models`; print a status table; `open http://localhost:3777`.
 
-### A2 — Model footprint tiers (the single biggest onboarding friction)
-Full local stack is **~80GB** of downloads (Ollama coder-30b 18GB + gemma 18GB +
-qwen3:8b 5GB + nomic; MLX coder 17GB + abliterated 20GB). Offer a choice at install:
+### A2 — Model footprint tiers, auto-selected from hardware
+Ollama-only for v1. The installer **detects RAM and recommends** a tier (pre-selected,
+overridable):
 
-| Tier | Pulls | Size | Good for |
+| Tier | Ollama pulls | Size | Auto-recommended when |
 |---|---|---|---|
-| **Lite** (default) | `nomic-embed-text`, `qwen3:8b` | ~5GB | Gates, embeddings, basic chat/ask on 8B. Runs on 16GB Macs. |
-| **Standard** | + `qwen3-coder:30b` | ~23GB | Real ask/chat/judge quality. 32GB+ Macs. |
-| **Full** | + `gemma4:31b`, + MLX (LM Studio) models | ~80GB | Everything, MLX speed. 64GB Macs. |
+| **Lite** | `nomic-embed-text`, `qwen3:8b` | ~5GB | RAM ≤ 16GB |
+| **Standard** | + `qwen3-coder:30b` | ~23GB | RAM 24–48GB |
+| **Full** | + `gemma4:31b-it-qat` | ~41GB | RAM ≥ 64GB |
+
+(MLX models are **not** in any tier — they come only with the opt-in MLX step, A3b.)
+
+Detection: `sysctl -n hw.memsize` → bytes → GB → tier. Show the detected specs and the
+pick ("Detected 32GB M-series → **Standard** recommended") so it's transparent.
 
 Models download in the background post-install; the app is usable as soon as Lite lands.
 Surface a "download more models" action in Settings later. Route resolution must
 **degrade gracefully** when a routed model isn't pulled yet (fall back to the smallest
-available local model, not error).
+available local model, not error) — critical since Lite lacks coder-30b/gemma.
 
 ### A3 — Claude-optional wiring
 - On boot, `authStatus()` already reports `max-subscription | not-configured`.
@@ -93,6 +114,14 @@ available local model, not error).
   `claude setup-token`, with a paste field that writes `CLAUDE_CODE_OAUTH_TOKEN` to
   `.env.local` and restarts the services. (The `setup-token` step is interactive and
   can't be fully automated — this is the one honest manual gate, and it's optional.)
+
+### A3b — MLX opt-in (post-install, optional)
+Not in the default installer. A separate `aios enable-mlx` (and an in-app "Enable Apple
+MLX" button) that: installs llmster (`curl -fsSL https://lmstudio.ai/install.sh | bash`),
+installs the `com.aios.lmstudio` LaunchAgent (headless daemon on :1234), pulls the chosen
+MLX models, and points the `ask`/`chat`/`knowledge.enrich` routes at them. Gated on
+Apple Silicon + enough RAM (≥32GB suggested). Fully reversible (routes fall back to
+Ollama). This is the exact setup this repo already runs — see `docs/MODEL-ROUTING.md`.
 
 ### A4 — Manage / uninstall
 - `aios` helper (or `make` targets): `start | stop | status | update | logs | uninstall`.
@@ -181,6 +210,59 @@ Everything is skippable; AIOS is fully useful with zero integrations.
 
 ---
 
+### B7 — Per-integration connect guides (wizard copy / docs)
+Concise, step-by-step per source. These are the exact steps each connect card / wizard
+step presents (and the same text seeds the user docs). Ordered easiest → hardest.
+
+**Obsidian** (local, auto) — `obsidian_vault_path`
+1. Click **Detect vaults** → AIOS reads Obsidian's vault list.
+2. Pick your vault → **Use this vault**. _(Manual: paste the vault folder path.)_
+
+**Ollama** (local, auto) — bundled
+1. Nothing to do — detected at `localhost:11434`, shows ✓ with your installed models.
+
+**Apple MLX / LM Studio** (local, opt-in) — `mlx_base_url`, `mlx_models`
+1. Run **Enable Apple MLX** (installs headless llmster) — or start LM Studio's server.
+2. Click **Detect** → AIOS reads `localhost:1234/v1/models` and fills the model list. ✓
+
+**Calendar — iCal URL** (easiest calendar, no dev account) — `calendar_ics_url`
+1. Google Calendar → **Settings** → click your calendar → **Integrate calendar**.
+2. Copy **Secret address in iCal format** → paste → **Save**. ✓ (syncs every 5 min)
+
+**Google Calendar + Gmail** (full, OAuth — advanced) — `google_client_id/secret`
+1. **Open Google Cloud Console** (deep-link) → create a project.
+2. **APIs & Services → Credentials → Create OAuth client → Web application.**
+3. Paste the **redirect URI** AIOS shows (copy button) → create.
+4. Enable the **Calendar** + **Gmail** APIs (deep-links).
+5. Paste **Client ID** + **Client secret** → **Connect Google** → approve consent. ✓
+
+**Slack — notifications** (webhook) — `slack_webhook_url`
+1. **Create Slack app from manifest** (deep-link; scopes pre-set).
+2. **Incoming Webhooks → Add New Webhook →** pick a channel.
+3. Copy the webhook URL → paste. ✓
+
+**Slack — agent reports / inbox capture** (bot) — `slack_bot_token`, `slack_*_channels`
+1. In the same app: **Install to Workspace** → copy the **Bot token** (`xoxb-…`) → paste.
+2. **Invite the bot** to each channel (`/invite @AIOS`).
+3. **Pick channels** from the list (checkboxes — no IDs to copy). ✓
+
+**Notion** (token) — `notion_tokens`
+1. **notion.so/my-integrations** (deep-link) → **New internal integration** → copy token.
+2. In Notion, **Share** the pages/databases you want with the integration.
+3. Paste the token → **Add workspace**. ✓ _(Public-OAuth page-picker is a later upgrade.)_
+
+**SearXNG — web search** (bundled) — `searxng_url`
+1. Nothing to do — a SearXNG container ships in compose, pre-wired. _(Or paste your own.)_
+
+**Gemini** (optional, metered) — `gemini_api_key`
+1. **aistudio.google.com/apikey** (deep-link) → create key → paste → **Validate** (test call). ✓
+
+**Telegram** (no auth) — `telegramChannels` rows
+1. Paste a public channel **@username** (or t.me link) + relevance criteria → **Add**. ✓
+
+**Reader proxy** (bundled) — `reader_proxy_url`
+1. Nothing to do — defaults to `r.jina.ai`. _(Set `off` to stay local-only, or self-host.)_
+
 # Milestones
 
 - **P0 — Public-ready repo:** de-hardcode plists, `.env.example`, LICENSE, README,
@@ -209,12 +291,8 @@ Everything is skippable; AIOS is fully useful with zero integrations.
   (Homebrew states, disk space, ports in use). The installer must be idempotent and
   print actionable errors.
 
-# Open decisions (for you)
+# Decisions — all resolved
 
-1. **License** — MIT (max adoption) vs something more restrictive?
-2. **Distro shape** — pure `install.sh` (clone + provision) vs a Homebrew tap
-   (`brew install aios`) that wraps it? Tap is nicer UX but more maintenance.
-3. **Default tier** — Lite (works on 16GB, weaker) vs Standard (needs 32GB) as the
-   out-of-box default?
-4. **Bundle LM Studio/MLX at all in v1**, or ship Ollama-only by default and make MLX a
-   documented opt-in (simpler installer, since MLX is the heavier/more-manual half)?
+License **MIT** · distribution a single **`install.sh`** that installs Homebrew itself if
+missing · default model tier **auto-detected from RAM** · **Ollama-only v1**, MLX opt-in.
+(Details in _Scope · Decisions (resolved)_ above.)
