@@ -1,15 +1,24 @@
 # AIOS — container edition
 
-Run the whole app (web + worker + Postgres) with one command. **Ollama stays on
-the host** — on macOS, containers get no Metal GPU, so Ollama runs native and the
-containers reach it at `host.docker.internal:11434`.
+Run the whole app (web + worker + Postgres) with one command, on **macOS, Linux,
+or Windows (via WSL2)**. **Ollama stays on the host** so inference uses your GPU
+(macOS Metal / Windows·Linux CUDA); the containers reach it at
+`host.docker.internal:11434`.
 
 ```
-Host (macOS)
-├── Ollama (native, Metal GPU)         ← models + embeddings
+Host (macOS / Linux / Windows+WSL2)
+├── Ollama (native, GPU)               ← models + embeddings
 └── Docker  (Colima / Docker Desktop / OrbStack — any engine)
-    └── compose: postgres · web (:3777) · worker
+    └── compose: postgres · web (:3777) · worker · searxng
 ```
+
+> **Ollama must listen on all interfaces** (`OLLAMA_HOST=0.0.0.0`) or the
+> containers can't reach it — `install.sh` auto-detects this and prints the fix
+> for your OS.
+>
+> **Low-spec machine?** Set `AIOS_DEFAULT_BRAIN=openrouter` + `OPENROUTER_API_KEY`
+> in `.env` (or run `install.sh --brain cloud`) to route reasoning to OpenRouter's
+> free tier while embeddings stay local.
 
 ## Prerequisites
 - A Docker engine — **[Colima](https://github.com/abiosoft/colima)** (free/OSS),
