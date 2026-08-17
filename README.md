@@ -210,7 +210,7 @@ Nav entry, routes (`/m/foo`), dashboard widgets, ⌘K commands, AI tools, agent 
 
 ## Roadmap — thinking out loud
 
-**None of this is promised — I'm thinking out loud.** These are directions I'm considering, and I'm honestly trying to work out which would add the most real value and day‑to‑day productivity, without breaking the "keep it simple" principle above. **I'd love your feedback:** which of these would you actually use? What's missing?
+These are directions I'm considering, and I'm honestly trying to work out which would add the most real value and day‑to‑day productivity, without breaking the "keep it simple" principle above. **I'd love your feedback:** which of these would you actually use? What's missing?
 
 - 🎙️ **Voice capture** — speak a thought; it's transcribed locally and triaged into the right module.
 - 📱 **Quick‑capture companion** — a menubar drop‑zone and a phone PWA, synced back to your system.
