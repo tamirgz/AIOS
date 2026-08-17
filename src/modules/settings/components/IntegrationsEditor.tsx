@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Check } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { CalendarCheck2, Check, Copy, ExternalLink, Unplug } from "lucide-react";
 import { cn } from "@/core/ui/cn";
 import {
   CATEGORY_LABEL,
@@ -12,10 +12,10 @@ import {
 import {
   detectMlx,
   detectObsidianVaults,
+  disconnectGoogle,
   saveIntegration,
   useObsidianVault,
 } from "../actions";
-import { GoogleConnect } from "./GoogleConnect";
 
 const detectBtn =
   "rounded-lg border border-plasma/30 bg-plasma/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-plasma transition hover:bg-plasma/20 disabled:opacity-40";
@@ -258,6 +258,160 @@ function StatusPill({ status }: { status: Status }) {
   );
 }
 
+const stepLink =
+  "text-ion underline decoration-ion/40 underline-offset-2 hover:decoration-ion";
+
+/** Guided BYO-OAuth setup for Google (Calendar + Gmail): deep-links to the exact
+ *  console pages, a copyable redirect URI, then the credential fields and the
+ *  connect button + status. No hosted broker — the user keeps their own client. */
+function GoogleWizard({
+  values,
+  connected,
+}: {
+  values: Record<string, string>;
+  connected: boolean;
+}) {
+  const [origin, setOrigin] = useState("http://localhost:3777");
+  const [copied, setCopied] = useState(false);
+  const [pending, start] = useTransition();
+  useEffect(() => setOrigin(window.location.origin), []);
+  const redirect = `${origin}/api/google/callback`;
+  const hasCreds = !!values.google_client_id && !!values.google_client_secret;
+
+  return (
+    <div className="glass flex flex-col gap-3 rounded-xl p-3">
+      {!connected && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs font-semibold text-ink">
+            1 · Create a Google OAuth client
+          </p>
+          <ul className="flex flex-col gap-1 text-xs leading-snug text-ink-dim">
+            <li>
+              ·{" "}
+              <a
+                className={stepLink}
+                target="_blank"
+                rel="noreferrer"
+                href="https://console.cloud.google.com/projectcreate"
+              >
+                Create a Google Cloud project
+                <ExternalLink className="ml-0.5 inline size-3 align-[-1px]" />
+              </a>
+            </li>
+            <li>
+              · Enable the{" "}
+              <a
+                className={stepLink}
+                target="_blank"
+                rel="noreferrer"
+                href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com"
+              >
+                Calendar API
+              </a>{" "}
+              and{" "}
+              <a
+                className={stepLink}
+                target="_blank"
+                rel="noreferrer"
+                href="https://console.cloud.google.com/apis/library/gmail.googleapis.com"
+              >
+                Gmail API
+              </a>
+            </li>
+            <li>
+              ·{" "}
+              <a
+                className={stepLink}
+                target="_blank"
+                rel="noreferrer"
+                href="https://console.cloud.google.com/apis/credentials/oauthclient"
+              >
+                Create an OAuth client
+                <ExternalLink className="ml-0.5 inline size-3 align-[-1px]" />
+              </a>{" "}
+              → type <span className="text-ink">Web application</span>
+            </li>
+            <li>
+              · Add this exact{" "}
+              <span className="text-ink">Authorized redirect URI</span>:
+            </li>
+          </ul>
+          <div className="flex items-center gap-2">
+            <code className="min-w-0 flex-1 truncate rounded-lg border border-white/10 bg-abyss px-2 py-1.5 font-mono text-[11px] text-ink">
+              {redirect}
+            </code>
+            <button
+              type="button"
+              className={detectBtn}
+              onClick={() => {
+                void navigator.clipboard?.writeText(redirect);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              }}
+            >
+              <Copy className="mr-1 inline size-3 align-[-1px]" />
+              {copied ? "copied" : "copy"}
+            </button>
+          </div>
+          <p className="mt-1 text-xs font-semibold text-ink">
+            2 · Paste the client credentials
+          </p>
+        </div>
+      )}
+      <IntegrationField
+        key={`google_client_id:${values.google_client_id ?? ""}`}
+        settingKey="google_client_id"
+        label="Client ID"
+        hint="From the OAuth client you created above."
+        placeholder="…apps.googleusercontent.com"
+        initial={values.google_client_id ?? ""}
+        secret={false}
+      />
+      <IntegrationField
+        key={`google_client_secret:${values.google_client_secret ?? ""}`}
+        settingKey="google_client_secret"
+        label="Client secret"
+        hint="From the same OAuth client. Stored locally in your Postgres only."
+        placeholder="GOCSPX-…"
+        initial={values.google_client_secret ?? ""}
+        secret
+      />
+      <div className="flex items-center gap-3 pt-0.5">
+        {connected ? (
+          <>
+            <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-ion">
+              <CalendarCheck2 className="size-3.5" /> connected
+            </span>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => start(async () => void (await disconnectGoogle()))}
+              className="flex items-center gap-1.5 rounded-lg border border-flare/25 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-flare transition hover:bg-flare/10"
+            >
+              <Unplug className="size-3" /> disconnect
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-xs font-semibold text-ink">3 · Connect →</span>
+            <a
+              href="/api/google/auth"
+              aria-disabled={!hasCreds}
+              className={
+                hasCreds
+                  ? "rounded-lg bg-plasma/15 px-4 py-2 font-mono text-[11px] uppercase tracking-widest text-plasma transition hover:bg-plasma/25"
+                  : "pointer-events-none rounded-lg border border-white/8 px-4 py-2 font-mono text-[11px] uppercase tracking-widest text-ink-faint"
+              }
+            >
+              connect google
+            </a>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** One integration: header (label · blurb · status) then its fields. */
 function IntegrationCard({
   integration,
@@ -277,36 +431,36 @@ function IntegrationCard({
         </div>
         <StatusPill status={statusOf(integration, values, googleConnected)} />
       </div>
-      {integration.detect && <DetectPanel kind={integration.detect} />}
-      {integration.fields.map((f) =>
-        f.kind === "toggle" ? (
-          <IntegrationToggle
-            key={f.key}
-            settingKey={f.key}
-            label={f.label}
-            hint={f.hint}
-            // Toggles default ON unless explicitly stored "off".
-            initialOn={(values[f.key] ?? "") !== "off"}
-          />
-        ) : (
-          <IntegrationField
-            // Keyed by value so a one-click detect (which saves + revalidates)
-            // re-mounts the field with the freshly-detected value.
-            key={`${f.key}:${values[f.key] ?? ""}`}
-            settingKey={f.key}
-            label={f.label}
-            hint={f.hint}
-            placeholder={f.placeholder ?? ""}
-            initial={values[f.key] ?? ""}
-            secret={f.kind === "secret"}
-          />
-        ),
-      )}
-      {integration.connect === "google" && (
-        <GoogleConnect
-          hasCredentials={!!values.google_client_id && !!values.google_client_secret}
-          connected={googleConnected}
-        />
+      {integration.connect === "google" ? (
+        <GoogleWizard values={values} connected={googleConnected} />
+      ) : (
+        <>
+          {integration.detect && <DetectPanel kind={integration.detect} />}
+          {integration.fields.map((f) =>
+            f.kind === "toggle" ? (
+              <IntegrationToggle
+                key={f.key}
+                settingKey={f.key}
+                label={f.label}
+                hint={f.hint}
+                // Toggles default ON unless explicitly stored "off".
+                initialOn={(values[f.key] ?? "") !== "off"}
+              />
+            ) : (
+              <IntegrationField
+                // Keyed by value so a one-click detect (which saves +
+                // revalidates) re-mounts the field with the fresh value.
+                key={`${f.key}:${values[f.key] ?? ""}`}
+                settingKey={f.key}
+                label={f.label}
+                hint={f.hint}
+                placeholder={f.placeholder ?? ""}
+                initial={values[f.key] ?? ""}
+                secret={f.kind === "secret"}
+              />
+            ),
+          )}
+        </>
       )}
     </div>
   );
