@@ -8,7 +8,9 @@
 #
 set -o pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-cd "${AIOS_DIR:-/Users/tamirgz/Projects/github/AIOS}" || exit 1
+# Repo root: prefer AIOS_DIR (set by the launchd plist), else derive from this
+# script's own location (scripts/ → repo root) — no hardcoded path.
+cd "${AIOS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)}" || exit 1
 
 need_build=0
 if [ ! -f .next/BUILD_ID ]; then

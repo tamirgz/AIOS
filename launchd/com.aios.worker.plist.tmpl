@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Template: rendered by scripts/render-launchd.sh (substitutes {{...}}). -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -6,17 +7,17 @@
   <string>com.aios.worker</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/pnpm</string>
+    <string>{{BREW_BIN}}/pnpm</string>
     <string>worker</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>/Users/tamirgz/Projects/github/AIOS</string>
+  <string>{{AIOS_DIR}}</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <string>{{BREW_BIN}}:/usr/local/bin:/usr/bin:/bin</string>
     <key>HOME</key>
-    <string>/Users/tamirgz</string>
+    <string>{{AIOS_HOME}}</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>
@@ -25,8 +26,8 @@
   <key>ThrottleInterval</key>
   <integer>15</integer>
   <key>StandardOutPath</key>
-  <string>/Users/tamirgz/Library/Logs/aios-worker.log</string>
+  <string>{{AIOS_HOME}}/Library/Logs/aios-worker.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/tamirgz/Library/Logs/aios-worker.log</string>
+  <string>{{AIOS_HOME}}/Library/Logs/aios-worker.log</string>
 </dict>
 </plist>
