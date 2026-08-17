@@ -99,8 +99,7 @@ if [ -f "$PLIST" ]; then
   launchctl kickstart -k "gui/$UID_NUM/com.aios.worker" >/dev/null 2>&1 || true
 else
   say "installing worker daemon…"
-  cp launchd/com.aios.worker.plist "$PLIST"
-  launchctl bootstrap "gui/$UID_NUM" "$PLIST" >/dev/null 2>&1 || true
+  scripts/render-launchd.sh worker >/dev/null 2>&1 || true
 fi
 
 # ── 7. web app ──────────────────────────────────────────────────────────────

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Template: rendered by scripts/render-launchd.sh (substitutes {{...}}).
+     OPTIONAL — only installed by the MLX opt-in (`aios enable-mlx`). Runs the
+     headless LM Studio (llmster) daemon + OpenAI server on :1234. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.aios.lmstudio</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>{{LMS_BIN}}/lms daemon up &amp;&amp; sleep 2 &amp;&amp; {{LMS_BIN}}/lms server start --port 1234</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>{{LMS_BIN}}:{{BREW_BIN}}:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>{{AIOS_HOME}}</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>{{AIOS_HOME}}/Library/Logs/aios-lmstudio.log</string>
+  <key>StandardErrorPath</key>
+  <string>{{AIOS_HOME}}/Library/Logs/aios-lmstudio.log</string>
+</dict>
+</plist>
