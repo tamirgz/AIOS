@@ -208,19 +208,14 @@ Nav entry, routes (`/m/foo`), dashboard widgets, ⌘K commands, AI tools, agent 
 - **Connect & control** — per‑task **AI routing** (local Ollama · Apple MLX · optional Claude subscription · optional Gemini) · memory blocks injected into every call · **Calendar** (Google/ICS sync) + a Today "needs‑you" queue · People · integrations for Google, Slack (two‑way), Notion, Obsidian, keyless web search & a reader proxy · 5 themes.
 - **Foundation** — one **semantic search** across everything · local‑first & private (no metered key can start billing) · a plugin architecture (a module = a folder + two registry lines) · container & native editions with a one‑command installer.
 
-## Roadmap
+## Roadmap — thinking out loud
 
-Guided by the same principle — **nothing ships just because it's possible.** Each of these lands only when it earns its place and stays out of your way. Rough order, not promises:
-
-**Next**
+**None of this is promised — I'm thinking out loud.** These are directions I'm considering, and I'm honestly trying to work out which would add the most real value and day‑to‑day productivity, without breaking the "keep it simple" principle above. **I'd love your feedback:** which of these would you actually use? What's missing?
 
 - 🎙️ **Voice capture** — speak a thought; it's transcribed locally and triaged into the right module.
 - 📱 **Quick‑capture companion** — a menubar drop‑zone and a phone PWA, synced back to your system.
 - 🗣️ **Spoken daily brief** — your morning digest as local text‑to‑speech, ready before coffee.
 - 🕸️ **Constellation view** — an interactive graph of how your notes, ideas, and projects connect.
-
-**Exploring**
-
 - 🔁 **Offline‑first sync** — CRDT‑based, so your system travels across devices and merges later.
 - ✉️ **Email co‑pilot** — draft replies grounded in your own context; triage the inbox for you.
 - 🧩 **Module marketplace** — install community modules and agents in a click.
@@ -228,7 +223,7 @@ Guided by the same principle — **nothing ships just because it's possible.** E
 - 🖥️ **Linux & Windows editions** — beyond the macOS / Apple‑Silicon v1.
 - 🎨 **Theme editor** — design your own look, not just the five.
 
-Have an idea, or want to build a module? Issues and PRs are welcome.
+**Have a take?** Open an issue — or a 👍 on one that resonates — and that's how I'll decide what's actually worth building next. Want to build a module yourself? PRs welcome.
 
 ## License
 
