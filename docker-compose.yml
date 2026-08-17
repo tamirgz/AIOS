@@ -11,6 +11,10 @@ services:
       - "5544:5432"
     volumes:
       - aios_pgdata:/var/lib/postgresql/data
+      # Creates the pgvector extension on FIRST init (empty data dir) — the
+      # migrations add vector(768) columns but don't CREATE EXTENSION. No-op on
+      # an already-initialized volume, so existing databases are untouched.
+      - ./deploy/init-db.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aios -d aios"]
       interval: 5s

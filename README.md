@@ -17,35 +17,45 @@ upgrades you turn on later, per task, in Settings.
 - **Node 20+** and **pnpm**.
 - **[Ollama](https://ollama.com)** — local models + embeddings.
 
-## Quickstart (fully local, no accounts)
+## Quickstart — one command (fully local, no accounts)
 
 ```bash
-git clone <this-repo> AIOS && cd AIOS
-cp .env.example .env.local            # every default already works locally
-
-docker compose up -d                  # Postgres 17 + pgvector on :5544
-pnpm install
-ollama pull nomic-embed-text          # required: embeddings / semantic search
-ollama pull qwen3:8b                  # required: the light gates + basic chat
-ollama pull qwen3-coder:30b           # recommended: capable chat / ask / agents (18GB)
-pnpm db:migrate                       # apply migrations (routes self-seed)
-
-pnpm dev                              # web app → http://localhost:3777
-pnpm worker                           # agent runner — separate terminal, REQUIRED
+git clone https://github.com/tamirgz/AIOS.git && cd AIOS
+./install.sh
 ```
 
-Open **http://localhost:3777**. That's it — you're running a fully local AI OS.
+That's the **container edition** (default): it installs any missing prerequisites
+(Homebrew, a Docker engine, Ollama), auto-picks a model set from your RAM, pulls the
+models, and brings the app up in Docker with Ollama on the host. When it's done it opens
+**http://localhost:3777**. Re-runnable and safe. Options:
 
-> A one-command installer (`./install.sh`) that provisions Homebrew deps, the Postgres
-> container, model pulls, and the background services is on the roadmap — see
-> [`docs/DISTRIBUTION-PLAN.md`](docs/DISTRIBUTION-PLAN.md). Until then, the steps above are
-> the setup.
+```bash
+./install.sh --dry-run       # print the plan, change nothing
+./install.sh --tier lite     # smaller model set (lite | standard | full)
+./install.sh --native        # host-native (launchd), for full Workbench CLI agents
+```
 
-**Run it as a background service (survives reboots):** `scripts/render-launchd.sh web
-worker orbstack` renders the launchd agents in `launchd/*.plist.tmpl` to your machine's
-paths and installs them (web on :3777, worker, and OrbStack auto-start). Logs:
-`~/Library/Logs/aios-*.log`. After a code change on a running service:
-`launchctl kickstart -k gui/$(id -u)/com.aios.web` (and `.worker`).
+The two editions: **container** (default — `deploy/docker-compose.yml`, Ollama on host,
+see [`deploy/README.md`](deploy/README.md)) and **native** (advanced — launchd services,
+`docs/RUNTIME.md`).
+
+<details><summary>Manual setup (dev / without the installer)</summary>
+
+```bash
+cp .env.example .env.local
+docker compose up -d                  # Postgres 17 + pgvector on :5544 (creates the extension)
+pnpm install
+ollama pull nomic-embed-text qwen3:8b qwen3-coder:30b
+pnpm db:migrate
+pnpm dev        # web → http://localhost:3777
+pnpm worker     # agent runner — separate terminal, REQUIRED
+```
+
+Background service (survives reboots): `scripts/render-launchd.sh web worker orbstack`
+renders the launchd agents from `launchd/*.plist.tmpl` to your paths and installs them.
+Logs: `~/Library/Logs/aios-*.log`; after a code change: `launchctl kickstart -k
+gui/$(id -u)/com.aios.web` (and `.worker`).
+</details>
 
 **Operational rule:** after `pnpm db:generate && pnpm db:migrate`, restart `pnpm dev` and
 `pnpm worker` — pooled Postgres connections and the worker don't pick up DDL/code live.
