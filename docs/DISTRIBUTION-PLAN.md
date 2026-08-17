@@ -40,11 +40,11 @@ up -d --build` runs postgres + web + worker; the containers reach host Ollama at
 `host.docker.internal:11434`. No host Node/pnpm/build, no launchd — Docker's
 `restart: unless-stopped` covers reboots. This is the deploy artifact users run and
 CI tests. Files: `deploy/Dockerfile`, `deploy/docker-compose.yml`, `deploy/README.md`.
-- **Limitation:** the Workbench CLI harnesses (`claude-headless`, `codex`, `opencode`,
-  `pi`) are host-tied (host CLIs + auth + git worktrees + macOS seatbelt) and do NOT
-  run in the container. Everything else works. Tracked as a follow-up: run just the
-  worker natively, or a host-side harness bridge. Chosen so the harnesses can never
-  touch a user's real CLI config from inside a container.
+- **Limitation (handled):** the Workbench CLI harnesses (`claude-headless`, `codex`,
+  `opencode`, `pi`) are host-tied (host CLIs + auth + git worktrees + macOS seatbelt)
+  and do NOT run in the container. An availability gate detects this and **cleanly
+  disables** them (never runs, never reaches for host CLI config; tasks fall back to
+  `native`). Everything else works. Full CLI-agent Workbench needs the native edition.
 
 **Native edition (advanced).** Host-native web + worker via the launchd templates
 (`launchd/*.plist.tmpl` + `scripts/render-launchd.sh`), for max performance and full
