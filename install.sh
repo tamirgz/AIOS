@@ -156,6 +156,19 @@ if command -v ollama >/dev/null 2>&1 || curl -fsS --max-time 3 http://localhost:
 elif [ "$OS" = Darwin ]; then
   brew_ensure ollama
 else
+  # Ollama's Linux installer unpacks a zstd tarball — zstd (and curl) aren't
+  # preinstalled on a minimal Ubuntu/WSL2, so ensure them first (Debian/Ubuntu).
+  if command -v apt-get >/dev/null 2>&1; then
+    missing=""
+    command -v zstd >/dev/null 2>&1 || missing="$missing zstd"
+    command -v curl >/dev/null 2>&1 || missing="$missing curl"
+    if [ -n "$missing" ]; then
+      say "installing prerequisites for Ollama:$missing …"
+      run sudo apt-get update -qq
+      # shellcheck disable=SC2086 # $missing is a deliberate space-separated pkg list
+      run sudo apt-get install -y $missing
+    fi
+  fi
   say "installing Ollama…"; run sh -c "curl -fsSL https://ollama.com/install.sh | sh"
 fi
 if curl -fsS --max-time 3 http://localhost:11434/api/tags >/dev/null 2>&1; then
