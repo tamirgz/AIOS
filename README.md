@@ -161,6 +161,12 @@ AIOS runs in Linux containers, so on Windows you run it inside **WSL2** — a re
    ```bash
    docker ps      # should print a header row with no error
    ```
+   > **Important — use Docker Engine _inside_ WSL2 (this step), not Docker Desktop.** With Docker Desktop, containers reach the **Windows** host (`host.docker.internal` → Windows), so they can't see the Ollama that `install.sh` runs inside Ubuntu, and the install reports Ollama unreachable. Confirm you're on Engine-in-WSL2:
+   > ```bash
+   > docker info --format '{{.Name}} / {{.OperatingSystem}}'
+   > # your distro, e.g. ".../ Ubuntu 22.04" — NOT "Docker Desktop"
+   > ```
+   > If it says **Docker Desktop**, either run the Engine step above so everything lives in Ubuntu together, or keep Docker Desktop and run Ollama on Windows (see the note under this list).
 5. **Install AIOS** (still in Ubuntu):
    ```bash
    git clone https://github.com/tamirgz/AIOS.git && cd AIOS && ./install.sh
