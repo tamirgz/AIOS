@@ -207,7 +207,12 @@ fi
 # so the compose-up in THIS shell picks them up immediately.
 if [ "$BRAIN" = cloud ]; then
   KEY="${OPENROUTER_API_KEY:-}"
-  [ -z "$KEY" ] && KEY="$(grep -sh '^OPENROUTER_API_KEY=' .env .env.local 2>/dev/null | head -1 | cut -d= -f2-)"
+  # Reuse a key from a previous run if present. The `|| true` (and `if` instead
+  # of `&&`) keep a non-zero grep — a missing .env, or no match — from tripping
+  # `set -e`/`pipefail` and killing the installer.
+  if [ -z "$KEY" ]; then
+    KEY="$(grep -sh '^OPENROUTER_API_KEY=' .env .env.local 2>/dev/null | head -1 | cut -d= -f2- || true)"
+  fi
   if [ -z "$KEY" ] && [ "$YES" != 1 ] && [ "$DRY" != 1 ] && [ -t 0 ]; then
     printf '\n   Cloud-brain needs a FREE OpenRouter key (reasoning models).\n'
     printf '   1) Open %s and sign in (free).\n' "$(c '4' 'https://openrouter.ai/keys')"
@@ -226,7 +231,8 @@ if [ "$BRAIN" = cloud ]; then
 fi
 
 # ── models ───────────────────────────────────────────────────────────────────
-have_models="$(ollama list 2>/dev/null | awk 'NR>1{print $1}')"
+# `|| true`: a momentarily-unreachable ollama must not kill the installer here.
+have_models="$(ollama list 2>/dev/null | awk 'NR>1{print $1}' || true)"
 for m in $MODELS; do
   if printf '%s\n' "$have_models" | grep -qxF "$m" \
      || printf '%s\n' "$have_models" | grep -qxF "$m:latest"; then
