@@ -344,6 +344,33 @@ async function main() {
     }
   });
 
+  // Model-server health: the tick fires every 5 min, but the check only runs
+  // every `healthcheck_interval_min` (default 60, 0 = off) and alerts (bell +
+  // Slack) only on a state change — see core/health.ts.
+  new Cron("*/5 * * * *", { protect: true }, async () => {
+    try {
+      const {
+        HEALTHCHECK_INTERVAL_KEY,
+        HEALTHCHECK_LAST_KEY,
+        DEFAULT_HEALTHCHECK_INTERVAL_MIN,
+        runHealthCheckAndNotify,
+      } = await import("@/core/health");
+      const raw = await getSetting(HEALTHCHECK_INTERVAL_KEY);
+      const intervalMin =
+        raw == null ? DEFAULT_HEALTHCHECK_INTERVAL_MIN : parseInt(raw, 10);
+      if (!intervalMin || intervalMin <= 0) return; // disabled
+      const last = parseInt((await getSetting(HEALTHCHECK_LAST_KEY)) || "0", 10);
+      if (Date.now() - last < intervalMin * 60_000) return; // not due yet
+      const statuses = await runHealthCheckAndNotify();
+      const down = statuses.filter((s) => !s.ok).map((s) => s.label);
+      log(
+        `model-server health: ${down.length ? `DOWN — ${down.join(", ")}` : "all ok"}`,
+      );
+    } catch (e) {
+      log(`health check failed: ${String(e).slice(0, 120)}`);
+    }
+  });
+
   // Catch up: execute any queued runs left from before boot.
   const queued = await db
     .select({ id: agentRuns.id })

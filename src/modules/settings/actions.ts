@@ -7,6 +7,7 @@ import { sql } from "@/core/db/client";
 import type { AIProviderId } from "@/core/db/schema/ai-routes";
 import { INTEGRATION_SETTING_KEYS } from "@/core/integrations/registry";
 import { THEME_IDS } from "@/core/theme";
+import { HEALTHCHECK_INTERVAL_KEY } from "@/core/health";
 
 // Generated from the integration registry, so every field the Connections UI
 // renders is saveable by construction. Plus a few non-connection settings that
@@ -86,6 +87,20 @@ export async function saveTheme(id: string) {
   await setSetting("theme", id);
   // Re-render the root layout so the SSR data-theme matches on next load.
   revalidatePath("/", "layout");
+}
+
+/** Persist the model-server health-check interval (minutes; 0 = off). */
+export async function saveHealthInterval(min: number) {
+  const v = Number.isFinite(min) && min >= 0 ? Math.floor(min) : 60;
+  await setSetting(HEALTHCHECK_INTERVAL_KEY, String(v));
+  revalidatePath("/m/settings");
+}
+
+/** Run the model-server health check on demand (updates state + alerts on a
+ *  change), returning the current per-server status for the UI. */
+export async function checkModelServersNow() {
+  const { runHealthCheckAndNotify } = await import("@/core/health");
+  return runHealthCheckAndNotify();
 }
 
 // ── Local one-click auto-detect (B2) ─────────────────────────────────────────
