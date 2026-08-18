@@ -183,6 +183,17 @@ else
   for _ in $(seq 1 30); do curl -fsS --max-time 2 http://localhost:11434/api/tags >/dev/null 2>&1 && break; sleep 1; done
 fi
 
+# Guard: Ollama must actually answer before we go on. A half-installed binary
+# (stalled download) or a server that never came up would otherwise fail
+# confusingly later — at model pull, or the first embedding. Fail loudly now.
+if [ "$DRY" != 1 ] && ! curl -fsS --max-time 3 http://localhost:11434/api/tags >/dev/null 2>&1; then
+  die "Ollama isn't answering on http://localhost:11434 — it likely failed to install or start.
+   • check:     ollama --version        (no version ⇒ the install/download didn't complete)
+   • start it:  OLLAMA_HOST=0.0.0.0 ollama serve   (leave it running, then re-run this script)
+   • reinstall: curl -fsSL https://ollama.com/install.sh | sh
+   Ollama is required for embeddings (search) in every mode — even cloud-brain."
+fi
+
 # ── native-only system deps ──────────────────────────────────────────────────
 if [ "$MODE" = native ]; then
   brew_ensure node
