@@ -72,6 +72,11 @@ export async function POST(req: Request) {
           tools,
           toolCtx: { db },
           model: route.model,
+          // Interactive: keep it snappy. Measured on the local chat model,
+          // reasoning adds latency (up to 6.7×) with no thinking benefit and
+          // occasional spurious tool calls — so force it off regardless of
+          // provider. Agentic memory work (consolidation) keeps reasoning on.
+          reasoning: "none",
           signal: req.signal,
         })) {
           send(event);
