@@ -1,5 +1,6 @@
 import { KeyRound, ShieldCheck, ShieldAlert } from "lucide-react";
 import { authStatus, METERED_AUTH_VARS } from "@/core/ai/auth";
+import { ClaudeReconnect } from "./ClaudeReconnect";
 
 /**
  * What apOS is billing against, stated plainly. The policy is subscription or
@@ -57,6 +58,8 @@ export function AuthPanel() {
           </p>
         </div>
       </div>
+
+      <ClaudeReconnect />
 
       <div className="mt-4 flex items-start gap-3 border-t border-white/6 pt-3">
         <KeyRound className="mt-0.5 size-4 shrink-0 text-ink-faint" />
