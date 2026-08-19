@@ -149,7 +149,24 @@ export async function executeRun(runId: string): Promise<void> {
       ...ledgerTools(ledger),
     ];
 
-    const { renderMemoryContext } = await import("@/core/memory");
+    const { renderMemoryContext, recallEntries } = await import("@/core/memory");
+    // Retrieval-augment the run: surface the few archival lessons/decisions most
+    // relevant to THIS agent's task, so accumulated wisdom actually shapes the
+    // work instead of sitting unused until an agent happens to call memory.recall.
+    // Bounded (top 4 snippets) and best-effort — never blocks or bloats the run.
+    let recalled = "";
+    try {
+      const hits = await recallEntries(`${agent.name}. ${agent.prompt}`.slice(0, 800), 4);
+      if (hits.length) {
+        recalled = [
+          "",
+          "RELEVANT PAST MEMORY (accumulated lessons/decisions — apply them: don't repeat a past mistake or re-decide a settled question):",
+          ...hits.map((h) => `• [${h.kind}] ${h.text}`),
+        ].join("\n");
+      }
+    } catch {
+      // recall is best-effort — a memory hiccup must not affect the run
+    }
     const system = [
       `You are "${agent.name}", an autonomous background agent inside apOS, the user's Agentic Personalized Operating System.`,
       "You run unattended — do the work with your tools, then produce a concise final report of what you did and found.",
@@ -157,6 +174,7 @@ export async function executeRun(runId: string): Promise<void> {
       `Current date-time: ${new Date().toISOString()}`,
       "",
       await renderMemoryContext(),
+      recalled,
     ].join("\n");
 
     // One provider attempt, with its own timeout + heartbeat so a fallback

@@ -1,4 +1,4 @@
-import { asc, desc, eq, sql as dsql } from "drizzle-orm";
+import { asc, desc, eq, inArray, sql as dsql } from "drizzle-orm";
 import { db } from "@/core/db/client";
 import {
   memoryBlocks,
@@ -255,6 +255,33 @@ export async function rememberEntry(input: {
 }
 
 /**
+ * Block-freshness health-check. Bounding the injected snapshot only stays safe
+ * if that snapshot keeps being refreshed — otherwise the always-injected memory
+ * silently rots. The weekly-consolidated blocks (current_focus, active_projects)
+ * are expected to update ~weekly; if one goes past STALE_BLOCK_DAYS the
+ * consolidation agent has likely stopped, and the daily maintenance sweep
+ * surfaces it. This is what makes "bounded injection doesn't harm growth" true.
+ */
+const STALE_BLOCK_DAYS = 9;
+const WEEKLY_BLOCKS = ["current_focus", "active_projects"];
+export async function checkMemoryFreshness(): Promise<
+  { label: string; ageDays: number }[]
+> {
+  const rows = await db
+    .select()
+    .from(memoryBlocks)
+    .where(inArray(memoryBlocks.label, WEEKLY_BLOCKS));
+  const now = Date.now();
+  return rows
+    .filter((b) => b.value.trim()) // only content that HAD a value can go stale
+    .map((b) => ({
+      label: b.label,
+      ageDays: Math.floor((now - +new Date(b.updatedAt)) / 86_400_000),
+    }))
+    .filter((x) => x.ageDays >= STALE_BLOCK_DAYS);
+}
+
+/**
  * Keep the archival tier bounded — low-value entries age out and a hard total
  * cap trims the oldest. Deterministic (no LLM), idempotent, cheap; runs on a
  * daily maintenance sweep. Durable kinds (decision, lesson) are kept longest.
@@ -289,6 +316,35 @@ export async function pruneMemoryEntries(): Promise<{ pruned: number }> {
     pruned += [...dropped].length;
   }
   return { pruned };
+}
+
+/**
+ * Distill the archive by compacting near-DUPLICATE entries that slipped past
+ * write-time dedup (embedding not ready at write, or stored before dedup
+ * existed). For each near-identical cluster keep the NEWEST and drop the older
+ * ones — removing redundancy so the long-tail stays high-signal, with NO LLM,
+ * NO growth of the injected snapshot, and never touching a decision/lesson.
+ * Distance 0.10 (tighter than the 0.12 write-dedup) so only genuine duplicates
+ * merge, never distinct-but-related memories. Orphaned index rows are cleaned by
+ * the index sync's own orphan pass.
+ */
+export async function compactMemoryEntries(): Promise<{ merged: number }> {
+  const rows = await db.execute<{ id: string }>(dsql`
+    delete from memory_entries where id in (
+      select ma.id
+        from search_index sa
+        join search_index sb
+          on sb.kind = 'memory' and sa.kind = 'memory'
+         and sa.source_id <> sb.source_id
+         and sa.embedding is not null and sb.embedding is not null
+         and (sa.embedding <=> sb.embedding) < 0.10
+        join memory_entries ma on ma.id::text = sa.source_id
+        join memory_entries mb on mb.id::text = sb.source_id
+       where ma.created_at < mb.created_at
+         and ma.kind not in ('decision', 'lesson')
+    )
+    returning id`);
+  return { merged: [...rows].length };
 }
 
 /** Semantic recall over archival memory, with keyword fallback while
