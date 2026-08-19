@@ -2,6 +2,7 @@ import { z } from "zod";
 import { desc, eq, or, sql as dsql } from "drizzle-orm";
 import type { AiToolDef } from "@/core/modules/types.server";
 import { sql } from "@/core/db/client";
+import { registerRefs, resolveRef } from "@/core/ai/refs";
 import { detectKind } from "./detect";
 import { knowledgeItems, KNOWLEDGE_KINDS } from "./schema";
 
@@ -41,9 +42,9 @@ export const knowledgeTools: AiToolDef[] = [
       kind: z.enum(KNOWLEDGE_KINDS).optional(),
       limit: z.number().int().min(1).max(50).default(10),
     }),
-    async execute(input, { db }) {
+    async execute(input, ctx) {
       const q = `%${input.query}%`;
-      const rows = await db
+      const rows = await ctx.db
         .select()
         .from(knowledgeItems)
         .where(
@@ -57,26 +58,36 @@ export const knowledgeTools: AiToolDef[] = [
         )
         .orderBy(desc(knowledgeItems.createdAt))
         .limit(input.limit);
-      return rows.map((r) => ({
-        id: r.id,
-        kind: r.kind,
-        title: r.title ?? r.input.slice(0, 80),
-        status: r.status,
-        summary: r.insight?.summary ?? null,
-        tags: r.insight?.tags ?? [],
-      }));
+      // Short handles (k1, k2…) so knowledge.read targets the right item by ref.
+      return registerRefs(
+        ctx,
+        "knowledge",
+        "k",
+        rows.map((r) => ({
+          id: r.id,
+          kind: r.kind,
+          title: r.title ?? r.input.slice(0, 80),
+          status: r.status,
+          summary: r.insight?.summary ?? null,
+          tags: r.insight?.tags ?? [],
+        })),
+      );
     },
   },
   {
     name: "knowledge.read",
     description:
-      "Read one knowledge item in full: its insight (summary, key ideas, use cases, quotes) and source material.",
-    input: z.object({ id: z.string().uuid() }),
-    async execute(input, { db }) {
-      const [row] = await db
+      "Read one knowledge item in full: its insight (summary, key ideas, use cases, quotes) and source material. Identify it by its `ref` from knowledge.search (e.g. 'k2').",
+    input: z.object({
+      ref: z.string().describe("Knowledge ref from knowledge.search, e.g. 'k2'"),
+    }),
+    async execute(input, ctx) {
+      const t = resolveRef(ctx, "knowledge", input.ref);
+      if ("error" in t) return t;
+      const [row] = await ctx.db
         .select()
         .from(knowledgeItems)
-        .where(eq(knowledgeItems.id, input.id));
+        .where(eq(knowledgeItems.id, t.id));
       if (!row) return { error: "not found" };
       return {
         id: row.id,
