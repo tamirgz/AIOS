@@ -53,13 +53,14 @@ export const agentsServerManifest: ModuleServerManifest = {
       ],
       defaultSchedule: "0 20 * * 0",
       // Memory work runs on a FREE LOCAL model — periodic, must never bill.
-      // Benched (data quality + tool-use) across MLX/gemma4/Haiku: the MLX
-      // abliterated-35B won on both — sharpest synthesis AND precise tool-calls
-      // (2 calls → 2 blocks, vs ollama's 12). Falls back to always-on Ollama if
-      // LM Studio is down.
-      defaultProvider: "mlx",
-      defaultModel: "huihui-qwen3.6-35b-a3b-claude-4.7-opus-abliterated-mlx",
-      defaultFallbackModel: "qwen3-coder:30b",
+      // Benched across MLX/gemma4/Haiku: the MLX abliterated-35B wins on single-
+      // shot TEXT, but in the REAL agentic tool-loop it loops on reads and never
+      // commits the memory.update writes (verified: 20 reads, 0 writes). qwen3-
+      // coder:30b reliably completes the loop and writes strong blocks — it's
+      // what pulse/advisor run on daily. Editable per-agent in Settings.
+      defaultProvider: "ollama",
+      defaultModel: "qwen3-coder:30b",
+      defaultTurnBudget: 20,
     },
   ],
 };
