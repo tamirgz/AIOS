@@ -74,7 +74,15 @@ export const anthropicProvider: AIProvider = {
             "You are the AI core of apOS, the user's Agentic Personalized Operating System.",
           mcpServers: { [MCP_SERVER]: server },
           allowedTools: opts.tools.map((t) => MCP_PREFIX + toWireName(t.name)),
-          disallowedTools: ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch"],
+          // Block the SDK's built-in tools: no filesystem/web, and crucially no
+          // Task/Agent SPAWNER — a background agent must do the work itself with
+          // its module tools, not delegate to a sub-agent that runs in a
+          // detached context (which can't see the run's bound subject, so it
+          // reported "no active projects" and wrote nothing).
+          disallowedTools: [
+            "Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch",
+            "Task", "Agent", "TodoWrite", "NotebookEdit",
+          ],
           permissionMode: "bypassPermissions",
           maxTurns: opts.maxTurns ?? 12,
           abortController: opts.signal

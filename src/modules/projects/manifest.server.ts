@@ -57,6 +57,10 @@ export const projectsServerManifest: ModuleServerManifest = {
       // qwen3:8b. See docs/EXECUTION-PLAN.md.
       defaultProvider: "ollama",
       defaultModel: "qwen3-coder:30b",
+      // Iterating every active project via focusNext costs ~2-3 turns each, so
+      // the default (8) truncated coverage at ~4 projects. Budget for the full
+      // list plus margin.
+      defaultTurnBudget: 60,
     },
     {
       id: "project-advisor",
@@ -84,6 +88,9 @@ export const projectsServerManifest: ModuleServerManifest = {
       // to the free-periodic rule, chosen by the user. Routable per-agent.
       defaultProvider: "anthropic",
       defaultModel: "claude-haiku-4-5-20251001",
+      // Cover every active project (focusNext loop, ~2-3 turns each) instead of
+      // truncating at the SDK default of 12.
+      defaultTurnBudget: 60,
     },
     {
       // A1 — the first Routine: a repo watcher. Read-only (reads the read-only
@@ -111,10 +118,9 @@ export const projectsServerManifest: ModuleServerManifest = {
       // Read + summarize on the free bench-winner; never bills.
       defaultProvider: "ollama",
       defaultModel: "qwen3-coder:30b",
-      // One list → one project per (readRepo + recordRepoDigest) pair, so N
-      // projects need ~2N+2 turns. The default 8 truncated at ~2 of 7; give it
-      // room to finish the whole list.
-      defaultTurnBudget: 28,
+      // Visit every active project via focusNext (readRepo + recordRepoDigest
+      // per repo project). ~2-3 turns each; budget for the full list plus margin.
+      defaultTurnBudget: 60,
     },
   ],
 };
