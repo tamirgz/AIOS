@@ -90,6 +90,13 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   { taskKey: "routine.gate", ...LIGHT },
   // Per-project advisor read + the on-demand "different angle" re-read.
   { taskKey: "project.advisor", ...LIGHT },
+  // Memory learning engine — the weekly distiller that abstracts episodic events
+  // into durable facts/policies. LOCAL by policy (memory work never bills), so
+  // pinned to explicit local models rather than CAPABLE/LIGHT (which follow the
+  // cloud-brain env). Editable in Settings like any other route.
+  { taskKey: "memory.distill", provider: "ollama", model: "qwen3-coder:30b" },
+  // Insight quality gate — the cheap judge that rejects a generic advisor brief.
+  { taskKey: "insight.verify", provider: "ollama", model: "qwen3:8b" },
 ];
 
 /** Insert default rows once so the Settings UI always has something to edit.

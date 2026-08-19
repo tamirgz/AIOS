@@ -22,6 +22,8 @@ const KEY_LABELS: Record<string, string> = {
   "routine.builder": "Routines · builder (composes a routine from your description)",
   "source.relevance": "Sources · relevance gate (is this post worth a run?)",
   "routine.gate": "Routines · commit gate (does this commit need the executor?)",
+  "memory.distill": "Memory · learning engine (distills events → rules; local)",
+  "insight.verify": "Insight quality gate (rejects a generic advisor brief; local)",
 };
 
 function RouteRow({ route }: { route: AiRoute }) {

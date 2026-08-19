@@ -26,10 +26,13 @@ async function verifyBriefGrounded(
   recommendation: string,
 ): Promise<boolean | null> {
   try {
-    const { providers } = await import("@/core/ai/routing");
+    // Model is the `insight.verify` route — configurable in Settings; a cheap
+    // local judge by default.
+    const { resolveRoute } = await import("@/core/ai/routing");
     const { db } = await import("@/core/db/client");
+    const route = await resolveRoute("insight.verify");
     let text = "";
-    for await (const ev of providers.ollama.run({
+    for await (const ev of route.provider.run({
       system:
         "You gate a project-advisor brief for QUALITY. GROUNDED = it cites specific evidence (a named task, a number, days idle, a recent commit, a concrete blocker) AND gives a concrete next move. GENERIC = vague boilerplate ('keep up the good work', 'stay focused', 'continue making progress') with no specifics. Be lenient — only say GENERIC when it is clearly vague. Answer with ONE word: GROUNDED or GENERIC.",
       messages: [
@@ -37,7 +40,7 @@ async function verifyBriefGrounded(
       ],
       tools: [],
       toolCtx: { db },
-      model: "qwen3:8b",
+      model: route.model,
       maxTurns: 1,
     })) {
       if (ev.type === "done") text = ev.text;
