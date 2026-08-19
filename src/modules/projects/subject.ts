@@ -100,6 +100,15 @@ export async function resolveProjectByName(
   const db = ctx.db ?? defaultDb;
   const n = name?.trim();
   if (!n) return { error: "no project name given" };
+  // Accept a raw uuid too (chat / a caller that already has the id) — validated.
+  if (UUID_RE.test(n)) {
+    const [p] = await db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.id, n))
+      .limit(1);
+    return p ?? { error: "project id points to no project" };
+  }
   const rows = await db
     .select({ id: projects.id, name: projects.name })
     .from(projects)

@@ -1,7 +1,9 @@
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, sql } from "@/core/db/client";
-import type { AiToolDef } from "@/core/modules/types.server";
+import type { AiToolContext, AiToolDef } from "@/core/modules/types.server";
+import { registerRefs, resolveRef } from "@/core/ai/refs";
+import { resolveProjectByName } from "@/modules/projects/subject";
 import { pickExecutor } from "./queries";
 import { openPullRequest } from "./git";
 import { TASK_TYPES, taskAttempts, workbenchTasks } from "./schema";
@@ -57,9 +59,9 @@ export const workbenchTools: AiToolDef[] = [
   {
     name: "workbench.openPR",
     description:
-      "Open a pull request for a Workbench task's branch — push the branch to GitHub and create the PR. This is an outward action: it is queued for the user's approval and pushes only once approved. Never merges.",
+      "Open a pull request for a Workbench task's branch — push the branch to GitHub and create the PR. Identify the task by its `ref` from workbench.list (e.g. 'w2'). This is an outward action: it is queued for the user's approval and pushes only once approved. Never merges.",
     input: z.object({
-      taskId: z.string().uuid(),
+      ref: z.string().describe("Workbench task ref from workbench.list, e.g. 'w2'"),
       title: z.string().min(1).describe("PR title"),
       body: z.string().describe("PR description (markdown)"),
       prBranch: z
@@ -69,23 +71,28 @@ export const workbenchTools: AiToolDef[] = [
       routineId: z.string().uuid().optional(),
     }),
     risk: "approval",
-    execute: async (i: {
-      taskId: string;
-      title: string;
-      body: string;
-      prBranch?: string;
-      routineId?: string;
-    }) => {
+    execute: async (
+      i: {
+        ref: string;
+        title: string;
+        body: string;
+        prBranch?: string;
+        routineId?: string;
+      },
+      ctx: AiToolContext,
+    ) => {
+      const t = resolveRef(ctx, "wtask", i.ref);
+      if ("error" in t) return t;
       const [task] = await db
         .select()
         .from(workbenchTasks)
-        .where(eq(workbenchTasks.id, i.taskId));
+        .where(eq(workbenchTasks.id, t.id));
       if (!task) return { error: "task not found" };
       if (!task.repoPath) return { error: "task has no repo — nothing to PR" };
       const [attempt] = await db
         .select()
         .from(taskAttempts)
-        .where(eq(taskAttempts.taskId, i.taskId))
+        .where(eq(taskAttempts.taskId, t.id))
         .orderBy(desc(taskAttempts.seq))
         .limit(1);
       if (!attempt?.branch) return { error: "no branch on the latest attempt" };
@@ -103,8 +110,8 @@ export const workbenchTools: AiToolDef[] = [
         await db
           .update(workbenchTasks)
           .set({ prUrl: url || null, updatedAt: new Date() })
-          .where(eq(workbenchTasks.id, i.taskId));
-        await sql.notify("workbench_changed", i.taskId);
+          .where(eq(workbenchTasks.id, t.id));
+        await sql.notify("workbench_changed", t.id);
         if (i.routineId) {
           const { routines } = await import("./schema");
           await db
@@ -127,38 +134,48 @@ export const workbenchTools: AiToolDef[] = [
       status: z.string().optional().describe("Filter, e.g. 'review' or 'running'."),
       limit: z.number().int().min(1).max(50).optional(),
     }),
-    execute: async (i: { status?: string; limit?: number }) => {
+    execute: async (i: { status?: string; limit?: number }, ctx: AiToolContext) => {
       const rows = await db
         .select()
         .from(workbenchTasks)
         .orderBy(desc(workbenchTasks.createdAt))
         .limit(i.limit ?? 15);
-      return rows
-        .filter((r) => !i.status || r.status === i.status)
-        .map((r) => ({
-          id: r.id,
-          title: r.title,
-          type: r.taskType,
-          status: r.status,
-          summary: r.summary?.slice(0, 400) ?? null,
-        }));
+      // Each task gets a short handle (w1, w2…) for workbench.get / openPR.
+      return registerRefs(
+        ctx,
+        "wtask",
+        "w",
+        rows
+          .filter((r) => !i.status || r.status === i.status)
+          .map((r) => ({
+            id: r.id,
+            title: r.title,
+            type: r.taskType,
+            status: r.status,
+            summary: r.summary?.slice(0, 400) ?? null,
+          })),
+      );
     },
   },
   {
     name: "workbench.get",
     description:
-      "Read one Workbench task in full: prompt, status, result and attempt history.",
-    input: z.object({ taskId: z.string().uuid() }),
-    execute: async (i: { taskId: string }) => {
+      "Read one Workbench task in full: prompt, status, result and attempt history. Identify it by its `ref` from workbench.list (e.g. 'w2').",
+    input: z.object({
+      ref: z.string().describe("Workbench task ref from workbench.list, e.g. 'w2'"),
+    }),
+    execute: async (i: { ref: string }, ctx: AiToolContext) => {
+      const t = resolveRef(ctx, "wtask", i.ref);
+      if ("error" in t) return t;
       const [task] = await db
         .select()
         .from(workbenchTasks)
-        .where(eq(workbenchTasks.id, i.taskId));
+        .where(eq(workbenchTasks.id, t.id));
       if (!task) return { error: "not found" };
       const attempts = await db
         .select()
         .from(taskAttempts)
-        .where(eq(taskAttempts.taskId, i.taskId));
+        .where(eq(taskAttempts.taskId, t.id));
       return {
         ...task,
         attempts: attempts.map((a) => ({
@@ -179,7 +196,9 @@ export const workbenchTools: AiToolDef[] = [
       "Set up a RECURRING delegation (a routine): a standing ask that fires on a trigger — every new commit, a cron schedule, or both — against a project's attached repo, delivering changes as an approval-gated PR. Use to automate ongoing work (e.g. 'keep the docs in sync on every commit'). The project must have a repo attached.",
     input: z.object({
       name: z.string().min(1).describe("Short routine name"),
-      projectId: z.string().uuid().describe("Project (must have a repo) from projects.list"),
+      project: z
+        .string()
+        .describe("Project NAME (must have a repo attached), validated server-side"),
       prompt: z.string().min(1).describe("The standing instruction run on each trigger"),
       triggerKind: z
         .enum(["commit", "schedule", "both"])
@@ -191,12 +210,14 @@ export const workbenchTools: AiToolDef[] = [
         .describe("Cron expression, required when triggerKind includes 'schedule'"),
       model: z.string().optional().describe("Free model override; omit for the default"),
     }),
-    async execute(input) {
+    async execute(input, ctx) {
       try {
+        const p = await resolveProjectByName(ctx, input.project);
+        if ("error" in p) return p;
         const { createRoutine } = await import("./actions");
         const row = await createRoutine({
           name: input.name,
-          projectId: input.projectId,
+          projectId: p.id,
           prompt: input.prompt,
           triggerKind: input.triggerKind,
           schedule: input.schedule ?? null,

@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import type { AiToolDef } from "@/core/modules/types.server";
 import { sql } from "@/core/db/client";
 import { getProjectCockpit, getProjectTasks } from "./queries";
-import { boundProjectId } from "./subject";
+import { boundProjectId, resolveProjectByName } from "./subject";
 import { usableRepoPath } from "./repo";
 import { projectFiles, projects, PROJECT_HEALTHS, PROJECT_STATUSES } from "./schema";
 
@@ -136,16 +136,18 @@ export const projectTools: AiToolDef[] = [
   {
     name: "projects.setStatus",
     description:
-      "Set a project's status (active | paused | done). Find the id via projects.list first.",
+      "Set a project's status (active | paused | done). Identify the project by its NAME (validated) — never a raw id.",
     input: z.object({
-      id: z.string().uuid(),
+      project: z.string().describe("Project NAME, validated server-side"),
       status: z.enum(PROJECT_STATUSES),
     }),
-    async execute(input, { db }) {
-      const [row] = await db
+    async execute(input, ctx) {
+      const p = await resolveProjectByName(ctx, input.project);
+      if ("error" in p) return p;
+      const [row] = await ctx.db
         .update(projects)
         .set({ status: input.status, updatedAt: new Date() })
-        .where(eq(projects.id, input.id))
+        .where(eq(projects.id, p.id))
         .returning();
       return row
         ? { updated: { id: row.id, status: row.status } }
@@ -221,9 +223,22 @@ export const projectTools: AiToolDef[] = [
     name: "projects.listFiles",
     description:
       "List the files attached to a project (filename, size, and whether their text was extracted). Use before answering questions about a project's specs/docs — search.everything already covers their content by meaning, this is for a direct inventory.",
-    input: z.object({ projectId: z.string().uuid() }),
-    async execute(input, { db }) {
-      const rows = await db
+    input: z.object({
+      project: z
+        .string()
+        .optional()
+        .describe("Project NAME (validated); omit in a focused agent run to use the focused project"),
+    }),
+    async execute(input, ctx) {
+      const pid =
+        ctx.subject?.kind === "project" ? ctx.subject.id : undefined;
+      let projectId = pid;
+      if (!projectId) {
+        const p = await resolveProjectByName(ctx, input.project);
+        if ("error" in p) return p;
+        projectId = p.id;
+      }
+      const rows = await ctx.db
         .select({
           id: projectFiles.id,
           filename: projectFiles.filename,
@@ -231,7 +246,7 @@ export const projectTools: AiToolDef[] = [
           status: projectFiles.status,
         })
         .from(projectFiles)
-        .where(eq(projectFiles.projectId, input.projectId));
+        .where(eq(projectFiles.projectId, projectId));
       return rows;
     },
   },

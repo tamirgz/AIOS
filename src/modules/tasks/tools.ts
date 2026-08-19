@@ -2,6 +2,7 @@ import { z } from "zod";
 import { and, asc, eq, ilike } from "drizzle-orm";
 import type { AiToolDef } from "@/core/modules/types.server";
 import { registerRefs, resolveRef } from "@/core/ai/refs";
+import { resolveProjectByName } from "@/modules/projects/subject";
 import {
   priorityRank,
   tasks,
@@ -22,21 +23,26 @@ export const taskTools: AiToolDef[] = [
         .string()
         .optional()
         .describe("Due date-time in ISO 8601, if the user gave one"),
-      projectId: z
+      project: z
         .string()
-        .uuid()
         .optional()
-        .describe("Project/area to file this task under (from projects.list)"),
+        .describe("Project/area NAME to file this task under (validated) — never a raw id"),
     }),
-    async execute(input, { db }) {
-      const [row] = await db
+    async execute(input, ctx) {
+      let projectRef: string | null = null;
+      if (input.project) {
+        const p = await resolveProjectByName(ctx, input.project);
+        if ("error" in p) return p;
+        projectRef = `projects:${p.id}`;
+      }
+      const [row] = await ctx.db
         .insert(tasks)
         .values({
           title: input.title,
           notes: input.notes ?? null,
           priority: input.priority,
           dueAt: input.dueAt ? new Date(input.dueAt) : null,
-          projectRef: input.projectId ? `projects:${input.projectId}` : null,
+          projectRef,
         })
         .returning();
       return { created: { id: row.id, title: row.title } };
@@ -107,42 +113,54 @@ export const taskTools: AiToolDef[] = [
   {
     name: "tasks.update",
     description:
-      "Edit a task's fields (title, notes, priority, due date, or the project it's filed under). Only pass the fields you want to change. Find the id via tasks.list.",
+      "Edit a task's fields (title, notes, priority, due date, or the project it's filed under). Only pass the fields you want to change. Identify the task by its `ref` from tasks.list (e.g. 't3').",
     input: z.object({
-      id: z.string().uuid(),
+      ref: z.string().describe("Task ref from tasks.list, e.g. 't3'"),
       title: z.string().min(1).optional(),
       notes: z.string().optional(),
       priority: z.enum(TASK_PRIORITIES).optional(),
       dueAt: z.string().optional().describe("ISO 8601; empty string clears it"),
-      projectId: z
+      project: z
         .string()
         .optional()
-        .describe("Project/area uuid to file under; empty string unfiles"),
+        .describe("Project/area NAME to file under (validated); empty string unfiles"),
     }),
-    async execute(input, { db }) {
+    async execute(input, ctx) {
+      const t = resolveRef(ctx, "task", input.ref);
+      if ("error" in t) return t;
       const patch: Record<string, unknown> = {};
       if (input.title !== undefined) patch.title = input.title;
       if (input.notes !== undefined) patch.notes = input.notes || null;
       if (input.priority !== undefined) patch.priority = input.priority;
       if (input.dueAt !== undefined) patch.dueAt = input.dueAt ? new Date(input.dueAt) : null;
-      if (input.projectId !== undefined)
-        patch.projectRef = input.projectId ? `projects:${input.projectId}` : null;
+      if (input.project !== undefined) {
+        if (input.project === "") patch.projectRef = null;
+        else {
+          const p = await resolveProjectByName(ctx, input.project);
+          if ("error" in p) return p;
+          patch.projectRef = `projects:${p.id}`;
+        }
+      }
       if (Object.keys(patch).length === 0) return { error: "nothing to update" };
-      const [row] = await db
+      const [row] = await ctx.db
         .update(tasks)
         .set(patch)
-        .where(eq(tasks.id, input.id))
+        .where(eq(tasks.id, t.id))
         .returning();
       return row ? { updated: { id: row.id, title: row.title } } : { error: "task not found" };
     },
   },
   {
     name: "tasks.delete",
-    description: "Delete a task permanently. Find the id via tasks.list.",
+    description: "Delete a task permanently. Identify it by its `ref` from tasks.list (e.g. 't3').",
     risk: "approval",
-    input: z.object({ id: z.string().uuid() }),
-    async execute(input, { db }) {
-      const [row] = await db.delete(tasks).where(eq(tasks.id, input.id)).returning();
+    input: z.object({
+      ref: z.string().describe("Task ref from tasks.list, e.g. 't3'"),
+    }),
+    async execute(input, ctx) {
+      const t = resolveRef(ctx, "task", input.ref);
+      if ("error" in t) return t;
+      const [row] = await ctx.db.delete(tasks).where(eq(tasks.id, t.id)).returning();
       return row ? { deleted: row.id } : { error: "task not found" };
     },
   },
