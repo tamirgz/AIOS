@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
-import { Chakra_Petch, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
+import {
+  Chakra_Petch,
+  Heebo,
+  IBM_Plex_Mono,
+  Instrument_Sans,
+} from "next/font/google";
 import { getSetting } from "@/core/app-settings";
 import { themeAttr } from "@/core/theme";
 import "./globals.css";
@@ -21,6 +26,15 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
 });
 
+// Hebrew face (exposed as --font-hebrew so swapping it is a one-line change).
+// Latin text still uses the fonts above; Hebrew glyphs (absent from them) fall
+// through to this face via the font-family stacks in globals.css — so Hebrew
+// renders crisply instead of in the generic system font.
+const hebrew = Heebo({
+  variable: "--font-hebrew",
+  subsets: ["hebrew", "latin"],
+});
+
 export const metadata: Metadata = {
   title: "apOS — Agentic Personalized Operating System",
   description:
@@ -40,7 +54,7 @@ export default async function RootLayout({
     <html
       lang="en"
       data-theme={attr || undefined}
-      className={`${chakra.variable} ${instrument.variable} ${plexMono.variable} h-full antialiased`}
+      className={`${chakra.variable} ${instrument.variable} ${plexMono.variable} ${hebrew.variable} h-full antialiased`}
     >
       <body className="min-h-full">{children}</body>
     </html>

@@ -6,9 +6,12 @@
 --------------------------------------------------------------------------- */
 
 @theme {
-  --font-display: var(--font-chakra), "Chakra Petch", sans-serif;
-  --font-sans: var(--font-instrument), "Instrument Sans", sans-serif;
-  --font-mono: var(--font-plex-mono), "IBM Plex Mono", monospace;
+  /* Latin faces come first; Hebrew glyphs (which they lack) fall through to the
+     dedicated Hebrew face (--font-hebrew, set in layout.tsx) before any generic
+     system font. Swapping the Hebrew font is a one-line change in layout.tsx. */
+  --font-display: var(--font-chakra), "Chakra Petch", var(--font-hebrew), sans-serif;
+  --font-sans: var(--font-instrument), "Instrument Sans", var(--font-hebrew), sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", var(--font-hebrew), monospace;
 
   /* base surfaces */
   --color-void: #04070c;
