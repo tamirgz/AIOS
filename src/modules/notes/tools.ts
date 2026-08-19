@@ -1,29 +1,35 @@
 import { z } from "zod";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import type { AiToolDef } from "@/core/modules/types.server";
+import { registerRefs, resolveRef } from "@/core/ai/refs";
+import { resolveProjectByName } from "@/modules/projects/subject";
 import { filedUnder, notes } from "./schema";
 
 export const noteTools: AiToolDef[] = [
   {
     name: "notes.setProject",
     description:
-      "Link a note to a project (or unlink with projectId omitted). Find ids via notes.search and projects.list.",
+      "Link a note to a project (or unlink by omitting project). Identify the note by its `ref` from notes.search (e.g. 'n2') and the project by its NAME — never raw ids.",
     input: z.object({
-      id: z.string().uuid(),
-      projectId: z
+      ref: z.string().describe("Note ref from notes.search, e.g. 'n2'"),
+      project: z
         .string()
-        .uuid()
         .optional()
-        .describe("Omit to remove the note from its project"),
+        .describe("Project NAME to file under (validated); omit to unlink"),
     }),
-    async execute(input, { db }) {
-      const [row] = await db
+    async execute(input, ctx) {
+      const n = resolveRef(ctx, "note", input.ref);
+      if ("error" in n) return n;
+      let projectRefs: string[] = [];
+      if (input.project) {
+        const p = await resolveProjectByName(ctx, input.project);
+        if ("error" in p) return p;
+        projectRefs = [`projects:${p.id}`];
+      }
+      const [row] = await ctx.db
         .update(notes)
-        .set({
-          projectRefs: input.projectId ? [`projects:${input.projectId}`] : [],
-          updatedAt: new Date(),
-        })
-        .where(eq(notes.id, input.id))
+        .set({ projectRefs, updatedAt: new Date() })
+        .where(eq(notes.id, n.id))
         .returning();
       return row
         ? { updated: { id: row.id, projectRefs: row.projectRefs } }
@@ -33,24 +39,25 @@ export const noteTools: AiToolDef[] = [
   {
     name: "notes.create",
     description:
-      "Create a new markdown note. Use for capturing ideas, references or longer-form text.",
+      "Create a new markdown note. Use for capturing ideas, references or longer-form text. Optionally file it under a project by NAME (validated) — never a raw id.",
     input: z.object({
       title: z.string().min(1).describe("Short note title"),
       body: z.string().optional().describe("Markdown body"),
-      projectId: z
+      project: z
         .string()
-        .uuid()
         .optional()
-        .describe("Link the note to this project (from projects.list)"),
+        .describe("Project NAME to file the note under (validated)"),
     }),
-    async execute(input, { db }) {
-      const [row] = await db
+    async execute(input, ctx) {
+      let projectRefs: string[] = [];
+      if (input.project) {
+        const p = await resolveProjectByName(ctx, input.project);
+        if ("error" in p) return p;
+        projectRefs = [`projects:${p.id}`];
+      }
+      const [row] = await ctx.db
         .insert(notes)
-        .values({
-          title: input.title,
-          body: input.body ?? "",
-          projectRefs: input.projectId ? [`projects:${input.projectId}`] : [],
-        })
+        .values({ title: input.title, body: input.body ?? "", projectRefs })
         .returning();
       return { created: { id: row.id, title: row.title } };
     },
@@ -58,50 +65,60 @@ export const noteTools: AiToolDef[] = [
   {
     name: "notes.search",
     description:
-      "Search notes by a case-insensitive match on title or body. Returns snippets; use notes.read for the full body.",
+      "Search notes by a case-insensitive match on title or body. Each result carries a short `ref` (n1, n2…) — use it with notes.read / notes.append / notes.setProject. Returns snippets; use notes.read for the full body.",
     input: z.object({
       query: z.string().min(1).describe("Text to search for"),
-      projectId: z
+      project: z
         .string()
-        .uuid()
         .optional()
-        .describe("Only notes linked to this project"),
+        .describe("Only notes filed under this project NAME (validated)"),
       limit: z.number().int().min(1).max(50).default(10),
     }),
-    async execute(input, { db }) {
+    async execute(input, ctx) {
+      let projId: string | undefined;
+      if (input.project) {
+        const p = await resolveProjectByName(ctx, input.project);
+        if ("error" in p) return p;
+        projId = p.id;
+      }
       const match = or(
         ilike(notes.title, `%${input.query}%`),
         ilike(notes.body, `%${input.query}%`),
       );
-      const rows = await db
+      const rows = await ctx.db
         .select()
         .from(notes)
-        .where(
-          input.projectId ? and(match, filedUnder(input.projectId)) : match,
-        )
+        .where(projId ? and(match, filedUnder(projId)) : match)
         .orderBy(desc(notes.updatedAt))
         .limit(input.limit);
-      return rows.map((n) => ({
-        id: n.id,
-        title: n.title,
-        snippet: n.body.slice(0, 200),
-        projectRefs: n.projectRefs,
-        updatedAt: n.updatedAt,
-      }));
+      return registerRefs(
+        ctx,
+        "note",
+        "n",
+        rows.map((n) => ({
+          id: n.id,
+          title: n.title,
+          snippet: n.body.slice(0, 200),
+          projectRefs: n.projectRefs,
+          updatedAt: n.updatedAt,
+        })),
+      );
     },
   },
   {
     name: "notes.read",
     description:
-      "Read a single note in full, including its markdown body. Find the id via notes.search first.",
+      "Read a single note in full, including its markdown body. Identify it by its `ref` from notes.search (e.g. 'n2').",
     input: z.object({
-      id: z.string().uuid(),
+      ref: z.string().describe("Note ref from notes.search, e.g. 'n2'"),
     }),
-    async execute(input, { db }) {
-      const [row] = await db
+    async execute(input, ctx) {
+      const n = resolveRef(ctx, "note", input.ref);
+      if ("error" in n) return n;
+      const [row] = await ctx.db
         .select()
         .from(notes)
-        .where(eq(notes.id, input.id))
+        .where(eq(notes.id, n.id))
         .limit(1);
       return row
         ? {
@@ -118,25 +135,27 @@ export const noteTools: AiToolDef[] = [
   {
     name: "notes.append",
     description:
-      "Append markdown text to the end of an existing note's body. Find the id via notes.search first.",
+      "Append markdown text to the end of an existing note's body. Identify the note by its `ref` from notes.search (e.g. 'n2').",
     input: z.object({
-      id: z.string().uuid(),
+      ref: z.string().describe("Note ref from notes.search, e.g. 'n2'"),
       text: z.string().min(1).describe("Markdown text to append"),
     }),
-    async execute(input, { db }) {
-      const [row] = await db
+    async execute(input, ctx) {
+      const n = resolveRef(ctx, "note", input.ref);
+      if ("error" in n) return n;
+      const [row] = await ctx.db
         .select()
         .from(notes)
-        .where(eq(notes.id, input.id))
+        .where(eq(notes.id, n.id))
         .limit(1);
       if (!row) return { error: "note not found" };
-      const [updated] = await db
+      const [updated] = await ctx.db
         .update(notes)
         .set({
           body: row.body ? `${row.body}\n\n${input.text}` : input.text,
           updatedAt: new Date(),
         })
-        .where(eq(notes.id, input.id))
+        .where(eq(notes.id, n.id))
         .returning();
       return { updated: { id: updated.id, title: updated.title } };
     },
