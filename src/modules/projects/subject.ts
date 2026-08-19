@@ -86,3 +86,33 @@ export async function resolveProjectTarget(
   }
   return { error: "no project target: focus a project, or pass its exact name" };
 }
+
+/**
+ * Resolve a project by NAME for FILING (notes, tasks) — matches any NON-ARCHIVED
+ * project (active/paused/done), validated. The model names a project instead of
+ * copying a uuid, so a note/task can't be filed under the wrong (or a phantom)
+ * project. Returns {id,name} or a helpful error.
+ */
+export async function resolveProjectByName(
+  ctx: AiToolContext,
+  name: string | null | undefined,
+): Promise<{ id: string; name: string } | { error: string }> {
+  const db = ctx.db ?? defaultDb;
+  const n = name?.trim();
+  if (!n) return { error: "no project name given" };
+  const rows = await db
+    .select({ id: projects.id, name: projects.name })
+    .from(projects)
+    .where(
+      and(
+        sql`${projects.status} <> 'archived'`,
+        sql`lower(${projects.name}) = ${n.toLowerCase()}`,
+      ),
+    );
+  if (rows.length === 1) return rows[0];
+  if (rows.length === 0)
+    return {
+      error: `No project named "${n}". Use the exact name from your project list.`,
+    };
+  return { error: `"${n}" matches ${rows.length} projects — ambiguous.` };
+}

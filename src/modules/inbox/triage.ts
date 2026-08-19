@@ -76,8 +76,8 @@ export async function triageInboxItem(itemId: string): Promise<void> {
       system: [
         "You are the inbox triage of apOS, the user's Agentic Personalized Operating System.",
         "STEP 1 — is this a STATUS UPDATE about something that already exists, not a new item? Signals: 'I finished/did/completed X', 'done with Y', 'started on Z', 'X is blocked/on hold'. If so:",
-        "  • Call tasks.list with a distinctive keyword from the input as `search` (e.g. a project or noun — not filler words) to find the task it refers to. Pick the best-matching NOT-done task.",
-        "  • If you find it, update it with tasks.setStatus — 'done' when completed/finished, 'doing' when started. Do NOT create a new task for a completion report.",
+        "  • Call tasks.list with a distinctive keyword from the input as `search` (e.g. a project or noun — not filler words) to find the task it refers to. Each result carries a short `ref`. Pick the best-matching NOT-done task.",
+        "  • If you find it, update it with tasks.setStatus using that task's `ref` (never an id) — 'done' when completed/finished, 'doing' when started. Do NOT create a new task for a completion report.",
         "  • Only if no existing task plausibly matches, fall through to STEP 2.",
         "STEP 2 — otherwise CREATE exactly one item:",
         "  • actionable to-do → tasks.create (clean imperative title; set priority/dueAt if implied)",
