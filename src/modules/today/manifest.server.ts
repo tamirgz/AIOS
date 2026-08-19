@@ -32,16 +32,13 @@ export const todayServerManifest: ModuleServerManifest = {
       // things worth attention. Idempotent per calendar day via dedupeKey.
       defaultPrompt: [
         "You are the user's chief-of-staff planning the day. Today's plan surface already shows their calendar and due tasks — your job is judgment, not repetition.",
-        "1. Use attention.list to see what's already surfaced (never duplicate), and projects.withoutNextAction to find active projects (by NAME) lacking a next step.",
-        "2. For at most the 2 most important active projects with no next-action, set a concrete one with projects.setNextAction — identify the project by its NAME (from projects.withoutNextAction); there are no ids to copy, and the name is validated server-side.",
-        "3. Raise at most 2–3 attention items for what genuinely needs the user today: a 'do' card for the single most important next-action, and a 'notify' if something is slipping. To anchor a card to a project, pass its NAME to attention.raise (never an id). Use type 'do'/'notify'; reserve 'approve' for real side-effects (there are none here). Give each a dedupeKey like 'plan:<YYYY-MM-DD>:<slug>' so a re-run today is a no-op.",
-        "4. Keep it minimal — a good chief of staff surfaces the vital few, not everything. Do not send notifications; the cards are the output.",
+        "1. Use attention.list to see what's already surfaced (never duplicate). Project next-actions are handled elsewhere — derived from each project's real tasks, with the pulse writing an '[Advise] …' step when a project has none — so you do NOT set them here.",
+        "2. Raise at most 2–3 attention items for what genuinely needs the user today: a 'do' card for the single most important next step, and a 'notify' if something is slipping. To anchor a card to a project, pass its NAME to attention.raise (never an id). Use type 'do'/'notify'; reserve 'approve' for real side-effects (there are none here). Give each a dedupeKey like 'plan:<YYYY-MM-DD>:<slug>' so a re-run today is a no-op.",
+        "3. Keep it minimal — a good chief of staff surfaces the vital few, not everything. Do not send notifications; the cards are the output.",
       ].join("\n"),
       defaultTools: [
         "attention.raise",
         "attention.list",
-        "projects.setNextAction",
-        "projects.withoutNextAction",
         "tasks.list",
         "gmail.recent",
         "search.everything",

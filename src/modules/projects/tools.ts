@@ -103,9 +103,12 @@ export const projectTools: AiToolDef[] = [
       }
       const it = cur.items[cur.index++];
       ctx.subject = { kind: "project", id: it.id, name: it.name };
-      // Attach the focused project's OPEN tasks so the model has real evidence
-      // (titles, priority, due dates) without ever handling a project id.
-      const openTasks = (await getProjectTasks(it.id, ctx.db))
+      // Attach the focused project's tasks so the model has real evidence
+      // (titles, priority, due dates) without ever handling a project id. Open
+      // tasks feed the derived next-action; the recently-completed ones let the
+      // pulse write an "[Advise] …" next step when nothing is open.
+      const all = await getProjectTasks(it.id, ctx.db);
+      const openTasks = all
         .filter((t) => t.status !== "done")
         .slice(0, 20)
         .map((t) => ({
@@ -114,9 +117,18 @@ export const projectTools: AiToolDef[] = [
           priority: t.priority,
           dueAt: t.dueAt,
         }));
+      const recentlyCompleted = all
+        .filter((t) => t.status === "done")
+        .sort(
+          (a, b) =>
+            (b.completedAt ? +new Date(b.completedAt) : 0) -
+            (a.completedAt ? +new Date(a.completedAt) : 0),
+        )
+        .slice(0, 8)
+        .map((t) => ({ title: t.title, completedAt: t.completedAt }));
       return {
         focused: it.name,
-        project: { ...it.read, openTasks },
+        project: { ...it.read, openTasks, recentlyCompleted },
         remaining: cur.items.length - cur.index,
       };
     },
