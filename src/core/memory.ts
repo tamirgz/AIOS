@@ -400,3 +400,58 @@ export async function recallEntries(
     source: r.source,
   }));
 }
+
+/**
+ * Unified SEMANTIC recall across the whole ecosystem's index — not just memory,
+ * but the user's knowledge base, notes and Obsidian vault. This is how ecosystem
+ * data is delivered INTO the memory context: one embedding query over the shared
+ * `search_index` (which already covers all sources). Best-effort → [] on any
+ * failure. Returns labeled snippets so the caller can show provenance.
+ */
+export async function recallSemantic(
+  query: string,
+  opts: { kinds?: string[]; limit?: number } = {},
+): Promise<{ kind: string; text: string; href: string | null }[]> {
+  const kinds = opts.kinds ?? ["memory", "knowledge", "note", "vault"];
+  const limit = opts.limit ?? 6;
+  const q = query.trim();
+  if (!q) return [];
+  try {
+    const { embedText } = await import("@/core/embeddings");
+    const vec = `[${(await embedText(q)).join(",")}]`;
+    const kindList = dsql.join(
+      kinds.map((k) => dsql`${k}`),
+      dsql`, `,
+    );
+    // Tier discipline: from the memory index include only SEMANTIC + PROCEDURAL
+    // entries (facts/decisions/lessons/policies) — episodic noise (superseded
+    // block-dumps, raw events) never belongs in retrieval-augmented context.
+    // Other ecosystem kinds (knowledge/note/vault…) pass through whole.
+    const rows = await db.execute<{
+      kind: string;
+      snippet: string | null;
+      title: string | null;
+      href: string | null;
+      distance: number;
+    }>(dsql`
+      select si.kind, si.snippet, si.title, si.href,
+             (si.embedding <=> ${vec}::vector) as distance
+        from search_index si
+        left join memory_entries m
+          on si.kind = 'memory' and m.id::text = si.source_id
+       where si.kind in (${kindList}) and si.embedding is not null
+         and (si.kind <> 'memory'
+              or m.kind in ('fact', 'decision', 'lesson', 'policy'))
+       order by distance asc
+       limit ${limit}`);
+    return [...rows]
+      .map((r) => ({
+        kind: r.kind,
+        text: (r.snippet ?? r.title ?? "").trim().slice(0, 400),
+        href: r.href,
+      }))
+      .filter((r) => r.text);
+  } catch {
+    return [];
+  }
+}

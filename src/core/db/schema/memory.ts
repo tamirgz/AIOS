@@ -25,13 +25,25 @@ export const memoryBlocks = pgTable("memory_blocks", {
 export type MemoryBlock = typeof memoryBlocks.$inferSelect;
 
 export const MEMORY_ENTRY_KINDS = [
-  "fact",
-  "decision",
-  "lesson",
-  "event",
-  "superseded",
+  "fact", // semantic — what's true
+  "decision", // semantic — a settled choice + its rationale
+  "lesson", // procedural — a learned "next time do X"
+  "policy", // procedural — a distilled operating rule (from consolidation)
+  "event", // episodic — what happened, time-stamped
+  "superseded", // episodic — a replaced block value, kept as a trail
 ] as const;
 export type MemoryEntryKind = (typeof MEMORY_ENTRY_KINDS)[number];
+
+/** The cognitive tier a kind belongs to (episodic/semantic/procedural). Kept
+ *  next to the kinds so retention, recall, and consolidation agree on it. */
+export const MEMORY_TIER: Record<MemoryEntryKind, "episodic" | "semantic" | "procedural"> = {
+  fact: "semantic",
+  decision: "semantic",
+  lesson: "procedural",
+  policy: "procedural",
+  event: "episodic",
+  superseded: "episodic",
+};
 
 /**
  * Archival memory — append-only, semantically searchable long-tail memory

@@ -126,9 +126,24 @@ export const projectTools: AiToolDef[] = [
         )
         .slice(0, 8)
         .map((t) => ({ title: t.title, completedAt: t.completedAt }));
+      // Per-subject scoped recall: the lessons/knowledge/notes most relevant to
+      // THIS project, so a per-project judgement (health, advisor brief) is
+      // grounded in accumulated wisdom about it — not generic. Bounded, best-effort.
+      let relevantMemory: { kind: string; text: string }[] = [];
+      try {
+        const { recallSemantic } = await import("@/core/memory");
+        const goal = (it.read as { goal?: string | null }).goal ?? "";
+        const hits = await recallSemantic(`${it.name}. ${goal}`.slice(0, 300), {
+          kinds: ["memory", "knowledge", "note"],
+          limit: 3,
+        });
+        relevantMemory = hits.map((h) => ({ kind: h.kind, text: h.text }));
+      } catch {
+        // best-effort — recall must never break iteration
+      }
       return {
         focused: it.name,
-        project: { ...it.read, openTasks, recentlyCompleted },
+        project: { ...it.read, openTasks, recentlyCompleted, relevantMemory },
         remaining: cur.items.length - cur.index,
       };
     },

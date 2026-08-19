@@ -149,18 +149,22 @@ export async function executeRun(runId: string): Promise<void> {
       ...ledgerTools(ledger),
     ];
 
-    const { renderMemoryContext, recallEntries } = await import("@/core/memory");
-    // Retrieval-augment the run: surface the few archival lessons/decisions most
-    // relevant to THIS agent's task, so accumulated wisdom actually shapes the
-    // work instead of sitting unused until an agent happens to call memory.recall.
-    // Bounded (top 4 snippets) and best-effort — never blocks or bloats the run.
+    const { renderMemoryContext, recallSemantic } = await import("@/core/memory");
+    // Retrieval-augment the run across the WHOLE ecosystem — the agent's own
+    // memory (lessons/decisions/facts) PLUS the user's knowledge base and notes,
+    // ranked by relevance to this agent's task. So accumulated wisdom and saved
+    // knowledge actually shape the work instead of sitting unused. Bounded
+    // (top 5 snippets) and best-effort — never blocks or bloats the run.
     let recalled = "";
     try {
-      const hits = await recallEntries(`${agent.name}. ${agent.prompt}`.slice(0, 800), 4);
+      const hits = await recallSemantic(`${agent.name}. ${agent.prompt}`.slice(0, 800), {
+        kinds: ["memory", "knowledge", "note"],
+        limit: 5,
+      });
       if (hits.length) {
         recalled = [
           "",
-          "RELEVANT PAST MEMORY (accumulated lessons/decisions — apply them: don't repeat a past mistake or re-decide a settled question):",
+          "RELEVANT CONTEXT (from your memory + the user's knowledge base/notes — apply lessons, reuse what's already known, don't repeat a past mistake or re-decide a settled question):",
           ...hits.map((h) => `• [${h.kind}] ${h.text}`),
         ].join("\n");
       }
