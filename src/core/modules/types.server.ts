@@ -88,7 +88,7 @@ export interface AgentTemplate {
    * pin these to a FREE model (local ollama, or free-tier nvidia cloud) so the
    * heartbeat never bills — see ONE-STOP-PLAN §4. Omit to use agent.default.
    */
-  defaultProvider?: "anthropic" | "ollama" | "nvidia";
+  defaultProvider?: "anthropic" | "ollama" | "nvidia" | "mlx";
   defaultModel?: string;
   /**
    * Local Ollama model to retry on if `defaultProvider` is a cloud provider and

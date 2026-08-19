@@ -130,7 +130,11 @@ export async function updateMemoryBlock(
   mode: "replace" | "append" = "replace",
   description?: string,
 ) {
-  const slug = label.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+  const slug = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
   if (!slug) throw new Error("memory block label required");
 
   let [block] = await db
@@ -186,7 +190,11 @@ export async function updateMemoryBlock(
 
 /** Create an empty block explicitly (Settings UI). */
 export async function createMemoryBlockDef(label: string, description: string) {
-  const slug = label.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_");
+  const slug = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
   if (!slug) throw new Error("label required");
   const count = (await db.select({ l: memoryBlocks.label }).from(memoryBlocks))
     .length;

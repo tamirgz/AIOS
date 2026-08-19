@@ -11,7 +11,8 @@
     "test:tools": "tsx scripts/test-tools.mts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test:memory": "tsx scripts/test-memory.mts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.214",

@@ -37,8 +37,13 @@ export const agentsServerManifest: ModuleServerManifest = {
       name: "Memory consolidation",
       description:
         "Weekly: reviews tasks, projects and recent knowledge, then rewrites the active_projects and current_focus memory blocks so every AI call starts with fresh context.",
-      defaultPrompt:
-        "Consolidate my working memory. Review tasks.list (todo and doing), projects.list, and knowledge.search for recent themes. Then rewrite the memory blocks: memory.update active_projects with a compressed live summary of projects and their real state, and memory.update current_focus with what I'm actually working on this week. Be terse — these blocks are injected into every AI call. Use ledger.mark with the ISO week (e.g. 2026-W30) so a re-run in the same week is a no-op after checking ledger.has.",
+      defaultPrompt: [
+        "Consolidate the user's WORKING MEMORY — the two blocks injected into EVERY AI call, so keep them tight, accurate and current.",
+        "1. Read projects.list (state, goal, next action, health, task counts) and tasks.list (todo/doing). Optionally memory.review('episodic') for recent activity signals.",
+        "2. memory.update 'active_projects' — ONE compressed line per ACTIVE project: name — state — the real next thing. Terse; no filler.",
+        "3. memory.update 'current_focus' — 2-4 lines synthesising what the user is ACTUALLY pushing this week (infer from health, next-actions, overdue counts, idleness). Specific and honest, not a list restatement.",
+        "Use ledger.mark with the ISO week (e.g. 2026-W30) so a same-week re-run is a no-op after checking ledger.has. Do NOT touch other memory blocks.",
+      ].join("\n"),
       defaultTools: [
         "tasks.list",
         "projects.list",
@@ -47,10 +52,14 @@ export const agentsServerManifest: ModuleServerManifest = {
         "memory.update",
       ],
       defaultSchedule: "0 20 * * 0",
-      // Memory work runs on a FREE LOCAL model — it's periodic and must never
-      // bill (ONE-STOP §4). Without this it falls through to agent.default.
-      defaultProvider: "ollama",
-      defaultModel: "qwen3-coder:30b",
+      // Memory work runs on a FREE LOCAL model — periodic, must never bill.
+      // Benched (data quality + tool-use) across MLX/gemma4/Haiku: the MLX
+      // abliterated-35B won on both — sharpest synthesis AND precise tool-calls
+      // (2 calls → 2 blocks, vs ollama's 12). Falls back to always-on Ollama if
+      // LM Studio is down.
+      defaultProvider: "mlx",
+      defaultModel: "huihui-qwen3.6-35b-a3b-claude-4.7-opus-abliterated-mlx",
+      defaultFallbackModel: "qwen3-coder:30b",
     },
   ],
 };

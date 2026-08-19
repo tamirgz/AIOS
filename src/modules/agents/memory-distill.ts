@@ -109,10 +109,15 @@ export async function distillMemory(): Promise<{ policies: number; facts: number
   let facts = 0;
   const pol = Array.isArray(out?.policies) ? out!.policies : [];
   const fac = Array.isArray(out?.facts) ? out!.facts : [];
+  const cutoff = Date.now() - 5000; // rows created after this are genuinely new
+  const newRules: string[] = [];
   for (const p of pol.slice(0, 3)) {
     if (typeof p === "string" && p.trim().length > 10) {
-      await rememberEntry({ kind: "policy", source: "distill", text: p.trim() }).catch(() => {});
-      policies++;
+      const row = await rememberEntry({ kind: "policy", source: "distill", text: p.trim() }).catch(() => null);
+      if (row) {
+        policies++;
+        if (+new Date(row.createdAt) >= cutoff) newRules.push(row.text); // not a dedup
+      }
     }
   }
   for (const f of fac.slice(0, 3)) {
@@ -135,6 +140,25 @@ export async function distillMemory(): Promise<{ policies: number; facts: number
         "replace",
         "Learned operating rules distilled from experience.",
       ).catch(() => {});
+    }
+  }
+  // Surface each genuinely-new rule so a learned policy is never injected into
+  // every agent silently — you see what the system decided to believe. (The
+  // rule still takes effect now; this is visibility, not a gate — for now.)
+  if (newRules.length) {
+    try {
+      const { insertAttentionItem } = await import("@/modules/today/core");
+      await insertAttentionItem({
+        type: "notify",
+        title: `Memory learned ${newRules.length} new operating rule${newRules.length > 1 ? "s" : ""}`,
+        body:
+          newRules.map((r) => `• ${r}`).join("\n") +
+          "\n\nThese now guide every agent run. Review or edit them in Settings → Memory.",
+        source: "system",
+        urgency: 5,
+      });
+    } catch {
+      // surfacing is best-effort
     }
   }
   return { policies, facts };
