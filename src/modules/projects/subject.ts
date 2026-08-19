@@ -21,17 +21,20 @@ export function boundProjectId(
   ctx: AiToolContext,
   fallbackId?: string,
 ): { id: string } | { error: string } {
-  if (ctx.agentRunId) {
-    if (ctx.subject?.kind === "project" && ctx.subject.id) {
-      return { id: ctx.subject.id };
-    }
-    return {
-      error:
-        "No project is focused. Call projects.focusNext first — it focuses the next project and this write then targets it automatically. You never pass a project id.",
-    };
+  // The focused subject ALWAYS wins — a model-supplied id is ignored while a
+  // subject is bound, so a judgement cannot land on the wrong project. Only
+  // when nothing is focused (chat, or an agent that hasn't been re-synced to the
+  // focusNext prompt) do we fall back to the supplied id, which the write's own
+  // not-found check validates. This keeps a tool/contract change from ever
+  // hard-breaking an un-synced agent.
+  if (ctx.subject?.kind === "project" && ctx.subject.id) {
+    return { id: ctx.subject.id };
   }
   if (fallbackId) return { id: fallbackId };
-  return { error: "project id required" };
+  return {
+    error:
+      "No project is focused. In an agent run, call projects.focusNext first — this write then targets the focused project (no id). In chat, pass the project id.",
+  };
 }
 
 /**
