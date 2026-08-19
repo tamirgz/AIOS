@@ -18,6 +18,13 @@ export interface ProjectWithTaskCounts extends Project {
   taskCounts: { total: number; done: number };
 }
 
+/** First sentence of a longer brief — keeps a derived "[Advise] …" next-action
+ *  to one concrete line instead of the advisor's full 2-3 sentence paragraph. */
+function firstSentence(s: string): string {
+  const m = s.match(/^.*?[.!?](\s|$)/);
+  return (m ? m[0] : s).trim();
+}
+
 /**
  * The L2 cockpit row: a project plus everything derived from its `projectRef`
  * links — task rollup, overdue count, linked notes, open attention cards, the
@@ -72,9 +79,18 @@ export async function getProjectCockpit(
   return rows.map(({ project, total, done, overdue, noteCount, openAttention, lastActivityAt, nextTaskTitle }) => {
     const open = Number(total) - Number(done);
     const last = lastActivityAt ? new Date(lastActivityAt) : null;
-    // Stored value (override / "[Advise] …") wins; otherwise the next open task
-    // IS the next action.
-    const nextAction = project.nextAction ?? (nextTaskTitle ? String(nextTaskTitle) : null);
+    // next_action, fully derived so it can never be guessed or cross-wired:
+    //   1. a stored value (a user override) wins;
+    //   2. else the soonest-due / highest-priority OPEN task;
+    //   3. else (no open tasks) the advisor's recommendation, prefixed
+    //      "[Advise] " — a path-forward suggestion grounded in the project's
+    //      state (incl. its completed tasks). Reliable because the advisor
+    //      covers every project, unlike a flaky per-run write.
+    const advise = project.advisorNext
+      ? `[Advise] ${firstSentence(project.advisorNext)}`
+      : null;
+    const nextAction =
+      project.nextAction ?? (nextTaskTitle ? String(nextTaskTitle) : advise);
     const signals: HealthSignals = {
       status: project.status,
       goal: project.goal,
