@@ -1,9 +1,13 @@
 "use server";
 
+import { execFile } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { promisify } from "node:util";
 import { revalidatePath } from "next/cache";
 import { setRoute } from "@/core/ai/routing";
 import { getSetting, setSetting } from "@/core/app-settings";
-import { sql } from "@/core/db/client";
+import { db, sql } from "@/core/db/client";
 import type { AIProviderId } from "@/core/db/schema/ai-routes";
 import { INTEGRATION_SETTING_KEYS } from "@/core/integrations/registry";
 import { THEME_IDS } from "@/core/theme";
@@ -203,4 +207,80 @@ export async function listSlackChannels(): Promise<{
       };
     return { ok: false, error: msg.replace(/^Error:\s*/, "") };
   }
+}
+
+/**
+ * Live check that the Claude Max subscription actually WORKS — not just that a
+ * token is present. A tiny ping through the anthropic provider surfaces an
+ * expired OAuth session (which mere presence can't detect).
+ */
+export async function verifyClaudeAuth(): Promise<{ valid: boolean; error?: string }> {
+  const { providers } = await import("@/core/ai/routing");
+  let ok = false;
+  let err = "";
+  try {
+    for await (const ev of providers.anthropic.run({
+      system: "Reply with the single word OK.",
+      messages: [{ role: "user", content: "ping" }],
+      tools: [],
+      toolCtx: { db },
+      model: "claude-haiku-4-5-20251001",
+      maxTurns: 1,
+    })) {
+      if (ev.type === "done" && ev.text?.trim()) ok = true;
+      if (ev.type === "error") err = ev.message;
+    }
+  } catch (e) {
+    err = String(e);
+  }
+  return { valid: ok && !err, error: err ? err.slice(0, 200) : undefined };
+}
+
+/**
+ * Save a fresh CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`) into
+ * .env.local and restart the agent worker so it reloads. The token is written
+ * server-side only and never returned; a running process reads .env.local at
+ * start, so a restart is required for it to take effect.
+ */
+export async function reconnectClaude(
+  token: string,
+): Promise<{ ok: boolean; message: string }> {
+  const t = (token ?? "").trim();
+  if (t.length < 20) return { ok: false, message: "That doesn't look like a valid token." };
+  if (/\s/.test(t)) return { ok: false, message: "The token should be a single string with no spaces." };
+  const path = join(process.cwd(), ".env.local");
+  let content = "";
+  try {
+    content = readFileSync(path, "utf8");
+  } catch {
+    // new file
+  }
+  const line = `CLAUDE_CODE_OAUTH_TOKEN=${t}`;
+  content = /^\s*CLAUDE_CODE_OAUTH_TOKEN\s*=.*$/m.test(content)
+    ? content.replace(/^\s*CLAUDE_CODE_OAUTH_TOKEN\s*=.*$/m, line)
+    : `${content.trimEnd()}\n${line}\n`;
+  try {
+    writeFileSync(path, content);
+  } catch (e) {
+    return { ok: false, message: `Could not write .env.local: ${String(e).slice(0, 120)}` };
+  }
+  let restarted = false;
+  try {
+    const uid = process.getuid?.() ?? 0;
+    await promisify(execFile)(
+      "launchctl",
+      ["kickstart", "-k", `gui/${uid}/com.aios.worker`],
+      { timeout: 6000 },
+    );
+    restarted = true;
+  } catch {
+    // best-effort — the user can restart manually
+  }
+  revalidatePath("/m/settings");
+  return {
+    ok: true,
+    message: restarted
+      ? "Token saved and the agent worker was restarted. Restart the web app too so chat uses it."
+      : "Token saved to .env.local — restart the worker and web app for it to take effect.",
+  };
 }

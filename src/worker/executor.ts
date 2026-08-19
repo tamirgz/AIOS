@@ -158,7 +158,9 @@ export async function executeRun(runId: string): Promise<void> {
     let recalled = "";
     try {
       const hits = await recallSemantic(`${agent.name}. ${agent.prompt}`.slice(0, 800), {
-        kinds: ["memory", "knowledge", "note"],
+        // memory + the user's whole durable knowledge: knowledge base, notes,
+        // and their Obsidian vault (second brain).
+        kinds: ["memory", "knowledge", "note", "vault"],
         limit: 5,
       });
       if (hits.length) {
@@ -237,10 +239,15 @@ export async function executeRun(runId: string): Promise<void> {
 
     let res = await attempt(provider, model);
 
-    // Cloud → local fallback: if a CLOUD model fails (connectivity, timeout,
-    // rate-limit, any error) and the agent has a local fallback, retry once on
-    // Ollama so a periodic heartbeat survives an offline / flaky cloud.
-    if (res.errored && provider.id === "nvidia" && agent.fallbackModel) {
+    // Fallback → Ollama: if the primary fails (connectivity, timeout, rate-limit,
+    // LM Studio down, any error) and the agent has a local fallback, retry once
+    // on Ollama — so a periodic heartbeat survives a flaky cloud OR a stopped
+    // LM Studio (the MLX host). Ollama is the always-on local baseline.
+    if (
+      res.errored &&
+      (provider.id === "nvidia" || provider.id === "mlx") &&
+      agent.fallbackModel
+    ) {
       await appendEvent(runId, {
         type: "text",
         text: `⚠︎ Cloud model "${model}" failed (${res.errored.slice(0, 120)}). Falling back to local ollama/${agent.fallbackModel}.`,

@@ -44,15 +44,52 @@ async function llmJson(system: string, user: string): Promise<unknown | null> {
   }
 }
 
+/**
+ * Recent agent-run history as episodic material — the richest source of "what
+ * happened" (successes, what each agent reported, and failures). Distilling over
+ * this is how run experience becomes durable knowledge.
+ */
+async function recentRunEpisodes(): Promise<string[]> {
+  const { agentRuns, agents } = await import("@/core/db/schema/agents");
+  const { and, desc, eq, gte } = await import("drizzle-orm");
+  const since = new Date(Date.now() - 14 * 86_400_000);
+  const rows = await db
+    .select({
+      name: agents.name,
+      status: agentRuns.status,
+      transcript: agentRuns.transcript,
+      error: agentRuns.error,
+    })
+    .from(agentRuns)
+    .innerJoin(agents, eq(agents.id, agentRuns.agentId))
+    .where(and(gte(agentRuns.createdAt, since)))
+    .orderBy(desc(agentRuns.createdAt))
+    .limit(60);
+  return rows.map((r) => {
+    if (r.status === "failed" || r.status === "timed_out")
+      return `${r.name} run ${r.status}${r.error ? `: ${r.error.slice(0, 120)}` : ""}`;
+    const done = ((r.transcript as { type?: string; text?: string }[]) ?? [])
+      .filter((e) => e?.type === "done")
+      .map((e) => e.text ?? "")
+      .join(" ")
+      .slice(0, 200);
+    return `${r.name} ran ${r.status}${done ? `: ${done}` : ""}`;
+  });
+}
+
 export async function distillMemory(): Promise<{ policies: number; facts: number }> {
-  // Genuine events only — the `superseded` block-dumps (also episodic) are noise.
-  const events = (await reviewEntries("episodic", 80)).filter((e) => e.kind === "event");
+  // Genuine memory events only — `superseded` block-dumps (also episodic) are noise.
+  const memEvents = (await reviewEntries("episodic", 80))
+    .filter((e) => e.kind === "event")
+    .map((e) => e.text);
+  const runEpisodes = await recentRunEpisodes();
+  const episodic = [...memEvents, ...runEpisodes];
   const procedural = await reviewEntries("procedural", 20);
-  if (events.length < 3) return { policies: 0, facts: 0 }; // nothing to distill yet
+  if (episodic.length < 3) return { policies: 0, facts: 0 }; // nothing to distill yet
 
   const material = [
-    "RECENT EPISODIC EVENTS (what happened):",
-    ...events.map((e) => `- ${e.text}`),
+    "RECENT ACTIVITY (what happened — agent runs, their reports, and any failures):",
+    ...episodic.slice(0, 60).map((t) => `- ${t}`),
     "",
     "EXISTING PROCEDURAL RULES (do NOT duplicate these):",
     ...procedural.map((p) => `- ${p.text}`),
@@ -72,10 +109,15 @@ export async function distillMemory(): Promise<{ policies: number; facts: number
   let facts = 0;
   const pol = Array.isArray(out?.policies) ? out!.policies : [];
   const fac = Array.isArray(out?.facts) ? out!.facts : [];
+  const cutoff = Date.now() - 5000; // rows created after this are genuinely new
+  const newRules: string[] = [];
   for (const p of pol.slice(0, 3)) {
     if (typeof p === "string" && p.trim().length > 10) {
-      await rememberEntry({ kind: "policy", source: "distill", text: p.trim() }).catch(() => {});
-      policies++;
+      const row = await rememberEntry({ kind: "policy", source: "distill", text: p.trim() }).catch(() => null);
+      if (row) {
+        policies++;
+        if (+new Date(row.createdAt) >= cutoff) newRules.push(row.text); // not a dedup
+      }
     }
   }
   for (const f of fac.slice(0, 3)) {
@@ -84,9 +126,12 @@ export async function distillMemory(): Promise<{ policies: number; facts: number
       facts++;
     }
   }
-  // Rebuild the injected procedural block from the current top rules (bounded).
+  // Rebuild the injected procedural block from the current top POLICIES only
+  // (crisp operating rules — not the longer free-form lessons), bounded.
   if (policies) {
-    const rules = await reviewEntries("procedural", 8);
+    const rules = (await reviewEntries("procedural", 20))
+      .filter((r) => r.kind === "policy")
+      .slice(0, 8);
     const body = rules.map((r) => `- ${r.text}`).join("\n").slice(0, 1000);
     if (body) {
       await updateMemoryBlock(
@@ -95,6 +140,25 @@ export async function distillMemory(): Promise<{ policies: number; facts: number
         "replace",
         "Learned operating rules distilled from experience.",
       ).catch(() => {});
+    }
+  }
+  // Surface each genuinely-new rule so a learned policy is never injected into
+  // every agent silently — you see what the system decided to believe. (The
+  // rule still takes effect now; this is visibility, not a gate — for now.)
+  if (newRules.length) {
+    try {
+      const { insertAttentionItem } = await import("@/modules/today/core");
+      await insertAttentionItem({
+        type: "notify",
+        title: `Memory learned ${newRules.length} new operating rule${newRules.length > 1 ? "s" : ""}`,
+        body:
+          newRules.map((r) => `• ${r}`).join("\n") +
+          "\n\nThese now guide every agent run. Review or edit them in Settings → Memory.",
+        source: "system",
+        urgency: 5,
+      });
+    } catch {
+      // surfacing is best-effort
     }
   }
   return { policies, facts };
