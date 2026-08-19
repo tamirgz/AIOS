@@ -15,6 +15,40 @@ const DAY = 24 * 60 * 60 * 1000;
 const daysAgo = (d: Date | null) =>
   d === null ? null : Math.floor((Date.now() - d.getTime()) / DAY);
 
+/**
+ * Quality gate for an advisor brief (A2 for insights) — a cheap LOCAL judge.
+ * GROUNDED = cites specific evidence + a concrete move; GENERIC = vague
+ * boilerplate. Lenient (only fails clear boilerplate) and best-effort: returns
+ * null if the judge is unavailable, so it NEVER blocks the run on infra.
+ */
+async function verifyBriefGrounded(
+  state: string,
+  recommendation: string,
+): Promise<boolean | null> {
+  try {
+    const { providers } = await import("@/core/ai/routing");
+    const { db } = await import("@/core/db/client");
+    let text = "";
+    for await (const ev of providers.ollama.run({
+      system:
+        "You gate a project-advisor brief for QUALITY. GROUNDED = it cites specific evidence (a named task, a number, days idle, a recent commit, a concrete blocker) AND gives a concrete next move. GENERIC = vague boilerplate ('keep up the good work', 'stay focused', 'continue making progress') with no specifics. Be lenient — only say GENERIC when it is clearly vague. Answer with ONE word: GROUNDED or GENERIC.",
+      messages: [
+        { role: "user", content: `STATE: ${state}\nRECOMMENDATION: ${recommendation}` },
+      ],
+      tools: [],
+      toolCtx: { db },
+      model: "qwen3:8b",
+      maxTurns: 1,
+    })) {
+      if (ev.type === "done") text = ev.text;
+    }
+    if (/\bGENERIC\b/i.test(text) && !/\bGROUNDED\b/i.test(text)) return false;
+    return true;
+  } catch {
+    return null;
+  }
+}
+
 export const projectTools: AiToolDef[] = [
   {
     name: "projects.create",
@@ -126,9 +160,24 @@ export const projectTools: AiToolDef[] = [
         )
         .slice(0, 8)
         .map((t) => ({ title: t.title, completedAt: t.completedAt }));
+      // Per-subject scoped recall: the lessons/knowledge/notes most relevant to
+      // THIS project, so a per-project judgement (health, advisor brief) is
+      // grounded in accumulated wisdom about it — not generic. Bounded, best-effort.
+      let relevantMemory: { kind: string; text: string }[] = [];
+      try {
+        const { recallSemantic } = await import("@/core/memory");
+        const goal = (it.read as { goal?: string | null }).goal ?? "";
+        const hits = await recallSemantic(`${it.name}. ${goal}`.slice(0, 300), {
+          kinds: ["memory", "knowledge", "note"],
+          limit: 3,
+        });
+        relevantMemory = hits.map((h) => ({ kind: h.kind, text: h.text }));
+      } catch {
+        // best-effort — recall must never break iteration
+      }
       return {
         focused: it.name,
-        project: { ...it.read, openTasks, recentlyCompleted },
+        project: { ...it.read, openTasks, recentlyCompleted, relevantMemory },
         remaining: cur.items.length - cur.index,
       };
     },
@@ -321,6 +370,15 @@ export const projectTools: AiToolDef[] = [
     async execute(input, ctx) {
       const t = boundProjectId(ctx, input.projectId);
       if ("error" in t) return t;
+      // Insight quality gate — reject a generic/ungrounded read so the advisor
+      // rewrites it with real evidence (LOCAL judge; never blocks on infra).
+      const grounded = await verifyBriefGrounded(input.state, input.recommendation);
+      if (grounded === false) {
+        return {
+          error:
+            "This read is too generic. Cite specific evidence in `state` (a named task, a number, days idle, a recent commit) and make `recommendation` a concrete move — then call setAdvisorBrief again.",
+        };
+      }
       const [row] = await ctx.db
         .update(projects)
         .set({

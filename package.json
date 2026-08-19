@@ -8,6 +8,7 @@
     "start": "next start -p 3777",
     "lint": "eslint",
     "worker": "tsx src/worker/index.ts",
+    "test:tools": "tsx scripts/test-tools.mts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

@@ -2,6 +2,8 @@ import type { ModuleServerManifest } from "@/core/modules/types.server";
 import { externalReports } from "./schema";
 import { externalReportJobs } from "./external";
 import { slackIntakeJobs } from "./slack-intake";
+import { memoryMaintenanceJobs } from "./memory-maintenance";
+import { memoryDistillJobs } from "./memory-distill";
 import { AgentsPage } from "./pages/AgentsPage";
 import { AgentDetailPage } from "./pages/AgentDetailPage";
 import { AgentActivityWidget } from "./widgets/AgentActivityWidget";
@@ -23,7 +25,12 @@ export const agentsServerManifest: ModuleServerManifest = {
   // Core owns agents/agent_runs; this module owns external_reports.
   schema: { externalReports },
   aiTools: [],
-  jobs: [...externalReportJobs, ...slackIntakeJobs],
+  jobs: [
+    ...externalReportJobs,
+    ...slackIntakeJobs,
+    ...memoryMaintenanceJobs,
+    ...memoryDistillJobs,
+  ],
   agentTemplates: [
     {
       id: "memory-consolidation",
@@ -36,9 +43,14 @@ export const agentsServerManifest: ModuleServerManifest = {
         "tasks.list",
         "projects.list",
         "knowledge.search",
+        "memory.review",
         "memory.update",
       ],
       defaultSchedule: "0 20 * * 0",
+      // Memory work runs on a FREE LOCAL model — it's periodic and must never
+      // bill (ONE-STOP §4). Without this it falls through to agent.default.
+      defaultProvider: "ollama",
+      defaultModel: "qwen3-coder:30b",
     },
   ],
 };
