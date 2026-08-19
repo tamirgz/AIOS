@@ -27,7 +27,7 @@ import { attentionItems } from "@/modules/today/schema";
 import { people } from "@/modules/people/schema";
 
 const CORE = [
-  "search.everything", "memory.update", "memory.remember", "memory.recall",
+  "search.everything", "memory.update", "memory.remember", "memory.recall", "memory.review",
   "notify.send", "web.search", "web.read",
 ];
 const names = new Set<string>();
@@ -109,13 +109,16 @@ async function main() {
   const obs: any = await call("obsidian.search", { query: "the" });
   rec("obsidian.search", arr(obs) || !!obs?.error, arr(obs) ? `${obs.length} notes` : "unavailable");
   rec("memory.recall", !(await call("memory.recall", { query: "user" }))?.error);
+  const mrev: any = await call("memory.review", { limit: 5 });
+  rec("memory.review", arr(mrev) && (mrev.length === 0 || "tier" in mrev[0]), `${arr(mrev) ? mrev.length : "?"} entries w/ tier`);
 
   // ---- WRITES on the throwaway (kept active) ----
   rec("projects.setStatus", (await call("projects.setStatus", { project: "ZZ_ToolTest2", status: "paused" }))?.updated?.status === "paused", "spare → paused");
   rec("projects.setHealth", (await call("projects.setHealth", { id: pid, health: "on_track", reason: "test" }))?.updated?.health === "on_track");
   rec("projects.setGoal", (await call("projects.setGoal", { id: pid, goal: "test goal" }))?.updated?.goal === "test goal");
   rec("projects.setNextAction", (await call("projects.setNextAction", { project: "ZZ_ToolTest", nextAction: "test next" }))?.updated === true);
-  rec("projects.setAdvisorBrief", (await call("projects.setAdvisorBrief", { projectId: pid, state: "test state text", recommendation: "do it" }))?.updated?.id === pid);
+  // Grounded brief (cites a task + numbers) so the local quality-judge passes it.
+  rec("projects.setAdvisorBrief", (await call("projects.setAdvisorBrief", { projectId: pid, state: "Task 'ZZ_ToolTest task' is 3 days idle; 1 of 2 tasks overdue.", recommendation: "Finish the ZZ_ToolTest task this week, then close out the overdue item." }))?.updated?.id === pid);
   rec("projects.recordRepoDigest", (await call("projects.recordRepoDigest", { projectId: pid, digest: "test digest" }))?.updated?.id === pid);
 
   const tc: any = await call("tasks.create", { title: "ZZ_ToolTest task", project: "ZZ_ToolTest" });
