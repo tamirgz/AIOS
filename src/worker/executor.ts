@@ -180,7 +180,9 @@ export async function executeRun(runId: string): Promise<void> {
           system,
           messages: [{ role: "user", content: agent.prompt }],
           tools,
-          toolCtx: { db, agentRunId: runId, ledger },
+          // subject/subjectCursor start empty; a cursor tool (projects.focusNext)
+          // binds the subject so per-subject writes never carry a model id.
+          toolCtx: { db, agentRunId: runId, ledger, subject: null, subjectCursor: null },
           model: mdl,
           // Per-agent tool-loop budget; undefined falls back to the provider
           // default. Lets a many-item agent finish the list instead of

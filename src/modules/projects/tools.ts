@@ -6,7 +6,8 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import type { AiToolDef } from "@/core/modules/types.server";
 import { sql } from "@/core/db/client";
-import { getProjectCockpit } from "./queries";
+import { getProjectCockpit, getProjectTasks } from "./queries";
+import { boundProjectId } from "./subject";
 import { usableRepoPath } from "./repo";
 import { projectFiles, projects, PROJECT_HEALTHS, PROJECT_STATUSES } from "./schema";
 
@@ -64,6 +65,75 @@ export const projectTools: AiToolDef[] = [
     },
   },
   {
+    name: "projects.focusNext",
+    description:
+      "Iterate your active projects ONE at a time. Each call focuses the next active project — the backbone picks it, you never choose or type an id — and returns its full read: goal, health, task counts, days idle, and its open tasks. Do your per-project work on the focused project (projects.setHealth / setGoal / setNextAction / setAdvisorBrief / recordRepoDigest / attention.raise all target it automatically, with NO id argument), then call projects.focusNext again. Returns { done: true } once every active project has been visited. This is the ONLY correct way to loop projects: because you never handle an id, a judgement can never land on the wrong project.",
+    input: z.object({}),
+    async execute(_input, ctx) {
+      // Build the queue once: the backbone owns the SET (active projects) and
+      // the ORDER, so the model iterates without ever selecting an entity.
+      if (!ctx.subjectCursor) {
+        const all = await getProjectCockpit(ctx.db);
+        const items = all
+          .filter((p) => p.status === "active")
+          .map((p) => ({
+            id: p.id,
+            name: p.name,
+            read: {
+              name: p.name,
+              goal: p.goal,
+              nextAction: p.nextAction,
+              health: p.resolvedHealth.health,
+              healthReason: p.resolvedHealth.reason,
+              tasks: {
+                open: p.taskCounts.open,
+                done: p.taskCounts.done,
+                overdue: p.taskCounts.overdue,
+              },
+              notes: p.noteCount,
+              daysSinceActivity: daysAgo(p.lastActivityAt),
+            } as Record<string, unknown>,
+          }));
+        ctx.subjectCursor = { kind: "project", items, index: 0 };
+      }
+      const cur = ctx.subjectCursor;
+      if (cur.index >= cur.items.length) {
+        ctx.subject = null;
+        return { done: true, visited: cur.items.length };
+      }
+      const it = cur.items[cur.index++];
+      ctx.subject = { kind: "project", id: it.id, name: it.name };
+      // Attach the focused project's tasks so the model has real evidence
+      // (titles, priority, due dates) without ever handling a project id. Open
+      // tasks feed the derived next-action; the recently-completed ones let the
+      // pulse write an "[Advise] …" next step when nothing is open.
+      const all = await getProjectTasks(it.id, ctx.db);
+      const openTasks = all
+        .filter((t) => t.status !== "done")
+        .slice(0, 20)
+        .map((t) => ({
+          title: t.title,
+          status: t.status,
+          priority: t.priority,
+          dueAt: t.dueAt,
+        }));
+      const recentlyCompleted = all
+        .filter((t) => t.status === "done")
+        .sort(
+          (a, b) =>
+            (b.completedAt ? +new Date(b.completedAt) : 0) -
+            (a.completedAt ? +new Date(a.completedAt) : 0),
+        )
+        .slice(0, 8)
+        .map((t) => ({ title: t.title, completedAt: t.completedAt }));
+      return {
+        focused: it.name,
+        project: { ...it.read, openTasks, recentlyCompleted },
+        remaining: cur.items.length - cur.index,
+      };
+    },
+  },
+  {
     name: "projects.setStatus",
     description:
       "Set a project's status (active | paused | done). Find the id via projects.list first.",
@@ -85,9 +155,15 @@ export const projectTools: AiToolDef[] = [
   {
     name: "projects.setHealth",
     description:
-      "Record your judgement of a project's health with a one-line reason. Use 'blocked' when it's waiting on someone/something external (the read-time heuristic can never infer that). Prefer this over letting the heuristic guess. Find the id via projects.list.",
+      "Record your judgement of the FOCUSED project's health with a one-line reason (it targets the project from projects.focusNext — you pass no id). Use 'blocked' when it's waiting on someone/something external (the read-time heuristic can never infer that). Prefer this over letting the heuristic guess.",
     input: z.object({
-      id: z.string().uuid(),
+      id: z
+        .string()
+        .uuid()
+        .optional()
+        .describe(
+          "Omit in an agent run — the focused project is targeted. (Chat only: the project id.)",
+        ),
       health: z.enum(PROJECT_HEALTHS),
       reason: z
         .string()
@@ -95,17 +171,19 @@ export const projectTools: AiToolDef[] = [
         .max(120)
         .describe("One line: why this health, in plain words"),
     }),
-    async execute(input, { db }) {
+    async execute(input, ctx) {
+      const t = boundProjectId(ctx, input.id);
+      if ("error" in t) return t;
       // Deliberately does NOT touch updatedAt: the agent assessing a project is
       // not user activity, so it must not reset the stall clock.
-      const [row] = await db
+      const [row] = await ctx.db
         .update(projects)
         .set({
           health: input.health,
           healthReason: input.reason.trim(),
           healthUpdatedAt: new Date(),
         })
-        .where(eq(projects.id, input.id))
+        .where(eq(projects.id, t.id))
         .returning();
       return row
         ? { updated: { id: row.id, health: row.health } }
@@ -115,16 +193,24 @@ export const projectTools: AiToolDef[] = [
   {
     name: "projects.setGoal",
     description:
-      "Set a project's north-star outcome (one line) when it has none, so the project has a clear 'why'. Don't overwrite a goal the user already wrote unless it's clearly wrong.",
+      "Set the FOCUSED project's north-star outcome (one line) when it has none, so it has a clear 'why' (targets the project from projects.focusNext — you pass no id). Don't overwrite a goal the user already wrote unless it's clearly wrong.",
     input: z.object({
-      id: z.string().uuid(),
+      id: z
+        .string()
+        .uuid()
+        .optional()
+        .describe(
+          "Omit in an agent run — the focused project is targeted. (Chat only: the project id.)",
+        ),
       goal: z.string().min(3).max(160),
     }),
-    async execute(input, { db }) {
-      const [row] = await db
+    async execute(input, ctx) {
+      const t = boundProjectId(ctx, input.id);
+      if ("error" in t) return t;
+      const [row] = await ctx.db
         .update(projects)
         .set({ goal: input.goal.trim() })
-        .where(eq(projects.id, input.id))
+        .where(eq(projects.id, t.id))
         .returning();
       return row
         ? { updated: { id: row.id, goal: row.goal } }
@@ -152,14 +238,23 @@ export const projectTools: AiToolDef[] = [
   {
     name: "projects.readRepo",
     description:
-      "Read a project's attached code repo — recent commits + its README — so your advice is grounded in the actual code, not a guess. Returns attached:false when no repo is attached or it hasn't cloned yet.",
-    input: z.object({ projectId: z.string().uuid() }),
-    async execute(input, { db }) {
-      const [p] = await db
+      "Read the FOCUSED project's attached code repo — recent commits + its README — so your advice is grounded in the actual code, not a guess (targets the project from projects.focusNext; you pass no id). Returns attached:false when no repo is attached or it hasn't cloned yet.",
+    input: z.object({
+      projectId: z
+        .string()
+        .uuid()
+        .optional()
+        .describe("Omit in an agent run — the focused project is read. (Chat only.)"),
+    }),
+    async execute(input, ctx) {
+      const projectId = ctx.subject?.kind === "project" ? ctx.subject.id : input.projectId;
+      if (!projectId)
+        return { error: "No project focused. Call projects.focusNext first." };
+      const [p] = await ctx.db
         .select({ repoUrl: projects.repoUrl })
         .from(projects)
-        .where(eq(projects.id, input.projectId));
-      const dir = usableRepoPath(input.projectId, p?.repoUrl ?? null);
+        .where(eq(projects.id, projectId));
+      const dir = usableRepoPath(projectId, p?.repoUrl ?? null);
       if (!dir) return { attached: false, note: "no repo attached or not cloned yet" };
       const exec = promisify(execFile);
       let recentCommits = "";
@@ -185,9 +280,13 @@ export const projectTools: AiToolDef[] = [
   {
     name: "projects.setAdvisorBrief",
     description:
-      "Record the chief-of-staff read for ONE project: where it actually stands (state), the single real blocker (or null if none), and one concrete recommended next move. Ground every field in the project's real tasks/notes/repo — no boilerplate, no restating the goal.",
+      "Record the chief-of-staff read for the FOCUSED project: where it actually stands (state), the single real blocker (or null if none), and one concrete recommended next move (targets the project from projects.focusNext — you pass no id). Ground every field in the project's real tasks/notes/repo — no boilerplate, no restating the goal.",
     input: z.object({
-      projectId: z.string().uuid(),
+      projectId: z
+        .string()
+        .uuid()
+        .optional()
+        .describe("Omit in an agent run — the focused project is targeted. (Chat only.)"),
       state: z
         .string()
         .min(3)
@@ -204,8 +303,10 @@ export const projectTools: AiToolDef[] = [
         .max(400)
         .describe("One concrete next move you'd make"),
     }),
-    async execute(input, { db }) {
-      const [row] = await db
+    async execute(input, ctx) {
+      const t = boundProjectId(ctx, input.projectId);
+      if ("error" in t) return t;
+      const [row] = await ctx.db
         .update(projects)
         .set({
           advisorState: input.state.trim(),
@@ -213,31 +314,37 @@ export const projectTools: AiToolDef[] = [
           advisorNext: input.recommendation.trim(),
           advisorUpdatedAt: new Date(),
         })
-        .where(eq(projects.id, input.projectId))
+        .where(eq(projects.id, t.id))
         .returning();
-      if (row) await sql.notify("projects_changed", input.projectId); // live cockpit update
+      if (row) await sql.notify("projects_changed", t.id); // live cockpit update
       return row ? { updated: { id: row.id } } : { error: "project not found" };
     },
   },
   {
     name: "projects.recordRepoDigest",
     description:
-      "Record a short 'what's moving in the code' digest for a project from its recent commits (2-3 sentences: themes, notable changes, momentum). Call once per project that has a code repo.",
+      "Record a short 'what's moving in the code' digest for the FOCUSED project from its recent commits (2-3 sentences: themes, notable changes, momentum). Targets the project from projects.focusNext — you pass no id. Call once per project that has a code repo.",
     input: z.object({
-      projectId: z.string().uuid(),
+      projectId: z
+        .string()
+        .uuid()
+        .optional()
+        .describe("Omit in an agent run — the focused project is targeted. (Chat only.)"),
       digest: z
         .string()
         .min(3)
         .max(600)
         .describe("2-3 sentences on what the recent commits actually did"),
     }),
-    async execute(input, { db }) {
-      const [row] = await db
+    async execute(input, ctx) {
+      const t = boundProjectId(ctx, input.projectId);
+      if ("error" in t) return t;
+      const [row] = await ctx.db
         .update(projects)
         .set({ repoDigest: input.digest.trim(), repoDigestAt: new Date() })
-        .where(eq(projects.id, input.projectId))
+        .where(eq(projects.id, t.id))
         .returning();
-      if (row) await sql.notify("projects_changed", input.projectId);
+      if (row) await sql.notify("projects_changed", t.id);
       return row ? { updated: { id: row.id } } : { error: "project not found" };
     },
   },

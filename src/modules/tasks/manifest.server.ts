@@ -38,7 +38,7 @@ export const tasksServerManifest: ModuleServerManifest = {
       description:
         "Reviews open tasks daily, flags stale or overdue ones by raising their priority.",
       defaultPrompt:
-        "Review my open tasks with tasks.list. For any task that looks stale or overdue, raise its priority with tasks.setStatus/tasks.list data and summarize what most needs attention today. Use the ledger to avoid re-flagging tasks you already flagged.",
+        "Review my open tasks with tasks.list — each task comes back with a short `ref` (e.g. 't3'). For any task that is clearly stale or overdue, move it with tasks.setStatus, identifying it by its `ref` (never an id). Then summarize what most needs attention today. Use ledger.has / ledger.mark to avoid re-flagging a task you already flagged.",
       defaultTools: ["tasks.list", "tasks.setStatus"],
       defaultSchedule: "0 8 * * *",
     },

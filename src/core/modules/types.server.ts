@@ -7,6 +7,20 @@ import type { PgTable } from "drizzle-orm/pg-core";
 import type { ZodType } from "zod";
 import type { Db } from "@/core/db/client";
 
+/**
+ * A backbone-BOUND subject for an agent run. The association (which entity a
+ * write lands on) is well-defined and static, so it is NEVER left to the model:
+ * a cursor tool (e.g. projects.focusNext) sets this, and per-subject write tools
+ * target `id` from here — the model produces only content, never an id. This is
+ * what makes a judgement structurally unable to land on the wrong entity.
+ */
+export interface FocusSubject {
+  /** Entity kind — "project" today; extensible to tasks/people/ideas. */
+  kind: string;
+  id: string;
+  name: string;
+}
+
 export interface AiToolContext {
   db: Db;
   /** Set when the tool is invoked from an agent run (not chat). */
@@ -16,6 +30,33 @@ export interface AiToolContext {
     has(itemKey: string): Promise<boolean>;
     mark(itemKey: string, result?: unknown): Promise<void>;
   };
+  /**
+   * The currently-focused subject. Per-subject write tools target THIS instead
+   * of a model-supplied id (see FocusSubject). Null in chat / when unfocused.
+   * Mutable across a run: the same ctx object is threaded to every tool call,
+   * so a cursor tool sets it and later writes read it.
+   */
+  subject?: FocusSubject | null;
+  /**
+   * Internal per-run state backing the focusNext cursor. The backbone owns the
+   * subject SET and its ORDER, so the model iterates without ever selecting an
+   * entity. Built lazily on the first focusNext call.
+   */
+  subjectCursor?: {
+    kind: string;
+    items: Array<{ id: string; name: string; read: Record<string, unknown> }>;
+    index: number;
+  } | null;
+  /**
+   * Per-run entity handle table for SURVEY writes (where the agent legitimately
+   * picks WHICH few entities to act on — task triage, idea review, follow-ups).
+   * A `*.list` tool registers each row under a short, non-UUID handle (t1, i2,
+   * p3…); the matching write tool resolves the handle back to the real id,
+   * validated against what was actually listed. The model copies a 2-char
+   * handle, never a UUID — so it cannot mis-transcribe onto the wrong entity,
+   * and an unknown handle errors instead of silently mis-filing.
+   */
+  refs?: Record<string, { kind: string; id: string; name: string }>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
