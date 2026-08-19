@@ -52,10 +52,18 @@ export const mlxProvider: AIProvider = {
 
   async *run(opts) {
     // LM Studio JIT-loads the model on this request and TTL-unloads it later —
-    // no process management here. Disable reasoning for responsiveness.
+    // no process management here.
+    //
+    // Reasoning is pure latency for a chat assistant, so we disable it there.
+    // But an AGENTIC run (tools present) NEEDS a little planning: the model has
+    // to notice it has read enough and then COMMIT its writes. With reasoning
+    // fully off, some MLX models (notably the abliterated-35B) loop on reads and
+    // never call the write tool. So: light reasoning when tools are present,
+    // none for pure chat/text — snappy where it matters, deliberate where it must.
     const base = await mlxBase();
+    const agentic = (opts.tools?.length ?? 0) > 0;
     yield* runOpenAICompatible(base, "lmstudio", opts, {
-      reasoning_effort: "none",
+      reasoning_effort: agentic ? "low" : "none",
     });
   },
 };

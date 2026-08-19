@@ -38,11 +38,14 @@ export const agentsServerManifest: ModuleServerManifest = {
       description:
         "Weekly: reviews tasks, projects and recent knowledge, then rewrites the active_projects and current_focus memory blocks so every AI call starts with fresh context.",
       defaultPrompt: [
-        "Consolidate the user's WORKING MEMORY — the two blocks injected into EVERY AI call, so keep them tight, accurate and current.",
-        "1. Read projects.list (state, goal, next action, health, task counts) and tasks.list (todo/doing). Optionally memory.review('episodic') for recent activity signals.",
-        "2. memory.update 'active_projects' — ONE compressed line per ACTIVE project: name — state — the real next thing. Terse; no filler.",
-        "3. memory.update 'current_focus' — 2-4 lines synthesising what the user is ACTUALLY pushing this week (infer from health, next-actions, overdue counts, idleness). Specific and honest, not a list restatement.",
-        "Use ledger.mark with the ISO week (e.g. 2026-W30) so a same-week re-run is a no-op after checking ledger.has. Do NOT touch other memory blocks.",
+        "Consolidate the user's WORKING MEMORY — the two blocks injected into EVERY AI call. Keep them tight, accurate, current.",
+        "Follow these steps IN ORDER. Read each source ONCE — never re-read. Do NOT call memory.review or memory.recall; you do not need them. The WRITES are the point — never stop before both are done.",
+        "1. ledger.has for this ISO week (e.g. 2026-W33). If it is already marked, STOP — done.",
+        "2. projects.list, then tasks.list — read each ONCE. That is your complete picture.",
+        "3. memory.update 'active_projects' — ONE compressed line per ACTIVE project: name — state — the real next thing. Terse; no filler. (REQUIRED.)",
+        "4. memory.update 'current_focus' — 2-4 lines synthesising what the user is ACTUALLY pushing this week (infer from health, next-actions, overdue counts, idleness). Specific and honest, not a list restatement. (REQUIRED.)",
+        "5. ledger.mark the ISO week. Only now are you done — STOP. Do NOT touch other memory blocks.",
+        "You are NOT finished until BOTH memory.update calls AND ledger.mark have run.",
       ].join("\n"),
       defaultTools: [
         "tasks.list",
@@ -53,13 +56,16 @@ export const agentsServerManifest: ModuleServerManifest = {
       ],
       defaultSchedule: "0 20 * * 0",
       // Memory work runs on a FREE LOCAL model — periodic, must never bill.
-      // Benched across MLX/gemma4/Haiku: the MLX abliterated-35B wins on single-
-      // shot TEXT, but in the REAL agentic tool-loop it loops on reads and never
-      // commits the memory.update writes (verified: 20 reads, 0 writes). qwen3-
-      // coder:30b reliably completes the loop and writes strong blocks — it's
-      // what pulse/advisor run on daily. Editable per-agent in Settings.
-      defaultProvider: "ollama",
-      defaultModel: "qwen3-coder:30b",
+      // The MLX abliterated-35B wins on TEXT quality AND, once it can PLAN, on the
+      // agentic loop: it earlier looped on reads and never wrote — the cause was
+      // `reasoning_effort:"none"` forced on every MLX call. With light reasoning
+      // enabled for agentic (tool) runs (see mlx.ts), it now reads each source
+      // once, writes BOTH blocks and marks the ledger in ~7 calls — sharper output
+      // than ollama and far leaner. Falls back to always-on Ollama if LM Studio is
+      // down. Editable per-agent in Settings.
+      defaultProvider: "mlx",
+      defaultModel: "huihui-qwen3.6-35b-a3b-claude-4.7-opus-abliterated-mlx",
+      defaultFallbackModel: "qwen3-coder:30b",
       defaultTurnBudget: 20,
     },
   ],
