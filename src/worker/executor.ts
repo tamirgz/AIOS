@@ -283,6 +283,26 @@ export async function executeRun(runId: string): Promise<void> {
             tokensOut: res.tokensOut,
           },
     );
+
+    // Learning loop — bank a genuine failure (not a transient timeout) as an
+    // EPISODIC event, so the weekly distillation can abstract a recurring
+    // failure into a procedural rule. Deduped + best-effort; never affects the
+    // run's own outcome.
+    if ((res.errored && !res.aborted) || verifyFailed) {
+      try {
+        const { rememberEntry } = await import("@/core/memory");
+        const why = verifyFailed
+          ? `did not complete its required "${agent.successTool}" step`
+          : (res.errored ?? "").slice(0, 200);
+        await rememberEntry({
+          kind: "event",
+          source: `agent-run:${agent.name}`,
+          text: `Agent "${agent.name}" failed — ${why}.`,
+        });
+      } catch {
+        // capture is best-effort
+      }
+    }
   } catch (e) {
     await patchRun(runId, {
       status: "failed",

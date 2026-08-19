@@ -1,6 +1,7 @@
 import { asc, desc, eq, inArray, sql as dsql } from "drizzle-orm";
 import { db } from "@/core/db/client";
 import {
+  MEMORY_TIER,
   memoryBlocks,
   memoryEntries,
   type MemoryEntryKind,
@@ -75,7 +76,12 @@ export async function renderMemoryContext(): Promise<string> {
   // line. The core defaults render first (canonical order), then the rest — so
   // if the injection budget is hit, the least-important dynamic blocks are what
   // gets trimmed, never who_i_am / current_focus.
-  const priority: string[] = DEFAULT_BLOCKS.map((b) => b.label);
+  // Core defaults first, then the learned procedural rules — both are protected
+  // from trimming ahead of any other dynamic block.
+  const priority: string[] = [
+    ...DEFAULT_BLOCKS.map((b) => b.label),
+    "operating_rules",
+  ];
   const rank = (label: string) => {
     const i = priority.indexOf(label);
     return i < 0 ? priority.length : i;
@@ -395,6 +401,38 @@ export async function recallEntries(
     .limit(limit);
   return fallback.map((r) => ({
     kind: r.kind,
+    text: r.text,
+    when: r.createdAt,
+    source: r.source,
+  }));
+}
+
+/**
+ * Recent long-tail entries for CONSOLIDATION — the raw material a distiller
+ * reviews to abstract episodic events into durable facts / procedural rules.
+ * Optionally filtered to one tier (episodic | semantic | procedural).
+ */
+export async function reviewEntries(
+  tier?: "episodic" | "semantic" | "procedural",
+  limit = 20,
+): Promise<
+  { id: string; kind: string; tier: string; text: string; when: Date; source: string }[]
+> {
+  const kinds = tier
+    ? (Object.keys(MEMORY_TIER) as MemoryEntryKind[]).filter(
+        (k) => MEMORY_TIER[k] === tier,
+      )
+    : undefined;
+  const rows = await db
+    .select()
+    .from(memoryEntries)
+    .where(kinds ? inArray(memoryEntries.kind, kinds) : undefined)
+    .orderBy(desc(memoryEntries.createdAt))
+    .limit(limit);
+  return rows.map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    tier: MEMORY_TIER[r.kind],
     text: r.text,
     when: r.createdAt,
     source: r.source,

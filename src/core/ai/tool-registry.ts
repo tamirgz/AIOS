@@ -59,7 +59,9 @@ const CORE_TOOLS: AiToolDef[] = [
       "Store a durable fact, decision, lesson, or event in long-tail memory (searchable later via memory.recall). Use for anything worth not re-learning: 'we decided X because Y', 'approach Z failed due to W'.",
     input: z.object({
       text: z.string().min(1).max(2000),
-      kind: z.enum(["fact", "decision", "lesson", "event"]).default("fact"),
+      kind: z
+        .enum(["fact", "decision", "lesson", "event", "policy"])
+        .default("fact"),
     }),
     async execute(input, ctx) {
       const { rememberEntry } = await import("@/core/memory");
@@ -82,6 +84,19 @@ const CORE_TOOLS: AiToolDef[] = [
     async execute(input) {
       const { recallEntries } = await import("@/core/memory");
       return await recallEntries(input.query, input.limit);
+    },
+  },
+  {
+    name: "memory.review",
+    description:
+      "Review the NEWEST long-tail memory to consolidate it — optionally filtered by tier (episodic = what happened | semantic = what's true | procedural = how to act). Use to distill recurring episodic events into a durable fact (memory.remember kind 'fact') or an operating rule (kind 'policy').",
+    input: z.object({
+      tier: z.enum(["episodic", "semantic", "procedural"]).optional(),
+      limit: z.number().int().min(1).max(50).default(20),
+    }),
+    async execute(input) {
+      const { reviewEntries } = await import("@/core/memory");
+      return await reviewEntries(input.tier, input.limit);
     },
   },
   {
