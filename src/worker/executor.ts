@@ -158,7 +158,9 @@ export async function executeRun(runId: string): Promise<void> {
     let recalled = "";
     try {
       const hits = await recallSemantic(`${agent.name}. ${agent.prompt}`.slice(0, 800), {
-        kinds: ["memory", "knowledge", "note"],
+        // memory + the user's whole durable knowledge: knowledge base, notes,
+        // and their Obsidian vault (second brain).
+        kinds: ["memory", "knowledge", "note", "vault"],
         limit: 5,
       });
       if (hits.length) {

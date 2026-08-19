@@ -168,7 +168,7 @@ export const projectTools: AiToolDef[] = [
         const { recallSemantic } = await import("@/core/memory");
         const goal = (it.read as { goal?: string | null }).goal ?? "";
         const hits = await recallSemantic(`${it.name}. ${goal}`.slice(0, 300), {
-          kinds: ["memory", "knowledge", "note"],
+          kinds: ["memory", "knowledge", "note", "vault"],
           limit: 3,
         });
         relevantMemory = hits.map((h) => ({ kind: h.kind, text: h.text }));
