@@ -4,7 +4,7 @@
  * A "research" task usually names one or more URLs ("review this article…").
  * The executors are file/code agents with no reliable way to fetch a page —
  * and many sources (Akamai, enterprise blogs) bot-wall a plain server fetch
- * with a 403. So instead of hoping the model has a working web tool, AIOS reads
+ * with a 403. So instead of hoping the model has a working web tool, apOS reads
  * the article(s) up front and hands the text to the run:
  *
  *   1. local fetch (the hardened `fetchUrlText`) — private, no third party;

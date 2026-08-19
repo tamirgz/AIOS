@@ -31,7 +31,7 @@ export function childPath(): string {
   return [...BIN_DIRS, process.env.PATH ?? ""].filter(Boolean).join(":");
 }
 
-/** Where AIOS keeps the opencode config it manages (never the user's own). */
+/** Where apOS keeps the opencode config it manages (never the user's own). */
 export const AIOS_OPENCODE_CONFIG = join(
   homedir(),
   ".aios",

@@ -8,9 +8,9 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * Reports from agents that run OUTSIDE AIOS (Claude Desktop scheduled tasks,
+ * Reports from agents that run OUTSIDE apOS (Claude Desktop scheduled tasks,
  * background jobs, any external tool). Ingested by the worker from the
- * drop-box folder and from ~/.claude/jobs — AIOS-native agent runs live in
+ * drop-box folder and from ~/.claude/jobs — apOS-native agent runs live in
  * agent_runs, not here.
  */
 export const externalReports = pgTable(

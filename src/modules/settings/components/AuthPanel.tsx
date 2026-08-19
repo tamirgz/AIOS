@@ -2,7 +2,7 @@ import { KeyRound, ShieldCheck, ShieldAlert } from "lucide-react";
 import { authStatus, METERED_AUTH_VARS } from "@/core/ai/auth";
 
 /**
- * What AIOS is billing against, stated plainly. The policy is subscription or
+ * What apOS is billing against, stated plainly. The policy is subscription or
  * local, never a metered API key — this panel shows it rather than asking you
  * to trust a comment in the source.
  */
@@ -65,7 +65,7 @@ export function AuthPanel() {
           <p className="mt-1 text-xs text-ink-faint">
             {status.neutralised.length === 0 ? (
               <>
-                None present. AIOS strips{" "}
+                None present. apOS strips{" "}
                 <span className="font-mono text-[10px]">
                   {METERED_AUTH_VARS.slice(0, 3).join(", ")}
                 </span>{" "}
@@ -74,7 +74,7 @@ export function AuthPanel() {
               </>
             ) : (
               <span className="text-solar">
-                Found and neutralised: {status.neutralised.join(", ")}. AIOS
+                Found and neutralised: {status.neutralised.join(", ")}. apOS
                 ignored them — unset them to silence this.
               </span>
             )}

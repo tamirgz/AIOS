@@ -31,7 +31,7 @@ export async function VaultPage() {
           <Link href="/m/settings" className="text-plasma hover:underline">
             Settings → integrations
           </Link>{" "}
-          (the folder that contains your .md notes). AIOS indexes it read-only
+          (the folder that contains your .md notes). apOS indexes it read-only
           — semantic search and agents will answer from your notes; nothing is
           ever written to the vault.
         </p>

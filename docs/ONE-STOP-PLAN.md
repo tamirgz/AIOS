@@ -1,6 +1,6 @@
-# AIOS — One-Stop Plan
+# apOS — One-Stop Plan
 
-*Written 2026-07-20, after v0.1 (11 milestones, all shipped & verified); status refreshed 2026-07-23. This is the working plan for turning AIOS from "an impressive dashboard" into the single place work happens.*
+*Written 2026-07-20, after v0.1 (11 milestones, all shipped & verified); status refreshed 2026-07-23. This is the working plan for turning apOS from "an impressive dashboard" into the single place work happens.*
 
 ---
 
@@ -10,7 +10,7 @@
 
 **Modules (16)** — each one is a folder + 2 registry lines: **Today**, **Ask**, Inbox, Calendar, **Mail**, **Workbench**, Tasks, Projects, **People**, Notes, Ideas, Knowledge, Vault, **Notion**, Agents, Settings.
 
-**Workbench** *(W1 + W2, 2026-07-21 → 23)* — the one-off task surface: one box + a type picker; the type resolves executor/model/permissions. Tasks → attempts → normalized events; git isolation per attempt (worktree for in-process Claude, a local clone for CLI agents); live tail and per-file diff in-app; retry as a sibling attempt. **Executors: Claude Code (Max), AIOS-native (local), and opencode** — the last driving any **free** model: local Ollama plus free cloud (opencode-zen Big Pickle, free Nvidia via the user's key), cost-verified so paid models are refused. Verified live end-to-end on Claude, local Ollama, Big Pickle ($0) and a free Nvidia model ($0). pi and aider are seeded rows but not yet proven (pi parser mismatch; aider not installed). Details in WORKBENCH-PLAN.md §6–§8. **Next is the Life-OS attention loop (§3) — phases L1–L3 —** which absorbs the old "W3 delegation UX."
+**Workbench** *(W1 + W2, 2026-07-21 → 23)* — the one-off task surface: one box + a type picker; the type resolves executor/model/permissions. Tasks → attempts → normalized events; git isolation per attempt (worktree for in-process Claude, a local clone for CLI agents); live tail and per-file diff in-app; retry as a sibling attempt. **Executors: Claude Code (Max), apOS-native (local), and opencode** — the last driving any **free** model: local Ollama plus free cloud (opencode-zen Big Pickle, free Nvidia via the user's key), cost-verified so paid models are refused. Verified live end-to-end on Claude, local Ollama, Big Pickle ($0) and a free Nvidia model ($0). pi and aider are seeded rows but not yet proven (pi parser mismatch; aider not installed). Details in WORKBENCH-PLAN.md §6–§8. **Next is the Life-OS attention loop (§3) — phases L1–L3 —** which absorbs the old "W3 delegation UX."
 
 **The AI layer.**
 - Two providers, per-job routing (Settings): **Anthropic via Claude Max** (no API key — Agent SDK on host credentials) and **local Ollama** (any installed model, streaming, tool-calling).
@@ -45,22 +45,22 @@
 
 The trap (the AI-OS graveyard is full of it) is rebuilding every app badly. The distillation principle:
 
-> **AIOS does not replace your tools' editors. It becomes the one place where everything is *captured, found, briefed, and acted on*.**
+> **apOS does not replace your tools' editors. It becomes the one place where everything is *captured, found, briefed, and acted on*.**
 
 Concretely, one-stop = four promises:
 
 1. **One capture point.** Anything on your mind goes into ⌘K/Inbox and gets filed by AI. You never decide "which app does this belong to" again.
-2. **One search.** `search.everything` answers from AIOS data + Obsidian + (soon) Notion + Gmail — by meaning, with links to the source. This is the NotebookLM replacement: your notebooks are already your sources.
+2. **One search.** `search.everything` answers from apOS data + Obsidian + (soon) Notion + Gmail — by meaning, with links to the source. This is the NotebookLM replacement: your notebooks are already your sources.
 3. **One brief.** The morning brief merges calendar + tasks + email-needing-attention + agent findings, delivered to the bell and Slack (later Telegram). You open one thing.
 4. **One place agents report.** Native runs, Desktop routines, anything external — all land on the Agents page + bell.
 
 Per-tool verdicts:
-- **Obsidian** — keep writing there; AIOS reads it. Done.
-- **Google Calendar / Gmail** — keep as system-of-record; AIOS is the read+remind layer, later approval-gated write.
+- **Obsidian** — keep writing there; apOS reads it. Done.
+- **Google Calendar / Gmail** — keep as system-of-record; apOS is the read+remind layer, later approval-gated write.
 - **Slack** — becomes a transport (reports in, notifications out), not a place you check.
-- **Notion** — read-only index first. After a month of usage, decide whether Notion earns its keep or its content migrates to vault/AIOS. Not forced.
+- **Notion** — read-only index first. After a month of usage, decide whether Notion earns its keep or its content migrates to vault/apOS. Not forced.
 - **NotebookLM** — replaced by the "Ask" phase: chat over your indexed sources with citations, using free local models. Honest limitation: no audio overviews.
-- **AIOS Notes vs Obsidian** — overlap acknowledged. Policy: AIOS Notes = quick scratch/AI-written; Vault = real writing. Revisit in phase 9; consolidation candidate.
+- **apOS Notes vs Obsidian** — overlap acknowledged. Policy: apOS Notes = quick scratch/AI-written; Vault = real writing. Revisit in phase 9; consolidation candidate.
 
 **Simplicity guardrails** (against over-complication):
 - No new module unless it retires an external app or a daily friction.
@@ -72,11 +72,11 @@ Per-tool verdicts:
 
 ## 3 · The attention loop *(design, 2026-07-23 — reframed 2026-08-09)*
 
-> **Reframe (2026-08-09):** this loop stands, but AIOS is an **Agentic OS whose primary object is a project** (work *and* personal projects) — not a life-brief generator. The loop below is the substrate; §5's **A1–A9 layers** are what gets built on it. The daily brief/TLDR come from Claude Desktop into Slack and are *consumed* (A3), never regenerated.
+> **Reframe (2026-08-09):** this loop stands, but apOS is an **Agentic OS whose primary object is a project** (work *and* personal projects) — not a life-brief generator. The loop below is the substrate; §5's **A1–A9 layers** are what gets built on it. The daily brief/TLDR come from Claude Desktop into Slack and are *consumed* (A3), never regenerated.
 
-The modules are containers; the Workbench is an execution surface. What turns AIOS into *the place you run your day, week, projects and ideas from* is a single loop that most "life OS" tools never build — because they are **spatial** (places to put things you must feed) rather than **temporal + observing** (a system with a heartbeat that maintains itself from your real activity).
+The modules are containers; the Workbench is an execution surface. What turns apOS into *the place you run your day, week, projects and ideas from* is a single loop that most "life OS" tools never build — because they are **spatial** (places to put things you must feed) rather than **temporal + observing** (a system with a heartbeat that maintains itself from your real activity).
 
-**The one non-negotiable principle: observe, don't ask to be fed.** Anything that requires disciplined manual upkeep will rot. AIOS derives the management layer from surfaces that already exist in your life — calendar, email, git/Workbench, notes, and the *absence* of activity — and asks you only when there is a decision. A good chief of staff never hands you a form.
+**The one non-negotiable principle: observe, don't ask to be fed.** Anything that requires disciplined manual upkeep will rot. apOS derives the management layer from surfaces that already exist in your life — calendar, email, git/Workbench, notes, and the *absence* of activity — and asks you only when there is a decision. A good chief of staff never hands you a form.
 
 ### 3.1 · The loop
 
@@ -148,7 +148,7 @@ Everything that *acts* obeys one dial, defaulted per card type and tunable per a
 
 ## 4 · Token policy — what runs free on Ollama
 
-**Auth rule (locked 2026-07-22): AIOS never uses a metered API key** — not Anthropic, not OpenAI or any provider added later. Subscription or local auth only. Enforced in `src/core/ai/auth.ts`: metered vars are deleted from AIOS's own process at startup and stripped from every spawned executor's environment, so a stray key cannot silently start billing. Settings → "AI authentication" shows the live state. Claude authenticates via **`CLAUDE_CODE_OAUTH_TOKEN` in `.env.local`** (`claude setup-token`, filled in 2026-07-23 — earlier it was empty and auth fell back to the Keychain session). A "monthly spend limit" message is a Max-plan cap, not an API bill.
+**Auth rule (locked 2026-07-22): apOS never uses a metered API key** — not Anthropic, not OpenAI or any provider added later. Subscription or local auth only. Enforced in `src/core/ai/auth.ts`: metered vars are deleted from apOS's own process at startup and stripped from every spawned executor's environment, so a stray key cannot silently start billing. Settings → "AI authentication" shows the live state. Claude authenticates via **`CLAUDE_CODE_OAUTH_TOKEN` in `.env.local`** (`claude setup-token`, filled in 2026-07-23 — earlier it was empty and auth fell back to the Keychain session). A "monthly spend limit" message is a Max-plan cap, not an API bill.
 
 Claude Max is a quota, not a meter — the goal is spending it where judgment matters and never on volume.
 
@@ -171,7 +171,7 @@ These are the target defaults:
 | **Life-OS periodic agents** — planner, pulse, follow-ups, chaser, connector (§3.4) | **Ollama `qwen3:8b`** | **Mandatory free** — these run on the heartbeat, all day. Tested 2026-07-23: reliable tool-calling with the exact schema, ~6s/call. Never on Claude |
 | **Weekly reviewer** (§3.4) | **Ollama `gemma4:31b-it-qat`** | Runs 1×/week, so the 32s / higher-quality synthesis is worth it; still free |
 | Workbench `research` / `code` | **Claude Code headless** (Max quota) | Judgment, web search and repo edits — measured: $0.35 for a cited research report, $0.18 for a small code fix |
-| Workbench `docs` / `code-local` | **Ollama, or opencode + a $0 model** | Structuring AIOS data, or local/free-cloud coding — verified $0 live (Big Pickle, Nvidia minimax) |
+| Workbench `docs` / `code-local` | **Ollama, or opencode + a $0 model** | Structuring apOS data, or local/free-cloud coding — verified $0 live (Big Pickle, Nvidia minimax) |
 
 Rule of thumb: **volume, summarization & the heartbeat → local (free); one-off judgment & action → Claude.** The Life-OS agents run constantly, so they are **free by rule** — a free local route is set for each and the guard keeps them off Claude. Estimated effect: >80 % of daily AI calls go local; the periodic layer costs $0.
 
@@ -186,18 +186,18 @@ Rule of thumb: **volume, summarization & the heartbeat → local (free); one-off
 | **Settings → Integrations** | The one metered brain's key | **Gemini API key** (Google AI Studio). Claude + GPT-5 are subscription auth, no key |
 | **Per Workbench task** | One-off executor + model override at delegation time | Any task, without changing the defaults |
 
-Guards that survive any configuration: local/CLI executors **refuse a non-free model** (fail-closed against opencode's pricing DB, plus a live health ledger that prunes retired/broken free models), and metered API keys are stripped from AIOS's process and every spawned executor (§ auth rule above) — so re-routing a job can change *quality and speed*, but cannot silently start a bill.
+Guards that survive any configuration: local/CLI executors **refuse a non-free model** (fail-closed against opencode's pricing DB, plus a live health ledger that prunes retired/broken free models), and metered API keys are stripped from apOS's process and every spawned executor (§ auth rule above) — so re-routing a job can change *quality and speed*, but cannot silently start a bill.
 
 ---
 
 ## 5 · Execution phases
 
-> **Re-sequenced 2026-07-23:** Workbench W1–W2 shipped and verified. The old "W3 — delegation UX" **dissolves into the Life-OS attention loop (§3)** — its `needs_input → Inbox` item *is* the "Needs you" spine, scoped up; only the merge/PR button stays a Workbench task. The centrepiece now is the Life OS (phases **L1–L3**), because that is what makes AIOS the place the day/week/projects/ideas are run from. Gmail and "Reach & act" follow, since they *feed* and *deliver* the attention loop.
+> **Re-sequenced 2026-07-23:** Workbench W1–W2 shipped and verified. The old "W3 — delegation UX" **dissolves into the Life-OS attention loop (§3)** — its `needs_input → Inbox` item *is* the "Needs you" spine, scoped up; only the merge/PR button stays a Workbench task. The centrepiece now is the Life OS (phases **L1–L3**), because that is what makes apOS the place the day/week/projects/ideas are run from. Gmail and "Reach & act" follow, since they *feed* and *deliver* the attention loop.
 >
 > **All Life-OS periodic agents run on free local models (§4): `qwen3:8b` by default, `gemma4:31b-it-qat` for the weekly review. Never Claude.**
 
 ### Phase L1 — The attention spine ✅ *shipped 2026-07-23*
-*Goal: AIOS tells you what today is and what needs you.*
+*Goal: apOS tells you what today is and what needs you.*
 - **`attention_items`** table (§3.2) + the **"Needs you" queue** surface (aggregating attention items + open `approvals` + Workbench `needs_input`).
 - **`nextAction`** field on projects; **Plan-my-day** surface (calendar + due tasks + today's items + top-project next-actions → a proposed day you approve; approved blocks write back to Calendar).
 - One real agent — the **Daily planner** (`qwen3:8b`) — assembles Plan-my-day on the morning tick.
@@ -222,7 +222,7 @@ Guards that survive any configuration: local/CLI executors **refuse a non-free m
 
 ### Phase 6 — Close the loop (Gmail) ✅ *shipped 2026-07-24*
 - Google client gained `gmail.readonly` — **one OAuth for calendar + mail**; **Gmail module** (metadata-only sync, 10-min job, page + widget); `gmail.recent` wired into the Daily planner + Follow-up tracker; triage stays local.
-- ⛔️ **"Daily brief v2" is cancelled** (decided 2026-08-09): Claude Desktop already posts the briefing to **#my-today** and the TLDR to **#tldr**. AIOS **consumes** those channels instead — see layer **A3** below. Two-way email (triage + approval-gated drafts) also moves to **A3 + A2**.
+- ⛔️ **"Daily brief v2" is cancelled** (decided 2026-08-09): Claude Desktop already posts the briefing to **#my-today** and the TLDR to **#tldr**. apOS **consumes** those channels instead — see layer **A3** below. Two-way email (triage + approval-gated drafts) also moves to **A3 + A2**.
 
 ### Phase 7 — One search ("Ask" = NotebookLM replacement + Notion) ✅ *shipped 2026-07-24*
 *Goal: any question about anything you've ever saved gets answered in one place, free.*
@@ -240,18 +240,18 @@ From here the roadmap is **horizontal OS layers, with projects/work as the prima
 | **A1** | **Work Kernel — routines** | `trigger + steps + brain + success-check + destination` — the unit of autonomous work | ✅ **Routine object shipped 2026-08-11** — `routines` table + Workbench panel: standing ask + repo + trigger (new-commit HEAD-poll w/ CAS ledger, and/or cron) → spawns a judged Workbench task → destination = **approval-gated PR** (never a direct write); per-commit PRs **coalesce** onto one stable branch. **Per-agent turn budget** shipped (`agents.turn_budget`, fixes the "2 of 7" truncation). Remaining: watch GitHub for remote-only commits |
 | **A2** | **Trust & permissions** | Verification + an approval queue for every outward act — what makes autonomy safe to leave on | ✅ **shipped 2026-08-10** — `successTool` verification gate + the outward-action approval queue (`slack.post` drafts → "Needs you" → approve/reject inline → worker runs/drops). Remaining: more outward tools on the same spine |
 | **A3** | **Senses — ingest & route** | `#tldr`/`#my-today` → the project they affect; email triage + approval-gated drafts; files | ⬜ |
-| **A4** | **Attention scheduler** | AIOS pings *you*: stalls, deadlines, waiting-triggers, decisions | 🟡 attention atom + queue exist |
+| **A4** | **Attention scheduler** | apOS pings *you*: stalls, deadlines, waiting-triggers, decisions | 🟡 attention atom + queue exist |
 | **A5** | **World model — grounding** | Project advisor + code repos ✅; extend to people, decisions, knowledge | ✅ shipped 2026-08-09 (breadth pending) |
-| **A6** | **Deliverable factory** | Workbench → real work products, repo-grounded and verified | ✅ **core shipped 2026-08-11** — repo grounding + **editable ask** (edit the request, not just the result) + a **verifying judge** on every delegation (correlates ask↔result, auto-retries once with the critique fed back, then holds in "Needs you") + **approval-gated PR delivery** (`workbench.openPR`, cache→local→GitHub, gh credential-helper push; routine PRs coalesce onto one branch). AIOS proposes, never merges. Remaining: deliverable breadth (PRD/analysis templates) |
+| **A6** | **Deliverable factory** | Workbench → real work products, repo-grounded and verified | ✅ **core shipped 2026-08-11** — repo grounding + **editable ask** (edit the request, not just the result) + a **verifying judge** on every delegation (correlates ask↔result, auto-retries once with the critique fed back, then holds in "Needs you") + **approval-gated PR delivery** (`workbench.openPR`, cache→local→GitHub, gh credential-helper push; routine PRs coalesce onto one branch). apOS proposes, never merges. Remaining: deliverable breadth (PRD/analysis templates) |
 | **A7** | **Brain-trust router + governor** | Claude / GPT-5 (Codex) / Gemini / free-local per task; quota + cost ceilings | 🟡 4 brains wired; routing missing |
 | **A8** | **Control room** | Ran · running · cost · pending approval · failed | ⬜ |
 | **A9** | **Reliability spine** | Heartbeat ✅, catch-up on missed runs, idempotency, self-healing | 🟡 |
 
-**Removed — decided against:** the **Morning Brief / daily-brief notification** (Claude Desktop → #my-today / #tldr; AIOS consumes via A3); **OpenAI as a routing provider** (GPT-5 stays the no-API-key Codex executor); a **multi-agent framework sidecar** (CrewAI/Agno/Langflow — orchestration adds failure surface, not capability).
+**Removed — decided against:** the **Morning Brief / daily-brief notification** (Claude Desktop → #my-today / #tldr; apOS consumes via A3); **OpenAI as a routing provider** (GPT-5 stays the no-API-key Codex executor); a **multi-agent framework sidecar** (CrewAI/Agno/Langflow — orchestration adds failure surface, not capability).
 
 **Parked — deferred, not killed:** phone reach (PWA / Telegram bridge + Tailscale) and mobile/share-sheet capture; the **auth gate** (ships *with* exposure, never after — localhost-only today); the old Phase-9 "consolidate & subtract" pass (Notes-vs-Vault, module graveyards, agent 👍/👎 evals) — worth doing, just not ahead of A1–A3.
 
-**Also dropped by the 2026-08-09 full-backlog audit** (see EXECUTION-PLAN for the ledger): the **Habits/Metrics tracker** and the **CRM/Sales module** from the original plan's future-modules list (the `people` CRM-lite covers the project-ops need), and the **`pi`/`aider` executor tails** (parser rebuild, install, cloud tiers — opencode + claude-headless + codex cover it). The **Connector agent** is *absorbed* into A3, and the **Workbench merge/PR button** — folded into A6 — **shipped 2026-08-11** as approval-gated PR delivery (AIOS opens the PR on your approval; you merge). No longer a hole.
+**Also dropped by the 2026-08-09 full-backlog audit** (see EXECUTION-PLAN for the ledger): the **Habits/Metrics tracker** and the **CRM/Sales module** from the original plan's future-modules list (the `people` CRM-lite covers the project-ops need), and the **`pi`/`aider` executor tails** (parser rebuild, install, cloud tiers — opencode + claude-headless + codex cover it). The **Connector agent** is *absorbed* into A3, and the **Workbench merge/PR button** — folded into A6 — **shipped 2026-08-11** as approval-gated PR delivery (apOS opens the PR on your approval; you merge). No longer a hole.
 
 *Sequencing note: each layer is independently useful. A1+A2 ship together (a routine without a success-check is exactly the autonomy you'd leave switched off); A3 then feeds them, and A4/A8 close the loop back to you.*
 

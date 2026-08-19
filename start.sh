@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AIOS launcher — stops what's running, rebuilds from scratch, brings it all up.
+# apOS launcher — stops what's running, rebuilds from scratch, brings it all up.
 #
 # Usage:  ./start.sh          → stop everything, clean rebuild, start (default)
 #         ./start.sh debug    → stop, then dev server with hot reload + verbose logs
@@ -104,7 +104,7 @@ fi
 
 # ── 7. web app ──────────────────────────────────────────────────────────────
 if [ "$MODE" = "debug" ]; then
-  ok "AIOS (debug) → http://localhost:$PORT   ·   hot reload on, Ctrl-C to stop"
+  ok "apOS (debug) → http://localhost:$PORT   ·   hot reload on, Ctrl-C to stop"
   say "worker log: tail -f ~/Library/Logs/aios-worker.log"
   (sleep 4; open "http://localhost:$PORT") &
   exec pnpm dev
@@ -112,6 +112,6 @@ fi
 
 say "building from scratch (this takes ~30s)…"
 pnpm build >/dev/null 2>&1 || die "build failed — run './start.sh debug' to see why"
-ok "AIOS → http://localhost:$PORT   ·   Ctrl-C to stop (worker keeps running)"
+ok "apOS → http://localhost:$PORT   ·   Ctrl-C to stop (worker keeps running)"
 (sleep 3; open "http://localhost:$PORT") &
 exec pnpm start

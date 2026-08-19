@@ -44,7 +44,7 @@ export function TopBar() {
           {title}
         </h1>
         <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-ink-faint">
-          aios /{" "}
+          <span className="normal-case">apOS</span> /{" "}
           <span style={mod ? { color: mod.accent } : { color: "var(--color-plasma)" }}>
             {title.toLowerCase()}
           </span>

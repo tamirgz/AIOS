@@ -1,5 +1,5 @@
 /**
- * Auth policy: AIOS rides on subscriptions, never on metered API keys.
+ * Auth policy: apOS rides on subscriptions, never on metered API keys.
  *
  * Anthropic runs on the Claude Max plan via `CLAUDE_CODE_OAUTH_TOKEN`
  * (`claude setup-token`). Ollama is local and free. If a paid provider is
@@ -7,7 +7,7 @@
  * nothing.
  *
  * This is enforced rather than documented because the failure is silent and
- * expensive: every executor AIOS spawns inherits our environment, and both
+ * expensive: every executor apOS spawns inherits our environment, and both
  * the Claude CLI and the Agent SDK prefer an API key over subscription auth
  * when one is present. A stray key in a shell profile or a launchd plist
  * would quietly start billing without any visible change in behaviour.
@@ -59,7 +59,7 @@ export function enforceSubscriptionAuth(
   for (const v of found) delete process.env[v];
   if (found.length) {
     log(
-      `[aios] ignoring ${found.join(", ")} — AIOS runs on the Claude Max subscription, never on a metered API key. Unset it to silence this.`,
+      `[aios] ignoring ${found.join(", ")} — apOS runs on the Claude Max subscription, never on a metered API key. Unset it to silence this.`,
     );
   }
   return found;

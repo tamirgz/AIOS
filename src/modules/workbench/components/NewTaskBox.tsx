@@ -47,7 +47,7 @@ const TYPES: {
     id: "docs",
     label: "docs",
     icon: FileText,
-    hint: "Runs locally against your AIOS data with the module tools",
+    hint: "Runs locally against your apOS data with the module tools",
   },
   {
     id: "custom",
@@ -79,7 +79,7 @@ export function NewTaskBox({
   /** Free models each executor may use (local + its free cloud tiers). */
   freeModels: Record<string, string[]>;
   /** Projects with an attached, cloned repo — pickable for a code task.
-   *  `path` is the read-only copy AIOS works in; `source` is the original,
+   *  `path` is the read-only copy apOS works in; `source` is the original,
    *  shown in the picker because a cache uuid means nothing to a human. */
   projectRepos?: { name: string; path: string; source?: string | null }[];
 }) {

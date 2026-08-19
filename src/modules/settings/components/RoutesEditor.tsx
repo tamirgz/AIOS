@@ -16,7 +16,7 @@ const KEY_LABELS: Record<string, string> = {
   "ideas.analyze": "Idea reality-check",
   ask: "Ask (cited Q&A)",
   "project.advisor": "Project advisor (per-project read + re-angle)",
-  "workbench.native": "Workbench · docs tasks (AIOS data + module tools)",
+  "workbench.native": "Workbench · docs tasks (apOS data + module tools)",
   "workbench.judge": "Workbench · delegation judge — PRIMARY (local-first)",
   "workbench.judge.fallback": "Workbench · delegation judge — FALLBACK (online, only if local is down)",
   "routine.builder": "Routines · builder (composes a routine from your description)",
@@ -119,11 +119,11 @@ export function RoutesEditor({ routes }: { routes: AiRoute[] }) {
         <span
           className="cursor-help text-ink-faint/70 transition hover:text-ink-dim"
           title={
-            "These are no-API-key, in-process brains that run AIOS's own tools: " +
+            "These are no-API-key, in-process brains that run apOS's own tools: " +
             "Claude (Max subscription), Ollama (local, free), NVIDIA (free tier), " +
             "or Gemini (your metered AI Studio key). " +
             "OpenAI/GPT-5 isn't listed here because its no-key subscription path is " +
-            "CLI-only (Codex) and can't host AIOS's module tools — so GPT-5 lives in " +
+            "CLI-only (Codex) and can't host apOS's module tools — so GPT-5 lives in " +
             'the Workbench as the "Codex (GPT-5, ChatGPT sub)" executor, not in this dropdown.'
           }
         >

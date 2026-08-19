@@ -13,7 +13,7 @@ export interface AgendaItem {
   detail: string | null;
   href: string;
   accent: string;
-  /** Only AIOS-local events may be deleted from AIOS. */
+  /** Only apOS-local events may be deleted from apOS. */
   deletable: boolean;
   /** Detail-panel fields — null for task rows. */
   location: string | null;

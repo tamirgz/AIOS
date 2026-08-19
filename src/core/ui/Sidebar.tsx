@@ -134,15 +134,15 @@ export function Sidebar() {
       {/* logo */}
       <Link href="/" className="mb-5 flex items-center gap-3 px-2 pt-1">
         <span className="relative flex size-9 items-center justify-center rounded-xl border border-plasma/30 bg-plasma/10">
-          <span className="font-display text-lg font-bold text-plasma text-glow">A</span>
+          <span className="font-display text-lg font-bold text-plasma text-glow">a</span>
           <span className="absolute -right-0.5 -top-0.5 dot text-plasma animate-pulse-soft" />
         </span>
         <span>
           <span className="block font-display text-base font-semibold tracking-[0.18em] text-ink">
-            AIOS
+            apOS
           </span>
           <span className="block font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-            personal os
+            agentic os
           </span>
         </span>
       </Link>
@@ -183,7 +183,7 @@ export function Sidebar() {
       {/* footer */}
       <div className="mt-auto border-t border-white/5 px-2 pt-3">
         <p className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-          aios v0.1 · local
+          <span className="normal-case">apOS</span> v0.1 · local
         </p>
       </div>
     </aside>

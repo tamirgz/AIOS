@@ -7,7 +7,7 @@ import { SLACK_KEYS, slackPost } from "@/modules/agents/slack-intake";
  * Outward actions — the first things an agent can DO in the world rather than
  * just record. Marked `risk: "approval"` so the executor parks the call in the
  * approval queue: an agent DRAFTS, the user APPROVES, then it SENDS. Nothing
- * leaves AIOS without a human yes (A2 · Trust).
+ * leaves apOS without a human yes (A2 · Trust).
  */
 export const inboxTools: AiToolDef[] = [
   {

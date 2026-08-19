@@ -5,7 +5,7 @@
  * is distinct from the report intake (agents/slack-intake.ts), which feeds the
  * Agents page — capture is for things YOU want turned into work.
  *
- * Polling (not the Events API) because AIOS runs locally with no public
+ * Polling (not the Events API) because apOS runs locally with no public
  * endpoint: outbound conversations.history needs no inbound webhook. Idempotent
  * via a per-channel cursor plus a per-message `source` dedupe in the inbox.
  */
@@ -101,7 +101,7 @@ export async function confirmSlackCapture(opts: {
       ? `${emoji} Filed as *${route.label}*`
       : `${emoji} Captured — nothing actionable, left in the Inbox`;
     const link = route
-      ? `\n<${APP_BASE_URL}${route.href}|Open in AIOS>`
+      ? `\n<${APP_BASE_URL}${route.href}|Open in apOS>`
       : `\n<${APP_BASE_URL}/m/inbox|Open Inbox>`;
     const text = `${heading}\n_${summary}_${projectLine}${link}`;
 
@@ -175,7 +175,7 @@ export async function scanSlackInbox(
       }
 
       // Advance the cursor past EVERYTHING fetched — including messages we skip
-      // (AIOS's own bot posts, joins/leaves, thread replies) — not just the
+      // (apOS's own bot posts, joins/leaves, thread replies) — not just the
       // human ones we captured. Otherwise a channel dominated by non-human
       // noise leaves the cursor stuck, re-scanning the same window every run.
       let newestSeen = lastTs ?? "";

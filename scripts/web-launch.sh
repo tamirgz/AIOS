@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# launchd entrypoint for the AIOS web app (com.aios.web).
+# launchd entrypoint for the apOS web app (com.aios.web).
 #
 # Rebuilds only when the source changed since the last build, then serves — so
 # a boot or restart always runs the latest code without a stale .next, while a

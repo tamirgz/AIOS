@@ -414,10 +414,10 @@ function GoogleWizard({
 }
 
 const SLACK_MANIFEST = `display_information:
-  name: AIOS
+  name: apOS
 features:
   bot_user:
-    display_name: AIOS
+    display_name: apOS
     always_online: true
 oauth_config:
   scopes:
@@ -605,7 +605,7 @@ function SlackWizard({ values }: { values: Record<string, string> }) {
         key={`slack_webhook_url:${values.slack_webhook_url ?? ""}`}
         settingKey="slack_webhook_url"
         label="Notifications webhook (optional)"
-        hint="Incoming Webhooks → Add New Webhook → pick a channel. Every AIOS notification posts there."
+        hint="Incoming Webhooks → Add New Webhook → pick a channel. Every apOS notification posts there."
         placeholder="https://hooks.slack.com/services/…"
         initial={values.slack_webhook_url ?? ""}
         secret

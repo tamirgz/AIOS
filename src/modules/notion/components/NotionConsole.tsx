@@ -83,7 +83,7 @@ export function NotionConsole({
           <Plug className="size-7 text-ink-dim" />
           <h2 className="font-display text-xl font-semibold text-ink">Connect Notion</h2>
           <p className="text-sm leading-relaxed text-ink-dim">
-            AIOS indexes your Notion titles + text (read-only) so{" "}
+            apOS indexes your Notion titles + text (read-only) so{" "}
             <span className="text-plasma">Ask</span> and search cover it. Three steps
             — add more workspaces later, one token each.
           </p>

@@ -114,7 +114,7 @@ export function TaskBoard({ tasks }: { tasks: TaskWithAttempt[] }) {
           nothing delegated yet
         </p>
         <p className="mx-auto mt-3 max-w-md text-sm text-ink-dim">
-          Describe a job in the box above and AIOS runs it unattended — research
+          Describe a job in the box above and apOS runs it unattended — research
           comes back as a report, code comes back as a branch you review here.
         </p>
       </div>

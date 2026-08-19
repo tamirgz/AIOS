@@ -137,7 +137,7 @@ function titleOf(markdown: string, fallback: string): string {
 
 /**
  * Poll the configured Slack channels for new messages and ingest them as
- * external reports. This is how AIOS sees Claude Desktop scheduled routines:
+ * external reports. This is how apOS sees Claude Desktop scheduled routines:
  * they post to Slack, and Slack is readable regardless of where they ran.
  */
 export async function scanSlackReports(

@@ -149,7 +149,7 @@ export async function commitCheckpoint(
   if (!staged.trim()) return false;
   await git(workdir, [
     "-c",
-    "user.name=AIOS Workbench",
+    "user.name=apOS Workbench",
     "-c",
     "user.email=workbench@aios.local",
     "commit",
@@ -244,7 +244,7 @@ export async function deleteBranchIfMerged(
 }
 
 /**
- * Follow `origin` until it lands on a GitHub URL. AIOS works on a cache clone
+ * Follow `origin` until it lands on a GitHub URL. apOS works on a cache clone
  * whose origin is the user's local folder, whose own origin is GitHub — so PR
  * delivery has to hop through the chain. Returns null for a local-only repo
  * (no GitHub anywhere upstream), which is an honest "can't open a PR here".
@@ -280,7 +280,7 @@ function githubSlug(url: string): string {
 
 /**
  * Push an attempt's branch to GitHub and open a PR. This is the ONLY path by
- * which AIOS's work reaches the repo, and it never merges — it proposes. Called
+ * which apOS's work reaches the repo, and it never merges — it proposes. Called
  * exclusively through the approval queue, so the push happens only on an
  * explicit human yes.
  */
@@ -291,7 +291,7 @@ export async function openPullRequest(input: {
   body: string;
   /** Stable target branch to push onto (a routine reuses one). Default = branch. */
   prBranch?: string;
-  /** Force-push the target (safe for an AIOS-owned routine branch it regenerates). */
+  /** Force-push the target (safe for an apOS-owned routine branch it regenerates). */
   force?: boolean;
 }): Promise<{ url: string; slug: string; updated: boolean }> {
   const ghUrl = await resolveGithubRemote(input.repoPath);

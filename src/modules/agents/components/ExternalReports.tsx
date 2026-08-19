@@ -91,7 +91,7 @@ export function ExternalReports({
   return (
     <div className="mt-8">
       <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.3em] text-ink-faint">
-        external reports — agents running outside aios
+        external reports — agents running outside apOS
       </p>
       <p className="mb-3 text-xs leading-relaxed text-ink-dim">
         Claude Desktop routines that post to Slack are ingested automatically —

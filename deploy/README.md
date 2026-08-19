@@ -1,4 +1,4 @@
-# AIOS — container edition
+# apOS — container edition
 
 Run the whole app (web + worker + Postgres) with one command, on **macOS, Linux,
 or Windows (via WSL2)**. **Ollama stays on the host** so inference uses your GPU
@@ -52,7 +52,7 @@ Change the web port with `AIOS_WEB_PORT=3800 docker compose …`.
 ## Limitation — Workbench executors
 The Workbench CLI harnesses (`claude-headless`, `codex`, `opencode`, `pi`) are
 host-tied — they need host CLIs, their auth, git worktrees, and the macOS
-seatbelt — so they **do not run inside the container**. AIOS detects this: those
+seatbelt — so they **do not run inside the container**. apOS detects this: those
 executors are **cleanly disabled** (shown unavailable in the picker; they never
 run or reach for host CLI config), and tasks fall back to the `native` executor.
 Everything else (chat, agents, pipelines, enrichment, search, integrations)
@@ -65,7 +65,7 @@ Docker level instead. Also tracked as a follow-up.
 
 ## Test it in isolation
 `deploy/test-deploy.sh` runs the stack on a **separate** project + port (:3778) +
-volume, so it never touches a live host-native AIOS:
+volume, so it never touches a live host-native apOS:
 ```bash
 deploy/test-deploy.sh up      # build + start (isolated)
 deploy/test-deploy.sh check   # web 200, routes seeded, worker up, chat smoke

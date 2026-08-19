@@ -71,7 +71,7 @@ export const anthropicProvider: AIProvider = {
           model: opts.model,
           systemPrompt:
             opts.system ??
-            "You are the AI core of AIOS, the user's personal operating system.",
+            "You are the AI core of apOS, the user's Agentic Personalized Operating System.",
           mcpServers: { [MCP_SERVER]: server },
           allowedTools: opts.tools.map((t) => MCP_PREFIX + toWireName(t.name)),
           disallowedTools: ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch"],

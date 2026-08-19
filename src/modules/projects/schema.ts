@@ -148,7 +148,7 @@ export type ProjectFileStatus = (typeof PROJECT_FILE_STATUSES)[number];
 /**
  * Files attached to a project. The raw bytes live in Postgres (`content`,
  * bytea) rather than a separate storage layer — there is no filesystem/S3
- * convention anywhere else in AIOS, and this way attachments are covered by
+ * convention anywhere else in apOS, and this way attachments are covered by
  * the existing nightly `pg_dump` backup for free. `extractedText` is what
  * gets embedded and what search/Ask/agents actually read; `content` is only
  * served back on download.

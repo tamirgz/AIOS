@@ -1,7 +1,7 @@
 /**
- * The native executor: AIOS's own provider layer plus the module tool
+ * The native executor: apOS's own provider layer plus the module tool
  * registry. No subprocess, no repo — this is the executor for work whose
- * subject *is* AIOS's data ("summarize my open ideas into a note"), and it
+ * subject *is* apOS's data ("summarize my open ideas into a note"), and it
  * runs on whatever provider the route says, so it can be entirely local.
  */
 import { db } from "@/core/db/client";
@@ -43,7 +43,7 @@ export const nativeAdapter: Adapter = {
     try {
       for await (const event of provider.run({
         system: [
-          "You are the AIOS Workbench executor running a one-off task the user delegated.",
+          "You are the apOS Workbench executor running a one-off task the user delegated.",
           "You run unattended: do the work with your tools, then finish with a concise report of what you did and what you found.",
           "Prefer acting (creating the note, updating the item) over describing what could be done.",
           `Current date-time: ${new Date().toISOString()}`,

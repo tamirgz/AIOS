@@ -3,7 +3,7 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-/** Shared AIOS-styled markdown renderer (reports, insights, agent output). */
+/** Shared apOS-styled markdown renderer (reports, insights, agent output). */
 const components: Components = {
   h1: (props) => (
     <h1

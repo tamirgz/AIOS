@@ -20,7 +20,7 @@ export interface ExecutorRow {
 
 /**
  * Executors as configuration. Editing a row here is how a new coding agent
- * joins AIOS — no code, no deploy: a command template with {{prompt}},
+ * joins apOS — no code, no deploy: a command template with {{prompt}},
  * {{workdir}} and {{model}} placeholders, plus which model it defaults to.
  */
 function timeAgo(iso: string): string {
