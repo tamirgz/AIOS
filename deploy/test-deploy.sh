@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Clean-room test of the AIOS container edition, fully ISOLATED from any running
-# host-native AIOS: separate compose project, web on :3778 (not :3777), its own
+# Clean-room test of the apOS container edition, fully ISOLATED from any running
+# host-native apOS: separate compose project, web on :3778 (not :3777), its own
 # Postgres volume, no host Postgres port. It only SHARES the host's Ollama
 # (read-only inference) — nothing it does can affect a live setup.
 #

@@ -1,4 +1,4 @@
-# AIOS Workbench — Usability Review, Research Findings & Build Plan
+# apOS Workbench — Usability Review, Research Findings & Build Plan
 
 *2026-07-20; status appended 2026-07-21. Deliverable of the "review usability + research best practices + plan the agentic task system" pass. Companion to ONE-STOP-PLAN.md (whose phases re-sequence behind this).*
 
@@ -6,9 +6,9 @@
 
 ---
 
-## 1 · Honest usability audit of AIOS today
+## 1 · Honest usability audit of apOS today
 
-**The core finding:** AIOS has no home for the most common agentic need — a **one-off task**: "research X", "fix this bug", "document that module", "tell me when done". Today everything agentic is either:
+**The core finding:** apOS has no home for the most common agentic need — a **one-off task**: "research X", "fix this bug", "document that module", "tell me when done". Today everything agentic is either:
 - **⌘K chat** — great for 30-second actions, but ephemeral: close the palette and the conversation is gone; no history, no long-running work, no results to come back to; or
 - **Standing scheduled agents** — powerful but expert-mode: creating one means naming it, writing a system prompt from scratch, and hand-picking tools from checklists. That's the right shape for *recurring* jobs, the wrong shape for "just go do this."
 
@@ -59,7 +59,7 @@ Full findings in the session log; the load-bearing conclusions:
 - **D1 — Build the Workbench module**: the one-off task surface. One text box + a task-type picker; the type silently resolves executor + model + permissions (advanced override behind a fold). Tasks are cards: `queued → running → needs_input → review → done/failed`.
 - **D2 — Task/attempt/event data model** per the research: `workbench_tasks`, `task_attempts`, `attempt_events` (one normalized schema for all executors). Attempts are retryable with a different executor in one click.
 - **D3 — Two first-class adapters + one generic**: **Claude Code headless** (stream-json; Max quota; heavy/complex work incl. research via its WebSearch) and **opencode serve** (REST/SSE sidecar; all local-Ollama coding; its permissions endpoint plugs into our approval queue). A **generic CLI adapter** (command template + parser enum + timeout) covers **pi** and **aider** — and any future agent — as *configuration rows, not code*. Executors are editable in Settings, satisfying "configurable which agent."
-- **D4 — Hermes is a peer, not an executor**: it reaches AIOS through the Slack intake already built.
+- **D4 — Hermes is a peer, not an executor**: it reaches apOS through the Slack intake already built.
 - **D5 — Git safety**: worktree + branch (`aios/task-<id>`) per attempt; engine commits a checkpoint at attempt end; review = `git diff main...branch` in a diff pane; **merge/PR is always a manual button**; automatic worktree cleanup on archive + orphan sweeper.
 - **D6 — Task-type defaults** (Settings-editable):
   | Type | Default executor | Model | Rationale |
@@ -85,7 +85,7 @@ Full findings in the session log; the load-bearing conclusions:
 
 ## 5 · Execution phases
 
-- **W1 — Spine (first sitting):** schema + engine + **claude-headless** and **native** adapters + minimal UI (cards, drawer with live tail + diff for repo tasks). Exit: delegate "research X" and "fix this small bug in AIOS repo" from one text box; both complete unattended; review the diff in-app.
+- **W1 — Spine (first sitting):** schema + engine + **claude-headless** and **native** adapters + minimal UI (cards, drawer with live tail + diff for repo tasks). Exit: delegate "research X" and "fix this small bug in apOS repo" from one text box; both complete unattended; review the diff in-app.
 - **W2 — Executor breadth:** **opencode serve** sidecar adapter (incl. approvals bridge) + generic CLI adapter with seeded **pi** and **aider** rows + task-type defaults UI in Settings + retry-as-attempt. Exit: the same coding task run twice — once on Claude, once on opencode+qwen — as sibling attempts, compared by diff.
 - **W3 — Delegation UX:** plan gate w/ countdown, needs_input→Inbox interrupts, steer-mid-run, best-of-N, merge/PR button, worktree sweeper, plus the D9 quick wins (persistent chat, hints, empty states). Exit: a full week where every one-off task went through Workbench and nothing required the terminal.
 - **Then:** ONE-STOP phases resume (Gmail → Ask/Notion → Telegram → consolidation) — unchanged in content, shifted in order.
@@ -103,7 +103,7 @@ Full findings in the session log; the load-bearing conclusions:
 | `workbench_tasks` / `task_attempts` / `attempt_events` / `executors` schema | ✅ migration 0014 |
 | Engine: atomic claim, worktree-per-attempt, per-type timeout, SIGTERM→10s→SIGKILL on the **process group**, restart reconciliation, capacity cap 2 | ✅ |
 | claude-headless adapter (stream-json) | ✅ |
-| native adapter (AIOS providers + module tool registry) | ✅ |
+| native adapter (apOS providers + module tool registry) | ✅ |
 | Board (grouped by where attention goes) + detail (ask · live tail · per-file diff) | ✅ |
 | `workbench.delegate` / `.list` / `.get` AI tools | ✅ |
 | Retry-as-attempt | ✅ **pulled forward from W2** — the data model made it ~20 lines, and without it a failed attempt was a dead card |
@@ -139,14 +139,14 @@ Full findings in the session log; the load-bearing conclusions:
 
 | Finding | Consequence |
 |---|---|
-| opencode merges the user's global config, which carries personal MCP servers | AIOS writes and points at **its own** config via `OPENCODE_CONFIG`; a headless run must not depend on the user's MCP servers being reachable |
+| opencode merges the user's global config, which carries personal MCP servers | apOS writes and points at **its own** config via `OPENCODE_CONFIG`; a headless run must not depend on the user's MCP servers being reachable |
 | A linked worktree's `.git` is a **file**, so opencode resolves the project root to the *main* repo and treats the worktree as an **external directory** | Every write was silently blocked. Fixed with an `external_directory` allow rule scoped to that one attempt's worktree — `/world.txt` (which a local model really did attempt) is still denied |
 | `write` has no permission key, so it falls through to `ask` | A headless run silently drops its own edits. `--dangerously-skip-permissions` fixes it, and explicit denies still hold |
 | Local models write absolute paths and stop to ask "what next?" | The engine prepends workdir + relative-path + autonomy + date directives for CLI executors (the pitfalls the `dockerized-ollama-agent` skill already warned about) |
 
 **Honesty fixes the runs forced** — the exit test's real value:
 - An executor that exits 0 having printed **nothing** is now a failure, not a success.
-- A repo attempt that changes **no files** is a no-op, not "done". `qwen3-coder:30b` announced *"I've successfully written HELLO.md"* when no such file existed anywhere on disk; AIOS now reports `failed — finished without changing any files` and quotes the claim.
+- A repo attempt that changes **no files** is a no-op, not "done". `qwen3-coder:30b` announced *"I've successfully written HELLO.md"* when no such file existed anywhere on disk; apOS now reports `failed — finished without changing any files` and quotes the claim.
 - CLI runs report tokens and cost in the same columns as Claude runs (local = $0).
 
 **Exit test — PASSED 2026-07-23.** One card, the same task ("make slugify strip punctuation / collapse spaces / trim hyphens") run as two sibling attempts:
@@ -160,7 +160,7 @@ Both reviewed in-app as per-file diffs; both branches fetched into the test repo
 
 **It didn't pass until two real bugs were root-caused** (the earlier "opencode runs but performs no edits" was a symptom of both). Found by bisecting against a standalone-repo run that *did* work:
 
-1. **Stale `PWD` — the root cause.** The worker's `PWD` is the AIOS project; the adapter inherited it, and opencode (like many tools) trusts `$PWD` over the spawn `cwd` to locate its project root. So every CLI run operated in the **AIOS checkout**, not the isolated dir — one run wrote `slugify.js` straight into it. Fixed by pinning `PWD` to the workdir for every spawned executor.
+1. **Stale `PWD` — the root cause.** The worker's `PWD` is the apOS project; the adapter inherited it, and opencode (like many tools) trusts `$PWD` over the spawn `cwd` to locate its project root. So every CLI run operated in the **apOS checkout**, not the isolated dir — one run wrote `slugify.js` straight into it. Fixed by pinning `PWD` to the workdir for every spawned executor.
 2. **Linked worktree confuses external agents.** A worktree's `.git` is a *file* pointing at the main repo, so opencode resolved the project there. CLI executors now use a `git clone --local` (real `.git` directory → workdir *is* the project root); the branch is fetched back into the user's repo at settle, so review/merge are unchanged. In-process claude-headless keeps the cheaper worktree.
 
 Also removed the absolute-path preamble that made local models mangle the workdir path. The no-op detector that surfaced all of this stays.
@@ -172,7 +172,7 @@ Also removed the absolute-path preamble that made local models mangle the workdi
 - `nvidia/minimaxai/minimax-m2.7` (user's dedicated Nvidia key) — same task in **133s**, diff passes the spec.
 Paid models are refused before spawn (verified with `nvidia/deepseek-v4-flash`). Nvidia's free tier is functional but slower and rate-limited (two other free models returned `429`/`410` on the shared key before the dedicated one was created).
 
-**The opencode startup hang — root-caused and fixed.** A sampled hung process blocked at `init`. Cause: AIOS's opencode config declares the Ollama provider via `npm: @ai-sdk/openai-compatible`, which wasn't in opencode's package cache, so opencode ran a `bun install` on *every* run and blocked. Fixed by pre-installing that SDK (a one-time host step, in the setup notes), pointing `OPENCODE_MODELS_PATH` at the local model DB (no models.dev fetch at init), and disabling the user's global MCP servers for AIOS runs. opencode now starts in seconds.
+**The opencode startup hang — root-caused and fixed.** A sampled hung process blocked at `init`. Cause: apOS's opencode config declares the Ollama provider via `npm: @ai-sdk/openai-compatible`, which wasn't in opencode's package cache, so opencode ran a `bun install` on *every* run and blocked. Fixed by pre-installing that SDK (a one-time host step, in the setup notes), pointing `OPENCODE_MODELS_PATH` at the local model DB (no models.dev fetch at init), and disabling the user's global MCP servers for apOS runs. opencode now starts in seconds.
 
 ---
 

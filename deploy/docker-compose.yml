@@ -1,4 +1,4 @@
-# AIOS container edition — one command to run the whole app.
+# apOS container edition — one command to run the whole app.
 #   docker compose -f deploy/docker-compose.yml up -d --build
 #
 # Ollama runs on the HOST (native Metal GPU) — the containers reach it at

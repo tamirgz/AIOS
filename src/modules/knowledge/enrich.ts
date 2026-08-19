@@ -78,7 +78,7 @@ export async function enrichItem(
   let finalText = "";
   for await (const event of route.provider.run({
     system:
-      "You are the knowledge-enrichment engine of AIOS, the user's personal AI operating system. You turn saved links, repos and snippets into structured, actionable insight. Be specific and concrete; no filler.",
+      "You are the knowledge-enrichment engine of apOS, the user's Agentic Personalized Operating System. You turn saved links, repos and snippets into structured, actionable insight. Be specific and concrete; no filler.",
     messages: [{ role: "user", content: material }],
     tools: [submitTool],
     toolCtx: { db },

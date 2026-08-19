@@ -1,6 +1,6 @@
-# AIOS Runtime & Operations
+# apOS Runtime & Operations
 
-How AIOS actually runs on this machine, what is containerized vs. native, how the
+How apOS actually runs on this machine, what is containerized vs. native, how the
 agents/harnesses execute, and exactly what host/global state they touch.
 
 > Complements the README quickstart. This doc is the "where does it run and what
@@ -43,7 +43,7 @@ host (macOS, Apple Silicon)
     └── aios-postgres  pgvector/pgvector:pg17   5544→5432        [the ONLY container]
 ```
 
-- Both AIOS services are **KeepAlive** LaunchAgents in `~/Library/LaunchAgents/`,
+- Both apOS services are **KeepAlive** LaunchAgents in `~/Library/LaunchAgents/`,
   `WorkingDirectory` = this repo, `HOME=$HOME` (your home dir), minimal `PATH`
   (`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`). Logs at
   `~/Library/Logs/aios-{web,worker}.log`.
@@ -65,11 +65,11 @@ host (macOS, Apple Silicon)
 | Claude Agent SDK (chat/agents) | Host, **in-process** | No separate CLI; runs inside web/worker node process. |
 | Workbench CLI harnesses | Host, **spawned subprocess** | `claude`/`codex`/`opencode`/`pi`, only during a Workbench task. |
 
-Nothing AIOS does for AI/agents is containerized. Docker is a database detail.
+Nothing apOS does for AI/agents is containerized. Docker is a database detail.
 
 ## Two classes of "agent"
 
-AIOS has two different execution paths, and the distinction matters for both
+apOS has two different execution paths, and the distinction matters for both
 speed and footprint.
 
 ### 1. In-process AI providers — chat, scheduled agents, enrichment, inbox triage
@@ -79,7 +79,7 @@ node process:
 
 - **Anthropic** = Claude Agent SDK `query()` on the **Max subscription**
   (`CLAUDE_CODE_OAUTH_TOKEN`, no API key). The SDK spawns its own bundled Claude
-  Code runtime as a child, but the model is **locked to AIOS module tools** via
+  Code runtime as a child, but the model is **locked to apOS module tools** via
   an in-process MCP server — `allowedTools` = only those tools, and
   `Bash/Read/Write/Edit/Glob/Grep/WebFetch/WebSearch` are explicitly disallowed.
   So these agents **cannot touch the filesystem or shell** — they only call the
@@ -107,7 +107,7 @@ isolation so a misbehaving executor can't dirty your checkout. Adapters:
 |---|---|---|---|---|
 | Claude Code (headless) | `claude-headless` | `claude` CLI | Max sub (env token) | worktree + private HOME |
 | Codex (GPT-5) | `codex-headless` | `codex exec --json` | ChatGPT sub (linked `auth.json`) | worktree + private HOME |
-| AIOS native | `native` | — (in-process module tools) | routing table | none |
+| apOS native | `native` | — (in-process module tools) | routing table | none |
 | opencode | `cli` | `opencode run` | local/free models | worktree/clone + private HOME + seatbelt |
 | pi | `cli` | `pi` | local Ollama model | worktree/clone + private HOME + seatbelt |
 | research | `research` | — (fetch + tool-free analysis) | routing table | none (scratch dir) |
@@ -143,7 +143,7 @@ Enforced in code, not just convention (`src/core/ai/auth.ts`):
 
 ## Global / home-directory footprint
 
-Everything AIOS writes outside the repo, and whether it's app-private or shared
+Everything apOS writes outside the repo, and whether it's app-private or shared
 with your global tooling:
 
 | Path | R/W | Scope | What |
@@ -165,7 +165,7 @@ with your global tooling:
 **Not touched:** shell profiles (`.zshrc` etc.), system settings, your `~/.ssh`,
 npm/pnpm/uv global installs, and — now that harnesses run in a private HOME —
 your real `~/.claude` / `~/.codex` **state** (only config is read, read-only).
-AIOS installs nothing globally beyond its own `~/Library/LaunchAgents/com.aios.*`
+apOS installs nothing globally beyond its own `~/Library/LaunchAgents/com.aios.*`
 plists.
 
 ## Harness isolation

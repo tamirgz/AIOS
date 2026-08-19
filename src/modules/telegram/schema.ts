@@ -10,7 +10,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * Telegram as a SOURCE (not a chat): AIOS reads a public channel's posts via
+ * Telegram as a SOURCE (not a chat): apOS reads a public channel's posts via
  * its `t.me/s/<name>` web preview — no bot, no API key, no login. Each post is
  * enriched (linked-article text pulled in) and cheaply relevance-gated by a
  * local model, so only the posts that matter reach an (expensive) routine.

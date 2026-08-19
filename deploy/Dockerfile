@@ -1,4 +1,4 @@
-# AIOS container edition — the web app + worker in one image.
+# apOS container edition — the web app + worker in one image.
 # Ollama is NOT here: on macOS, containers get no Metal GPU, so Ollama runs
 # natively on the host and the container reaches it at host.docker.internal.
 #

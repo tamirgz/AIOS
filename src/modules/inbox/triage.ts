@@ -74,7 +74,7 @@ export async function triageInboxItem(itemId: string): Promise<void> {
     let toolResult: unknown = null;
     for await (const event of route.provider.run({
       system: [
-        "You are the inbox triage of AIOS, the user's personal AI operating system.",
+        "You are the inbox triage of apOS, the user's Agentic Personalized Operating System.",
         "STEP 1 — is this a STATUS UPDATE about something that already exists, not a new item? Signals: 'I finished/did/completed X', 'done with Y', 'started on Z', 'X is blocked/on hold'. If so:",
         "  • Call tasks.list with a distinctive keyword from the input as `search` (e.g. a project or noun — not filler words) to find the task it refers to. Pick the best-matching NOT-done task.",
         "  • If you find it, update it with tasks.setStatus — 'done' when completed/finished, 'doing' when started. Do NOT create a new task for a completion report.",

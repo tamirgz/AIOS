@@ -7,7 +7,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * Read-only index of the user's Obsidian vault. AIOS never writes to the
+ * Read-only index of the user's Obsidian vault. apOS never writes to the
  * vault — it mirrors markdown files so semantic search and agents can answer
  * from years of notes.
  */

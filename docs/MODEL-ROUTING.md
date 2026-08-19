@@ -1,4 +1,4 @@
-# AIOS Model Routing — which runtime serves which action
+# apOS Model Routing — which runtime serves which action
 
 The dividing principle:
 

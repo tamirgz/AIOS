@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# AIOS installer (macOS / Apple Silicon, or Linux — incl. Windows via WSL2).
+# apOS installer (macOS / Apple Silicon, or Linux — incl. Windows via WSL2).
 #
 #   curl -fsSL https://raw.githubusercontent.com/<owner>/AIOS/main/install.sh | bash
 #   ./install.sh                      # from a checkout
@@ -66,7 +66,7 @@ OS="$(uname -s)"
 case "$OS" in
   Darwin) [ "$(uname -m)" = "arm64" ] || die "macOS builds target Apple Silicon (arm64).";;
   Linux)  ;;  # native Linux, or Windows via WSL2
-  *) die "unsupported OS '$OS'. AIOS runs on macOS or Linux (Windows via WSL2).";;
+  *) die "unsupported OS '$OS'. apOS runs on macOS or Linux (Windows via WSL2).";;
 esac
 open_url() { if [ "$OS" = Darwin ]; then open "$1" 2>/dev/null || true; else xdg-open "$1" 2>/dev/null || true; fi; }
 ram_gb() {
@@ -112,7 +112,7 @@ else
   esac
 fi
 
-say "AIOS installer — $(c '1' "$MODE") edition on $(c '1' "$OS")"
+say "apOS installer — $(c '1' "$MODE") edition on $(c '1' "$OS")"
 if [ "$BRAIN" = cloud ]; then
   say "brain: $(c '1' 'cloud') — local embeddings + free OpenRouter models for reasoning (models: $MODELS)"
 else
@@ -205,7 +205,7 @@ if [ -f "deploy/docker-compose.yml" ]; then
   REPO="$(pwd)"; ok "using checkout at $REPO"
 else
   if [ ! -d "$DIR/.git" ]; then
-    say "cloning AIOS → $DIR…"
+    say "cloning apOS → $DIR…"
     run git clone https://github.com/tamirgz/AIOS.git "$DIR"
   fi
   REPO="$DIR"; run cd "$REPO"
@@ -238,7 +238,7 @@ if [ "$BRAIN" = cloud ]; then
   done
   export AIOS_DEFAULT_BRAIN=openrouter AIOS_DEFAULT_MODEL="$CLOUD_MODEL"
   [ -n "$KEY" ] && export OPENROUTER_API_KEY="$KEY"
-  [ -z "$KEY" ] && warn "no OpenRouter key yet — AIOS will start, but add one in Settings → Connections before reasoning works."
+  [ -z "$KEY" ] && warn "no OpenRouter key yet — apOS will start, but add one in Settings → Connections before reasoning works."
 fi
 
 # ── models ───────────────────────────────────────────────────────────────────
@@ -292,7 +292,7 @@ for _ in $(seq 1 60); do
   [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3777/ 2>/dev/null)" = "200" ] && break; sleep 3
 done
 if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3777/ 2>/dev/null)" = "200" ]; then
-  ok "AIOS is up → http://localhost:3777"
+  ok "apOS is up → http://localhost:3777"
   if [ "$BRAIN" = cloud ]; then
     echo
     say "cloud-brain next steps:"

@@ -1,9 +1,9 @@
-# AIOS — Personal AI Operating System
+# apOS — Agentic Personalized Operating System
 
 > **One calm home for your projects, notes, and ideas — everything ingested and interconnected, so you can _ask_ across all of it and get cited answers. Runs entirely on your own machine. Private by default, free by default.**
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="AIOS dashboard — today's needs-you queue, agenda, active projects, and agent activity in one view" width="900">
+  <img src="docs/screenshots/dashboard.png" alt="apOS dashboard — today's needs-you queue, agenda, active projects, and agent activity in one view" width="900">
 </p>
 
 <p align="center">
@@ -25,7 +25,7 @@ work and personal — are all ingested and interconnected.** When I ask a questi
 answer is grounded in _everything_ I've connected and everything I've written, not one silo
 at a time. (I still love Obsidian for local, private, easily‑interlinked notes — inspired
 by [Andrej Karpathy's LLM‑wiki idea](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
-— and AIOS reads that vault too.)
+— and apOS reads that vault too.)
 
 **Why local‑first?** Three reasons. So anyone with a decent machine can run it and get the
 full benefit without a bill. So I can explore and think through ideas **privately**. And so
@@ -63,7 +63,7 @@ never double‑do work. Install one from a module template, or write your own.
 <p align="center"><img src="docs/screenshots/agents.png" alt="Agents — scheduled autonomous agents plus a gallery of module-contributed templates" width="820"></p>
 
 ### 💡 An ideas pipeline with an AI reality‑check
-Capture a spark; AIOS pressure‑tests it — a verdict (pursue / explore / park), a score,
+Capture a spark; apOS pressure‑tests it — a verdict (pursue / explore / park), a score,
 strengths, risks, and concrete validation steps — then lets you promote the good ones
 straight into a project.
 
@@ -73,7 +73,7 @@ straight into a project.
 <p align="center"><img src="docs/screenshots/ideas.png" alt="Ideas — a Sparks→Exploring→Validated→Parked board with AI verdicts and scores" width="820"></p>
 
 ### 📥 Capture anything → it becomes searchable
-Paste a link, a repo, a video, a quote, a stray thought. AIOS fetches, summarizes, tags,
+Paste a link, a repo, a video, a quote, a stray thought. apOS fetches, summarizes, tags,
 and files it — then embeds it into one **semantic search** across your whole system
 (pgvector + a local embedding model). Capture cost approaches zero; the filing is the
 machine's job.
@@ -144,14 +144,14 @@ git clone https://github.com/tamirgz/AIOS.git && cd AIOS
 
 ### Windows (step by step)
 
-AIOS runs in Linux containers, so on Windows you run it inside **WSL2** — a real Linux environment built into Windows. Do these in order:
+apOS runs in Linux containers, so on Windows you run it inside **WSL2** — a real Linux environment built into Windows. Do these in order:
 
 1. **Install WSL2 + Ubuntu.** Open **PowerShell as Administrator** — click **Start**, type `PowerShell`, right-click **Windows PowerShell**, choose **Run as administrator** — then run:
    ```powershell
    wsl --install -d Ubuntu
    ```
    **Reboot** when it asks. After the reboot an **Ubuntu** window opens and asks you to create a username and password — type them (this is your Linux login; the password stays invisible as you type, which is normal).
-2. **(Optional) GPU.** If your PC has an NVIDIA GPU, install the latest **[NVIDIA Windows driver](https://www.nvidia.com/download/index.aspx)** — CUDA then works inside WSL2 automatically. No NVIDIA GPU? Skip this; AIOS still runs (use `--brain cloud` in step 5 if the machine is low-spec).
+2. **(Optional) GPU.** If your PC has an NVIDIA GPU, install the latest **[NVIDIA Windows driver](https://www.nvidia.com/download/index.aspx)** — CUDA then works inside WSL2 automatically. No NVIDIA GPU? Skip this; apOS still runs (use `--brain cloud` in step 5 if the machine is low-spec).
 3. **Open the Ubuntu shell.** Click **Start → Ubuntu** (or open Windows Terminal and pick the **Ubuntu** tab). Everything below is typed **in this Ubuntu window**, not in PowerShell.
 4. **Install Docker Engine.** Paste this whole line and press Enter (type your Ubuntu password if asked — invisible again):
    ```bash
@@ -167,7 +167,7 @@ AIOS runs in Linux containers, so on Windows you run it inside **WSL2** — a re
    > # your distro, e.g. ".../ Ubuntu 22.04" — NOT "Docker Desktop"
    > ```
    > If it says **Docker Desktop**, either run the Engine step above so everything lives in Ubuntu together, or keep Docker Desktop and run Ollama on Windows (see the note under this list).
-5. **Install AIOS** (still in Ubuntu):
+5. **Install apOS** (still in Ubuntu):
    ```bash
    git clone https://github.com/tamirgz/AIOS.git && cd AIOS && ./install.sh
    ```
@@ -182,7 +182,7 @@ AIOS runs in Linux containers, so on Windows you run it inside **WSL2** — a re
    ```bash
    curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER
    ```
-2. **Install AIOS:**
+2. **Install apOS:**
    ```bash
    git clone https://github.com/tamirgz/AIOS.git && cd AIOS && ./install.sh
    ```
@@ -196,7 +196,7 @@ AIOS runs in Linux containers, so on Windows you run it inside **WSL2** — a re
 
 ### Low-spec machine? Use the free "cloud-brain"
 
-No powerful GPU or much RAM? AIOS still works. Embeddings run on a **tiny local model** (`nomic-embed-text`, ~300 MB — runs on almost anything), and the **reasoning** (chat, agents, Ask) uses **[OpenRouter](https://openrouter.ai)'s free tier** instead of a local chat model.
+No powerful GPU or much RAM? apOS still works. Embeddings run on a **tiny local model** (`nomic-embed-text`, ~300 MB — runs on almost anything), and the **reasoning** (chat, agents, Ask) uses **[OpenRouter](https://openrouter.ai)'s free tier** instead of a local chat model.
 
 `install.sh` auto-selects this under ~8 GB RAM, or force it with `--brain cloud`:
 
@@ -240,7 +240,7 @@ gui/$(id -u)/com.aios.web` (and `.worker`).
   any task to it in **AI Routing**. This is also the [low-spec "cloud-brain"](#low-spec-machine-use-the-free-cloud-brain)
   path — free reasoning without a capable GPU.
 - **Integrations** (Calendar, Gmail, Slack, Obsidian, Notion, web search): connect each in
-  **Settings → Connections**. All optional; AIOS is fully useful with none.
+  **Settings → Connections**. All optional; apOS is fully useful with none.
 
 ## What runs on your machine — and what it never touches
 

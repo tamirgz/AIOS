@@ -51,7 +51,7 @@ export function ConnectionsPanel({
         </p>
         <p className="mt-2 text-xs text-ink-faint">
           {emptyHint ??
-            "No strong connections yet — as you capture more, AIOS surfaces the ones that genuinely relate here."}
+            "No strong connections yet — as you capture more, apOS surfaces the ones that genuinely relate here."}
         </p>
       </section>
     );

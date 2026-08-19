@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Render + install AIOS launchd agents from launchd/*.plist.tmpl, substituting
+# Render + install apOS launchd agents from launchd/*.plist.tmpl, substituting
 # this machine's paths (no hardcoded /Users/<name>). Idempotent — re-running
 # reloads the agents.
 #

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# AIOS local CI + deploy.
+# apOS local CI + deploy.
 #
 # Run automatically by the pre-push hook (.githooks/pre-push) on every
 # `git push`, and runnable by hand any time: `./scripts/deploy-local.sh`.

@@ -53,7 +53,7 @@ async function headCommit(repoPath: string): Promise<{ sha: string; subject: str
  * A single run needs to know WHICH commit and that it acts NOW — so we prepend
  * only that: the just-landed commit to analyze, then the user's ask verbatim.
  * This is the one addition that's actually load-bearing (it's why the user
- * never has to name a commit — AIOS supplies it). The "don't build a git hook"
+ * never has to name a commit — apOS supplies it). The "don't build a git hook"
  * guard is NOT repeated here; it already lives in the CLI executor preamble
  * where local models need it, and Claude never needed it.
  */
@@ -239,13 +239,13 @@ export async function queuePrApproval(taskId: string): Promise<void> {
   if (!r || r.deliverPr !== "true") return;
 
   const { approvals } = await import("@/core/db/schema/approvals");
-  const title = `AIOS routine: ${r.name}`.slice(0, 120);
+  const title = `apOS routine: ${r.name}`.slice(0, 120);
   const body = [
-    `Automated by the AIOS routine **${r.name}**.`,
+    `Automated by the apOS routine **${r.name}**.`,
     "",
     task.summary ? `**What changed:** ${task.summary}` : "",
     "",
-    "_Review before merge — AIOS proposes, it never merges._",
+    "_Review before merge — apOS proposes, it never merges._",
   ]
     .filter(Boolean)
     .join("\n");

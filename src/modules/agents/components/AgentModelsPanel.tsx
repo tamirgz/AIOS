@@ -123,7 +123,7 @@ function AgentRow({ agent }: { agent: AgentModelRow }) {
 
 /**
  * Which brain each scheduled agent runs on — the same per-agent override as the
- * agent's own page, surfaced here so every model choice in AIOS is reachable
+ * agent's own page, surfaced here so every model choice in apOS is reachable
  * from Settings. "route default" means it inherits the `agent.default` route.
  */
 export function AgentModelsPanel({ agents }: { agents: AgentModelRow[] }) {

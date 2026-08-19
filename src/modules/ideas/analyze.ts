@@ -54,7 +54,7 @@ export async function analyzeIdea(ideaId: string): Promise<void> {
     let finalText = "";
     for await (const event of route.provider.run({
       system: [
-        "You are the idea reality-check engine of AIOS, the user's personal AI operating system.",
+        "You are the idea reality-check engine of apOS, the user's Agentic Personalized Operating System.",
         "Assess ideas like a sharp, honest advisor: lead with the uncomfortable truth, no flattery, no filler.",
         "Ground the assessment in who the user is and what they're focused on (memory below).",
         "",

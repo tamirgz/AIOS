@@ -98,7 +98,7 @@ function Row({
 }
 
 /**
- * Slide-over with everything AIOS knows about one agenda entry: when, where,
+ * Slide-over with everything apOS knows about one agenda entry: when, where,
  * the description, and — for meetings — a one-click JOIN.
  */
 export function EventDetail({

@@ -303,7 +303,7 @@ export async function deleteTask(taskId: string): Promise<{
   return { deletedBranches, keptBranches };
 }
 
-/** Edit an executor row — how a new coding agent joins AIOS without code. */
+/** Edit an executor row — how a new coding agent joins apOS without code. */
 export async function updateExecutor(
   id: string,
   patch: {
@@ -365,7 +365,7 @@ export async function composeRoutine(description: string): Promise<
   const route = await resolveRoute("routine.builder");
 
   const system =
-    "You configure an AIOS 'routine' — a standing instruction that re-runs automatically. " +
+    "You configure an apOS 'routine' — a standing instruction that re-runs automatically. " +
     "You do NOT do the work and you do NOT rewrite the user's instruction: preserve their wording and intent, only lifting it into a clean standing 'ask'. " +
     "Decide the trigger from their words: 'on each commit'/'when I push' → commit; 'daily'/'every morning'/a time → schedule (give a cron); both if they say both. " +
     "Respond with ONLY a JSON object: " +
@@ -534,11 +534,11 @@ export async function requestPR(taskId: string) {
   if (!task.repoPath) throw new Error("task has no repo");
 
   const { approvals } = await import("@/core/db/schema/approvals");
-  const title = `AIOS: ${task.title}`.slice(0, 120);
+  const title = `apOS: ${task.title}`.slice(0, 120);
   const body = [
-    `Proposed by AIOS from the Workbench task "${task.title}".`,
+    `Proposed by apOS from the Workbench task "${task.title}".`,
     task.summary ? `\n**What changed:** ${task.summary}` : "",
-    "\n_Review before merge — AIOS proposes, it never merges._",
+    "\n_Review before merge — apOS proposes, it never merges._",
   ].join("");
   const [row] = await db
     .insert(approvals)

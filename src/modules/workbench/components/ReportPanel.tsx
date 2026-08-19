@@ -12,15 +12,15 @@ function frameworkLabel(executorId?: string | null): string {
   const id = executorId ?? "";
   if (id.startsWith("claude")) return "Claude Code (headless) · Claude Agent SDK";
   if (id.startsWith("codex")) return "Codex CLI · GPT-5 (ChatGPT subscription)";
-  if (id === "native") return "AIOS native runtime · Claude Agent SDK";
+  if (id === "native") return "apOS native runtime · Claude Agent SDK";
   if (id.includes("opencode")) return "opencode CLI";
-  return id || "AIOS Workbench";
+  return id || "apOS Workbench";
 }
 
 /** The provenance line appended to the report — model + agent framework. */
 function creditLine(model?: string | null, executorId?: string | null): string {
   const parts = [model?.trim(), frameworkLabel(executorId)].filter(Boolean);
-  return `Generated with ${parts.join(" · ")} — via AIOS Workbench.`;
+  return `Generated with ${parts.join(" · ")} — via apOS Workbench.`;
 }
 
 export function ReportPanel({

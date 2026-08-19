@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# AIOS local CI — runs on every `git push`.
+# apOS local CI — runs on every `git push`.
 #
 # Typechecks + builds (a failure here aborts the push so broken code never
 # leaves your machine), then migrates the DB and restarts the local worker +

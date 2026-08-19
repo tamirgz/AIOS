@@ -1,5 +1,5 @@
 /**
- * AIOS agent worker — runs on the host (needs Claude CLI credentials + Ollama).
+ * apOS agent worker — runs on the host (needs Claude CLI credentials + Ollama).
  * Responsibilities: cron-schedule agents, execute runs, orphan recovery,
  * module background jobs. Postgres LISTEN/NOTIFY is the message bus.
  *
@@ -33,7 +33,7 @@ async function deliverToSlack(notificationId: string) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      text: `*AIOS · ${n.title}*${n.body ? `\n${n.body}` : ""}`,
+      text: `*apOS · ${n.title}*${n.body ? `\n${n.body}` : ""}`,
     }),
     signal: AbortSignal.timeout(10_000),
   });

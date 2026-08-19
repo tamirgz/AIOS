@@ -5,7 +5,7 @@
  * Why LM Studio rather than a raw `mlx_lm.server`: it runs models on Apple's MLX
  * framework (measured ~1.25–1.5× Ollama's throughput and far better TTFT on the
  * same 35B-A3B model, M4 Pro) AND manages the model lifecycle natively — JIT
- * load on first request, idle-TTL unload — so AIOS no longer has to babysit a
+ * load on first request, idle-TTL unload — so apOS no longer has to babysit a
  * launchd process to avoid a 17GB model sitting resident. Configure JIT/TTL in
  * LM Studio → Developer.
  *

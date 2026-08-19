@@ -1,6 +1,6 @@
-# AIOS Distribution & 1-Click Onboarding Plan
+# apOS Distribution & 1-Click Onboarding Plan
 
-Turning AIOS from a single-machine build into an open-source project the public can
+Turning apOS from a single-machine build into an open-source project the public can
 install in one command, and collapsing every integration from "endless clicks" to
 per-source one-click connects.
 
@@ -11,7 +11,7 @@ per-source one-click connects.
 - **macOS / Apple Silicon** for v1 (launchd, OrbStack, MLX are all Apple-only anyway).
   Linux is a later phase (Ollama-only, no MLX; systemd instead of launchd).
 - **Guided BYO-OAuth wizard** for Google/Slack/Notion — each user keeps their own
-  OAuth app, but the flow is collapsed to a tight wizard. No AIOS-hosted OAuth broker
+  OAuth app, but the flow is collapsed to a tight wizard. No apOS-hosted OAuth broker
   (keeps it truly self-hosted, no shared-secret / hosting / app-verification burden).
 - **Ollama-only for v1.** The default installer provisions Ollama for all local models;
   LM Studio / MLX is a documented **opt-in** (a separate "enable MLX" step), not part of
@@ -214,7 +214,7 @@ Keep the user's own OAuth app but collapse the flow into a stepper that does the
   "advanced / connect more" upgrade. This makes calendar effectively one-paste for most.
 
 ### B4 — Tier 3: Metered key-paste (Gemini, NVIDIA)
-Inherently the user's own billed key — can't be one-click without AIOS paying for
+Inherently the user's own billed key — can't be one-click without apOS paying for
 inference. Best UX: deep-link to the key page, a masked paste field, and a **validate
 button** that does a real test call and shows ✓/✗. Label clearly as "optional · metered."
 Also **surface NVIDIA in the UI** (today it's env-only/hidden) or drop it.
@@ -228,7 +228,7 @@ self-hosting step — moves SearXNG from "Hard (bring your own)" to "Done (bundl
 After install, a short in-app wizard (not the full Settings page): detect locals
 (Obsidian/Ollama/LM Studio) and offer one-click connects, then a 3-card "connect your
 world" step (Calendar via ICS · Slack via manifest · Notion) that the user can skip.
-Everything is skippable; AIOS is fully useful with zero integrations.
+Everything is skippable; apOS is fully useful with zero integrations.
 
 ---
 
@@ -237,7 +237,7 @@ Concise, step-by-step per source. These are the exact steps each connect card / 
 step presents (and the same text seeds the user docs). Ordered easiest → hardest.
 
 **Obsidian** (local, auto) — `obsidian_vault_path`
-1. Click **Detect vaults** → AIOS reads Obsidian's vault list.
+1. Click **Detect vaults** → apOS reads Obsidian's vault list.
 2. Pick your vault → **Use this vault**. _(Manual: paste the vault folder path.)_
 
 **Ollama** (local, auto) — bundled
@@ -245,7 +245,7 @@ step presents (and the same text seeds the user docs). Ordered easiest → harde
 
 **Apple MLX / LM Studio** (local, opt-in) — `mlx_base_url`, `mlx_models`
 1. Run **Enable Apple MLX** (installs headless llmster) — or start LM Studio's server.
-2. Click **Detect** → AIOS reads `localhost:1234/v1/models` and fills the model list. ✓
+2. Click **Detect** → apOS reads `localhost:1234/v1/models` and fills the model list. ✓
 
 **Calendar — iCal URL** (easiest calendar, no dev account) — `calendar_ics_url`
 1. Google Calendar → **Settings** → click your calendar → **Integrate calendar**.
@@ -254,7 +254,7 @@ step presents (and the same text seeds the user docs). Ordered easiest → harde
 **Google Calendar + Gmail** (full, OAuth — advanced) — `google_client_id/secret`
 1. **Open Google Cloud Console** (deep-link) → create a project.
 2. **APIs & Services → Credentials → Create OAuth client → Web application.**
-3. Paste the **redirect URI** AIOS shows (copy button) → create.
+3. Paste the **redirect URI** apOS shows (copy button) → create.
 4. Enable the **Calendar** + **Gmail** APIs (deep-links).
 5. Paste **Client ID** + **Client secret** → **Connect Google** → approve consent. ✓
 
@@ -265,7 +265,7 @@ step presents (and the same text seeds the user docs). Ordered easiest → harde
 
 **Slack — agent reports / inbox capture** (bot) — `slack_bot_token`, `slack_*_channels`
 1. In the same app: **Install to Workspace** → copy the **Bot token** (`xoxb-…`) → paste.
-2. **Invite the bot** to each channel (`/invite @AIOS`).
+2. **Invite the bot** to each channel (`/invite @apOS`).
 3. **Pick channels** from the list (checkboxes — no IDs to copy). ✓
 
 **Notion** (token) — `notion_tokens`
@@ -293,7 +293,7 @@ users run. Three layers:
 1. **Docker clean-room (built — `deploy/test-deploy.sh`).** Brings the compose stack up
    in an ISOLATED compose project on a separate port (:3778) + its own Postgres volume,
    sharing only the host's Ollama (read-only inference), so it never touches a live
-   host-native AIOS. Checks: web 200, `ai_routes` self-seeded, worker booted, a chat
+   host-native apOS. Checks: web 200, `ai_routes` self-seeded, worker booted, a chat
    round-trips against host Ollama. This is the CI backbone.
    - Note: the in-image build pins **pnpm 10.33.0** (corepack's latest, pnpm 11, exits
      non-zero on ignored build scripts) and ignores esbuild's build (prebuilt binary).

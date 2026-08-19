@@ -1,5 +1,5 @@
 /**
- * Local model-server health check. Pings the servers AIOS depends on — Ollama
+ * Local model-server health check. Pings the servers apOS depends on — Ollama
  * (always; embeddings + local reasoning) and LM Studio / MLX (only when its
  * endpoint is configured) — and, on a state CHANGE, raises a notification
  * (bell + Slack) so a down server doesn't fail silently.
@@ -33,7 +33,7 @@ async function reachable(url: string): Promise<boolean> {
   }
 }
 
-/** Ping the model servers AIOS expects to be up. MLX is only checked when its
+/** Ping the model servers apOS expects to be up. MLX is only checked when its
  *  endpoint is configured (otherwise it's an opt-in that isn't expected to run). */
 export async function checkModelServers(): Promise<ServerStatus[]> {
   const ollamaBase = (
@@ -84,7 +84,7 @@ export async function runHealthCheckAndNotify(): Promise<ServerStatus[]> {
       // up (or unknown) → down
       await notify({
         title: `${s.label} is unreachable`,
-        body: `AIOS can't reach ${s.label} at ${s.url}. Local search, chat, and agents will fail until it's back. If it's running, make sure it listens on all interfaces (OLLAMA_HOST=0.0.0.0).`,
+        body: `apOS can't reach ${s.label} at ${s.url}. Local search, chat, and agents will fail until it's back. If it's running, make sure it listens on all interfaces (OLLAMA_HOST=0.0.0.0).`,
         level: "warn",
         source: "health",
         href: "/m/settings/connections",

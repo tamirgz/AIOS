@@ -22,7 +22,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AIOS — Personal AI Operating System",
+  title: "apOS — Agentic Personalized Operating System",
   description:
     "One intelligent workspace: tasks, projects, notes, content and autonomous AI agents.",
 };

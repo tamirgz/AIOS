@@ -69,7 +69,7 @@ const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   { taskKey: "ask", ...CAPABLE },
   // Every key below is seeded so it shows up in Settings → AI Routing.
   //
-  // Workbench "docs"/native tasks (AIOS's own data + module tools).
+  // Workbench "docs"/native tasks (apOS's own data + module tools).
   { taskKey: "workbench.native", ...CAPABLE },
   // The verifying judge that gates delegated work: reads the ask + the produced
   // result and decides whether the result satisfies the ask (A2 · Trust). Local

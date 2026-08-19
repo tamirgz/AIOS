@@ -1,8 +1,8 @@
 // Code grounding: keep a read-only clone of a project's repo so agents can read
 // the real code. EVERY attached repo — remote GitHub URL *and* local folder —
-// is copied to ~/.aios/repos/<projectId>, and AIOS only ever reads/operates on
+// is copied to ~/.aios/repos/<projectId>, and apOS only ever reads/operates on
 // that copy. A local folder is copied with `git clone --no-hardlinks --local`
-// (a fully independent object store), so AIOS can never write your original
+// (a fully independent object store), so apOS can never write your original
 // repo or its origin: the source is only ever read (clone/fetch), never pushed.
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -82,7 +82,7 @@ export async function syncProjectRepo(
     }
     await mkdir(REPOS_ROOT, { recursive: true });
     // --no-hardlinks --local for a local source = a fully independent copy, so
-    // nothing AIOS does to the copy can ever reach the user's original repo.
+    // nothing apOS does to the copy can ever reach the user's original repo.
     const cloneArgs = local
       ? ["clone", "--no-hardlinks", "--local", source, dir]
       : ["clone", source, dir];

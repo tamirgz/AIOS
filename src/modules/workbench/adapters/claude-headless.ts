@@ -158,7 +158,7 @@ export const claudeHeadlessAdapter: Adapter = {
       // but writes session history + auto-memory into ~/.aios/harness-home/claude
       // instead of the real ~/.claude — so the auto-memory scrub below is now
       // belt-and-suspenders. PWD is pinned to the worktree so a tool that trusts
-      // $PWD over cwd can't resolve back to the AIOS project.
+      // $PWD over cwd can't resolve back to the apOS project.
       env: harnessEnv("claude", { CI: "1", PWD: ctx.workdir }),
     });
     if (child.pid) ctx.onPid?.(child.pid);

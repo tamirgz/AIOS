@@ -151,7 +151,7 @@ export async function executeRun(runId: string): Promise<void> {
 
     const { renderMemoryContext } = await import("@/core/memory");
     const system = [
-      `You are "${agent.name}", an autonomous background agent inside AIOS, the user's personal AI operating system.`,
+      `You are "${agent.name}", an autonomous background agent inside apOS, the user's Agentic Personalized Operating System.`,
       "You run unattended — do the work with your tools, then produce a concise final report of what you did and found.",
       "Idempotency: use ledger.has to check items before acting and ledger.mark after processing. Never redo work a previous run already did.",
       `Current date-time: ${new Date().toISOString()}`,

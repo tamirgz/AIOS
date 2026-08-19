@@ -22,7 +22,7 @@ const KIND_LABEL = { event: "event", task: "due" } as const;
 /** Category fallback colors — Google events use their own color when set. */
 const LEGEND = [
   { label: "google", color: "var(--color-ion)" },
-  { label: "aios event", color: "var(--color-plasma)" },
+  { label: "apOS event", color: "var(--color-plasma)" },
   { label: "task due", color: "var(--color-solar)" },
 ] as const;
 

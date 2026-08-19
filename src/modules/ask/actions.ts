@@ -72,7 +72,7 @@ export async function clipAnswerToObsidian(input: {
     ? "\n\n## Sources\n" +
       input.sources.map((s) => `${s.n}. [${s.title}](${s.href})`).join("\n")
     : "";
-  const credit = `Generated with ${input.model?.trim() || "AIOS"} — via AIOS Ask.`;
+  const credit = `Generated with ${input.model?.trim() || "apOS"} — via apOS Ask.`;
   const body = `${input.answer.trim()}${sourcesMd}\n\n---\n\n*${credit}*`;
   return clipToObsidianRaw({
     title: input.title,

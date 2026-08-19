@@ -57,7 +57,7 @@ export const openrouterProvider: AIProvider = {
       });
       if (!res.ok) return FALLBACK_MODELS;
       const data = (await res.json()) as { data?: OpenRouterModel[] };
-      // AIOS routes are tool-driven, so only surface models that advertise tool
+      // apOS routes are tool-driven, so only surface models that advertise tool
       // support — a user picking a non-tool model would just hit a runtime error.
       const toolCapable = (data.data ?? []).filter((m) =>
         m.supported_parameters?.includes("tools"),

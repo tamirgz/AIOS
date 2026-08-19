@@ -96,7 +96,7 @@ const log = (m: string) =>
   console.log(`[workbench ${new Date().toISOString()}] ${m}`);
 
 /**
- * AIOS keeps its own opencode config rather than editing the user's: theirs
+ * apOS keeps its own opencode config rather than editing the user's: theirs
  * carries personal MCP servers and credentials, and a headless run must not
  * depend on those being reachable. `OPENCODE_CONFIG` points opencode here.
  *
@@ -123,9 +123,9 @@ async function writeOpencodeConfig(workdir: string): Promise<void> {
     JSON.stringify(
       {
         $schema: "https://opencode.ai/config.json",
-        // Turn off the user's global MCP servers for AIOS runs: a headless run
+        // Turn off the user's global MCP servers for apOS runs: a headless run
         // must not block on a slow local `mgrep mcp` sync or a remote MCP
-        // handshake during init. AIOS's config merges over the global one, so
+        // handshake during init. apOS's config merges over the global one, so
         // these disables win.
         mcp: {
           mgrep: { type: "local", command: ["mgrep", "mcp"], enabled: false },
@@ -140,7 +140,7 @@ async function writeOpencodeConfig(workdir: string): Promise<void> {
         // burned itself trying to call a `git` skill, then read the skill list
         // (dockerized-ollama-agent, graphify, …) and wandered off hunting
         // "Dockerfiles", hallucinated an out-of-repo path, and changed nothing.
-        // `task` spawns subagents AIOS doesn't want here. With both off the
+        // `task` spawns subagents apOS doesn't want here. With both off the
         // model is left with just the file tools and stays on the actual task.
         tools: {
           skill: false,
@@ -210,7 +210,7 @@ export async function ensureExecutors() {
       },
       {
         id: "native",
-        name: "AIOS native (module tools)",
+        name: "apOS native (module tools)",
         kind: "native" as const,
         defaultModel: null,
         gitMode: "none" as const,
@@ -433,7 +433,7 @@ export async function runAttempt(attemptId: string): Promise<void> {
     }
 
     // The prompt on disk makes any run reproducible by hand — `cd` there and
-    // re-run the same command without AIOS.
+    // re-run the same command without apOS.
     await mkdir(join(workdir, ".aios"), { recursive: true });
     await writeFile(
       join(workdir, ".aios", "task.md"),
@@ -448,7 +448,7 @@ export async function runAttempt(attemptId: string): Promise<void> {
 
     // ── execute ────────────────────────────────────────────────────────
     // A CLI executor is driven entirely by its row: template, parser, and —
-    // for opencode — the config file AIOS manages instead of the user's.
+    // for opencode — the config file apOS manages instead of the user's.
     // Resolve the run model ONCE, in the namespace this executor's template
     // expects — a bare local tag gets its `ollama/` prefix for opencode so it
     // can't be misread as a (failing) cloud model.
@@ -545,7 +545,7 @@ export async function runAttempt(attemptId: string): Promise<void> {
           OPENCODE_CONFIG: AIOS_OPENCODE_CONFIG,
           OPENCODE_DISABLE_AUTOUPDATE: "1",
           // Per-attempt opencode data dir (see openDataDir above): isolated from
-          // the user's global opencode AND from every other AIOS run, so a
+          // the user's global opencode AND from every other apOS run, so a
           // killed run's corrupt DB can never brick the next one.
           XDG_DATA_HOME: openDataDir,
           // Read the model DB from the local cache instead of fetching it from
@@ -832,7 +832,7 @@ export const workbenchJobs: ModuleJob[] = [
   },
   {
     // Safety net: reconciliation + queued pickup, the same shape every other
-    // long-running thing in AIOS uses.
+    // long-running thing in apOS uses.
     channel: "workbench_sweep",
     schedule: "*/2 * * * *",
     handle: async () => {

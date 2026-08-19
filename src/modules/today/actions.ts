@@ -71,7 +71,7 @@ export async function setProjectNextAction(
 
 /**
  * Accept a plan block onto the real calendar — the Plan-my-day write-back.
- * A local AIOS event (source "local"), one hour by default. This is a `do`
+ * A local apOS event (source "local"), one hour by default. This is a `do`
  * action the user takes explicitly, so no approval gate is needed.
  */
 export async function scheduleBlock(input: {
