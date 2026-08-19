@@ -16,18 +16,19 @@ import {
  * bounded (≤3 each), and deduped by rememberEntry, so it can't hallucinate a
  * flood of rules or grow the injected snapshot.
  */
-const DISTILL_MODEL = "qwen3-coder:30b"; // local, free
-
 async function llmJson(system: string, user: string): Promise<unknown | null> {
-  const { providers } = await import("@/core/ai/routing");
+  // Model is the `memory.distill` route — configurable in Settings; a local
+  // model by default (memory work never bills).
+  const { resolveRoute } = await import("@/core/ai/routing");
+  const route = await resolveRoute("memory.distill");
   let text = "";
   try {
-    for await (const ev of providers.ollama.run({
+    for await (const ev of route.provider.run({
       system,
       messages: [{ role: "user", content: user }],
       tools: [],
       toolCtx: { db },
-      model: DISTILL_MODEL,
+      model: route.model,
       maxTurns: 1,
     })) {
       if (ev.type === "done") text = ev.text;
