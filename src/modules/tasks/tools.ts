@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { and, asc, eq, ilike } from "drizzle-orm";
 import type { AiToolDef } from "@/core/modules/types.server";
+import { registerRefs, resolveRef } from "@/core/ai/refs";
 import {
   priorityRank,
   tasks,
@@ -50,44 +51,53 @@ export const taskTools: AiToolDef[] = [
       search: z.string().optional().describe("Case-insensitive title filter"),
       limit: z.number().int().min(1).max(100).default(50),
     }),
-    async execute(input, { db }) {
+    async execute(input, ctx) {
       const filters = [
         input.status ? eq(tasks.status, input.status) : undefined,
         input.search ? ilike(tasks.title, `%${input.search}%`) : undefined,
       ].filter((f) => f !== undefined);
-      const rows = await db
+      const rows = await ctx.db
         .select()
         .from(tasks)
         .where(filters.length ? and(...filters) : undefined)
         .orderBy(priorityRank, asc(tasks.createdAt))
         .limit(input.limit);
-      return rows.map((t) => ({
-        id: t.id,
-        title: t.title,
-        status: t.status,
-        priority: t.priority,
-        dueAt: t.dueAt,
-        createdAt: t.createdAt,
-        completedAt: t.completedAt,
-      }));
+      // Each task gets a short handle (t1, t2…); a write targets it by that ref,
+      // never a uuid — so a status change can't land on the wrong task.
+      return registerRefs(
+        ctx,
+        "task",
+        "t",
+        rows.map((t) => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+          priority: t.priority,
+          dueAt: t.dueAt,
+          createdAt: t.createdAt,
+          completedAt: t.completedAt,
+        })),
+      );
     },
   },
   {
     name: "tasks.setStatus",
     description:
-      "Move a task to a new status (todo | doing | done). Find the id via tasks.list first.",
+      "Move a task to a new status (todo | doing | done). Identify the task by its `ref` from tasks.list (e.g. 't3') — never a raw id.",
     input: z.object({
-      id: z.string().uuid(),
+      ref: z.string().describe("Task ref from tasks.list, e.g. 't3'"),
       status: z.enum(TASK_STATUSES),
     }),
-    async execute(input, { db }) {
-      const [row] = await db
+    async execute(input, ctx) {
+      const t = resolveRef(ctx, "task", input.ref);
+      if ("error" in t) return t;
+      const [row] = await ctx.db
         .update(tasks)
         .set({
           status: input.status,
           completedAt: input.status === "done" ? new Date() : null,
         })
-        .where(eq(tasks.id, input.id))
+        .where(eq(tasks.id, t.id))
         .returning();
       return row
         ? { updated: { id: row.id, status: row.status } }

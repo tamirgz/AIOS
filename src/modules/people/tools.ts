@@ -1,7 +1,8 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/core/db/client";
-import type { AiToolDef } from "@/core/modules/types.server";
+import type { AiToolContext, AiToolDef } from "@/core/modules/types.server";
+import { registerRefs, resolveRef } from "@/core/ai/refs";
 import { insertAttentionItem } from "@/modules/today/core";
 import { ATTENTION_TYPES } from "@/modules/today/schema";
 import { listPeople, recentMeetings } from "./queries";
@@ -17,16 +18,23 @@ export const peopleTools: AiToolDef[] = [
     description:
       "List the people you meet with (derived from calendar attendees): name, email, how many meetings, days since you last met, and open follow-up count. Read this to know who's active.",
     input: z.object({ limit: z.number().int().min(1).max(100).optional() }),
-    async execute(i: { limit?: number }) {
+    async execute(i: { limit?: number }, ctx: AiToolContext) {
       const rows = await listPeople(db);
-      return rows.slice(0, i.limit ?? 40).map((p) => ({
-        id: p.id,
-        name: p.name ?? p.email,
-        email: p.email,
-        meetings: p.meetingCount,
-        daysSinceLastMet: daysAgo(p.lastSeenAt),
-        openFollowups: p.openFollowups,
-      }));
+      // Short handles (p1, p2…) — a follow-up or note targets the person by ref,
+      // never a uuid, so it can't be written to the wrong person.
+      return registerRefs(
+        ctx,
+        "person",
+        "p",
+        rows.slice(0, i.limit ?? 40).map((p) => ({
+          id: p.id,
+          name: p.name ?? p.email,
+          email: p.email,
+          meetings: p.meetingCount,
+          daysSinceLastMet: daysAgo(p.lastSeenAt),
+          openFollowups: p.openFollowups,
+        })),
+      );
     },
   },
   {
@@ -50,27 +58,32 @@ export const peopleTools: AiToolDef[] = [
     description:
       "Raise a follow-up as a card in the 'Needs you' queue, anchored to a person. Use type 'do' for a concrete step you should take, 'approve' only when a real side-effect (e.g. sending a message) needs sign-off, 'notify' for an FYI. Deduplication is automatic — at most one open card per (person + title), so re-running never duplicates; you don't need to manage a key.",
     input: z.object({
-      personId: z.string().uuid(),
+      ref: z.string().describe("Person ref from people.list, e.g. 'p2' — never a raw id"),
       type: z.enum(ATTENTION_TYPES).default("do"),
       title: z.string().min(3),
       body: z.string().optional(),
       urgency: z.number().int().min(0).max(100).optional(),
       dedupeKey: z.string().optional(),
     }),
-    async execute(i: {
-      personId: string;
-      type: (typeof ATTENTION_TYPES)[number];
-      title: string;
-      body?: string;
-      urgency?: number;
-      dedupeKey?: string;
-    }) {
+    async execute(
+      i: {
+        ref: string;
+        type: (typeof ATTENTION_TYPES)[number];
+        title: string;
+        body?: string;
+        urgency?: number;
+        dedupeKey?: string;
+      },
+      ctx: AiToolContext,
+    ) {
+      const p = resolveRef(ctx, "person", i.ref);
+      if ("error" in p) return p;
       const row = await insertAttentionItem({
         type: i.type,
         title: i.title,
         body: i.body,
-        personRef: `people:${i.personId}`,
-        href: `/m/people/${i.personId}`,
+        personRef: `people:${p.id}`,
+        href: `/m/people/${p.id}`,
         urgency: i.urgency ?? 15,
         dedupeKey: i.dedupeKey,
         source: "agent",
@@ -81,13 +94,18 @@ export const peopleTools: AiToolDef[] = [
   {
     name: "people.setNotes",
     description:
-      "Record a short durable note about a person (context, what they care about, open threads). Overwrites the existing note.",
-    input: z.object({ personId: z.string().uuid(), notes: z.string().max(1000) }),
-    async execute(i: { personId: string; notes: string }) {
+      "Record a short durable note about a person (context, what they care about, open threads). Overwrites the existing note. Identify the person by their `ref` from people.list (e.g. 'p2') — never a raw id.",
+    input: z.object({
+      ref: z.string().describe("Person ref from people.list, e.g. 'p2'"),
+      notes: z.string().max(1000),
+    }),
+    async execute(i: { ref: string; notes: string }, ctx: AiToolContext) {
+      const p = resolveRef(ctx, "person", i.ref);
+      if ("error" in p) return p;
       await db
         .update(people)
         .set({ notes: i.notes.trim() || null, updatedAt: new Date() })
-        .where(eq(people.id, i.personId));
+        .where(eq(people.id, p.id));
       return { updated: true };
     },
   },

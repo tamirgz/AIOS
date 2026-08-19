@@ -47,6 +47,16 @@ export interface AiToolContext {
     items: Array<{ id: string; name: string; read: Record<string, unknown> }>;
     index: number;
   } | null;
+  /**
+   * Per-run entity handle table for SURVEY writes (where the agent legitimately
+   * picks WHICH few entities to act on — task triage, idea review, follow-ups).
+   * A `*.list` tool registers each row under a short, non-UUID handle (t1, i2,
+   * p3…); the matching write tool resolves the handle back to the real id,
+   * validated against what was actually listed. The model copies a 2-char
+   * handle, never a UUID — so it cannot mis-transcribe onto the wrong entity,
+   * and an unknown handle errors instead of silently mis-filing.
+   */
+  refs?: Record<string, { kind: string; id: string; name: string }>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

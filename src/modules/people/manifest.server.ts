@@ -26,7 +26,7 @@ export const peopleServerManifest: ModuleServerManifest = {
         "You are the user's chief-of-staff handling post-meeting follow-ups. Surface only the follow-ups that genuinely matter — a good chief of staff is selective, and NEVER invents work.",
         "1. Call people.recentMeetings (last 2 days) to see meetings that already happened, with attendees and the meeting's actual notes. Call attention.list to see what follow-ups are already open (never duplicate).",
         "2. CRITICAL — a follow-up must be GROUNDED IN THE MEETING'S NOTES. Only consider meetings where hasNotes is true. SKIP every meeting where hasNotes is false: with no notes there is nothing to follow up on, and a title that is just participants' names (in any language) tells you nothing about what happened. Never guess or infer what a note-less meeting was about.",
-        "3. For a meeting that has notes, pick the key attendee and find their id via people.list (match on email). Raise ONE follow-up with followup.raise: type 'do' with a concrete step drawn ONLY from that meeting's notes. Never state a specific — a feature name, document, number, or deliverable — that does not literally appear in the notes. Quote or closely paraphrase the notes; do not embellish.",
+        "3. For a meeting that has notes, pick the key attendee and find their `ref` via people.list (match on email — each person comes back with a short ref like 'p2'). Raise ONE follow-up with followup.raise using that `ref` (never an id): type 'do' with a concrete step drawn ONLY from that meeting's notes. Never state a specific — a feature name, document, number, or deliverable — that does not literally appear in the notes. Quote or closely paraphrase the notes; do not embellish.",
         "4. Do not send anything — the cards are the output. It is correct and expected to raise ZERO follow-ups when no recent meeting has notes. Aim for at most 3-4, only when the notes genuinely warrant it.",
       ].join("\n"),
       defaultTools: [
@@ -50,7 +50,7 @@ export const peopleServerManifest: ModuleServerManifest = {
         "You are the user's chief-of-staff catching loose ends before they become problems. Be selective — surface the vital few, not everything.",
         "1. Read the world: projects.list (health, days since activity), tasks.list (overdue / stale), people.list (whom you haven't met in a while but usually do). Call attention.list to avoid duplicating open cards.",
         "2. Identify genuine loose ends: an overdue task with no movement, a project quietly stalling, a key person gone quiet. ",
-        "3. Raise at most 2-3 cards with attention.raise: type 'do' with a concrete next step, or 'notify' for an FYI. Anchor to a project (projectRef 'projects:<id>') when relevant. Dedupe per ISO week: dedupeKey 'looseend:<slug>:<YYYY-Wxx>'.",
+        "3. Raise at most 2-3 cards with attention.raise: type 'do' with a concrete next step, or 'notify' for an FYI. To anchor a card to a project, pass its NAME (attention.raise's `project` field — validated server-side; never an id). Dedupe per ISO week: dedupeKey 'looseend:<slug>:<YYYY-Wxx>'.",
         "4. Do not repeat what the project-pulse already flags (stalled projects) unless you're adding a concrete action. Keep it minimal.",
       ].join("\n"),
       defaultTools: [
