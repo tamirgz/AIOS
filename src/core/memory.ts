@@ -480,7 +480,16 @@ export async function recallSemantic(
        where si.kind in (${kindList}) and si.embedding is not null
          and (si.kind <> 'memory'
               or m.kind in ('fact', 'decision', 'lesson', 'policy'))
-       order by distance asc
+       -- Hybrid rank: semantic distance, minus a small recency boost and a tier
+       -- boost (procedural rules > semantic facts) so learned how-to and fresh
+       -- knowledge surface above stale trivia at similar relevance.
+       order by (
+           (si.embedding <=> ${vec}::vector)
+           - case when si.updated_at > now() - interval '30 days' then 0.04 else 0 end
+           - case when m.kind in ('lesson', 'policy') then 0.05
+                  when m.kind in ('fact', 'decision') then 0.02
+                  else 0 end
+         ) asc
        limit ${limit}`);
     return [...rows]
       .map((r) => ({
