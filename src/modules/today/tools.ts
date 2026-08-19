@@ -1,7 +1,8 @@
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/core/db/client";
+import { db, sql } from "@/core/db/client";
 import type { AiToolContext, AiToolDef } from "@/core/modules/types.server";
+import { registerRefs, resolveRef } from "@/core/ai/refs";
 import { projects } from "@/modules/projects/schema";
 import { resolveProjectTarget } from "@/modules/projects/subject";
 import { insertAttentionItem } from "./core";
@@ -83,22 +84,64 @@ export const todayTools: AiToolDef[] = [
   {
     name: "attention.list",
     description:
-      "List currently-open attention items so you don't raise a duplicate or can reason about what's already surfaced.",
+      "List currently-open attention items so you don't raise a duplicate, can reason about what's already surfaced, or close one you raised (each carries a `ref` for attention.resolve).",
     input: z.object({ limit: z.number().int().min(1).max(50).optional() }),
-    execute: async (i: { limit?: number }) => {
+    execute: async (i: { limit?: number }, ctx: AiToolContext) => {
       const rows = await db
         .select({
           id: attentionItems.id,
           type: attentionItems.type,
           title: attentionItems.title,
           projectRef: attentionItems.projectRef,
+          source: attentionItems.source,
           dedupeKey: attentionItems.dedupeKey,
         })
         .from(attentionItems)
         .where(eq(attentionItems.status, "open"))
         .orderBy(desc(attentionItems.urgency))
         .limit(i.limit ?? 20);
-      return rows;
+      // Short handles (a1, a2…) so attention.resolve targets the right card.
+      return registerRefs(ctx, "attention", "a", rows);
+    },
+  },
+  {
+    name: "attention.resolve",
+    description:
+      "Close an attention card you raised once it is no longer relevant (e.g. the project un-stalled, the follow-up is moot). Identify it by its `ref` from attention.list. CONSERVATIVE by design: only a card an AGENT raised can be closed, NEVER an 'approve' card (those gate a user decision), and the default is a reversible 'dismissed' rather than 'done'. Give a short reason.",
+    input: z.object({
+      ref: z.string().describe("Attention card ref from attention.list, e.g. 'a2'"),
+      status: z
+        .enum(["dismissed", "done"])
+        .default("dismissed")
+        .describe("dismissed = no longer relevant (default); done = what it asked for is complete"),
+      reason: z.string().optional().describe("One line: why you're closing it"),
+    }),
+    execute: async (
+      i: { ref: string; status?: "dismissed" | "done"; reason?: string },
+      ctx: AiToolContext,
+    ) => {
+      const t = resolveRef(ctx, "attention", i.ref);
+      if ("error" in t) return t;
+      const [card] = await db
+        .select()
+        .from(attentionItems)
+        .where(eq(attentionItems.id, t.id))
+        .limit(1);
+      if (!card) return { error: "card not found" };
+      if (card.status !== "open") return { error: `card is already ${card.status}` };
+      // Conservative guardrails — an agent may only retract what an agent
+      // raised, and may never dismiss an approval the user must decide.
+      if (!card.source.startsWith("agent"))
+        return { error: `refusing to close a '${card.source}'-raised card — only the user can` };
+      if (card.type === "approve")
+        return { error: "refusing to close an 'approve' card — it needs the user's sign-off" };
+      const status = i.status ?? "dismissed";
+      await db
+        .update(attentionItems)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(attentionItems.id, t.id));
+      await sql.notify("attention_changed", "");
+      return { resolved: { title: card.title, status } };
     },
   },
   {

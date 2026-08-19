@@ -5,7 +5,12 @@ import type { AiToolContext, AiToolDef } from "@/core/modules/types.server";
 import { registerRefs, resolveRef } from "@/core/ai/refs";
 import { insertAttentionItem } from "@/modules/today/core";
 import { ATTENTION_TYPES } from "@/modules/today/schema";
-import { listPeople, recentMeetings } from "./queries";
+import {
+  getPerson,
+  listFollowupsForPerson,
+  listPeople,
+  recentMeetings,
+} from "./queries";
 import { people } from "./schema";
 
 const DAY = 86_400_000;
@@ -35,6 +40,29 @@ export const peopleTools: AiToolDef[] = [
           openFollowups: p.openFollowups,
         })),
       );
+    },
+  },
+  {
+    name: "people.get",
+    description:
+      "Read ONE person in full — their durable notes, email, meeting count, days since you last met, and their open follow-ups. Identify them by their `ref` from people.list (e.g. 'p2'). Read this BEFORE people.setNotes so you can MERGE with the existing note instead of overwriting it.",
+    input: z.object({
+      ref: z.string().describe("Person ref from people.list, e.g. 'p2'"),
+    }),
+    async execute(i: { ref: string }, ctx: AiToolContext) {
+      const p = resolveRef(ctx, "person", i.ref);
+      if ("error" in p) return p;
+      const person = await getPerson(p.id, db);
+      if (!person) return { error: "person not found" };
+      const followups = await listFollowupsForPerson(p.id, db);
+      return {
+        name: person.name ?? person.email,
+        email: person.email,
+        notes: person.notes ?? null,
+        meetings: person.meetingCount,
+        daysSinceLastMet: daysAgo(person.lastSeenAt),
+        openFollowups: followups.map((f) => ({ title: f.title, urgency: f.urgency })),
+      };
     },
   },
   {
