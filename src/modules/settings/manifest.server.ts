@@ -4,6 +4,7 @@ import { ConnectionsPage } from "./pages/ConnectionsPage";
 import { MemoryPage } from "./pages/MemoryPage";
 import { UsagePage } from "./pages/UsagePage";
 import { AppearancePage } from "./pages/AppearancePage";
+import { connectionHealthJobs } from "./connection-health";
 
 export const settingsServerManifest: ModuleServerManifest = {
   id: "settings",
@@ -21,4 +22,5 @@ export const settingsServerManifest: ModuleServerManifest = {
   schema: {},
   aiTools: [],
   agentTemplates: [],
+  jobs: [...connectionHealthJobs],
 };
