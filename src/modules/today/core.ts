@@ -45,6 +45,13 @@ export interface RaiseInput {
   href?: string | null;
   payload?: Record<string, unknown>;
   dedupeKey?: string | null;
+  /**
+   * The projectRef is BACKBONE-BOUND (from a focused subject), not model-guessed
+   * — so skip the text-grounding second-guess, which exists only to correct a
+   * weak model's anchor and would otherwise strip a correct anchor whose title
+   * doesn't lexically match the project.
+   */
+  trustProjectRef?: boolean;
 }
 
 /**
@@ -96,10 +103,10 @@ export async function insertAttentionItem(input: RaiseInput) {
   // weak model tends to stamp the week's dominant project on everything, so
   // drop/correct an anchor the content doesn't actually support before it's
   // persisted (and before it feeds the dedupe key).
-  const projectRef = await groundProjectRef(
-    normalizeRef(input.projectRef, "projects"),
-    input.title,
-  );
+  const normalizedProjectRef = normalizeRef(input.projectRef, "projects");
+  const projectRef = input.trustProjectRef
+    ? normalizedProjectRef
+    : await groundProjectRef(normalizedProjectRef, input.title);
   const personRef = normalizeRef(input.personRef, "people");
   // Content key off the NORMALIZED refs — so "projects:<id>" and a bare "<id>"
   // from an inconsistent agent collapse to one key.
