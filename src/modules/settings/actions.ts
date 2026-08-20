@@ -186,13 +186,27 @@ export async function listSlackChannels(): Promise<{
   if (!token) return { ok: false, error: "add a bot token first" };
   try {
     const { slackApi } = await import("@/modules/agents/slack-intake");
-    const data = await slackApi<{
-      channels: { id: string; name: string; is_member: boolean }[];
-    }>(token, "conversations.list", {
-      types: "public_channel,private_channel",
-      exclude_archived: "true",
-      limit: "1000",
-    });
+    type ConvList = { channels: { id: string; name: string; is_member: boolean }[] };
+    const list = (types: string) =>
+      slackApi<ConvList>(token, "conversations.list", {
+        types,
+        exclude_archived: "true",
+        limit: "1000",
+      });
+    // Private channels need groups:read, which is OPTIONAL — a bot with only
+    // channels:read can still see public channels. So try both, and if Slack
+    // rejects the private half for missing_scope, fall back to public-only
+    // instead of failing the whole integration.
+    let data: ConvList;
+    try {
+      data = await list("public_channel,private_channel");
+    } catch (e) {
+      if (/missing_scope/.test(String(e))) {
+        data = await list("public_channel");
+      } else {
+        throw e;
+      }
+    }
     const channels = (data.channels ?? [])
       .map((c) => ({ id: c.id, name: c.name, member: c.is_member }))
       .sort((a, b) => Number(b.member) - Number(a.member) || a.name.localeCompare(b.name));
@@ -202,8 +216,9 @@ export async function listSlackChannels(): Promise<{
     if (/missing_scope/.test(msg))
       return {
         ok: false,
+        // Public listing itself failed, so channels:read is what's missing.
         error:
-          "the bot lacks channels:read / groups:read — re-install the app with the manifest above",
+          "the bot lacks channels:read — add it in the Slack app config and re-install to the workspace (add groups:read too if you want private channels)",
       };
     return { ok: false, error: msg.replace(/^Error:\s*/, "") };
   }
