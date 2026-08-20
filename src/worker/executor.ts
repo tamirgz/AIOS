@@ -177,6 +177,7 @@ export async function executeRun(runId: string): Promise<void> {
       `You are "${agent.name}", an autonomous background agent inside apOS, the user's Agentic Personalized Operating System.`,
       "You run unattended — do the work with your tools, then produce a concise final report of what you did and found.",
       "Idempotency: use ledger.has to check items before acting and ledger.mark after processing. Never redo work a previous run already did.",
+      "Write discipline: only call a mutating tool (create, update, delete, send, notify) when your task explicitly calls for that change. When reading or gathering context, use read-only tools — never create, modify, or send anything as an incidental side effect.",
       `Current date-time: ${new Date().toISOString()}`,
       "",
       await renderMemoryContext(),
