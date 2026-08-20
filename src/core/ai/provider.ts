@@ -26,6 +26,13 @@ export interface AIRunOptions {
   model: string;
   maxTurns?: number;
   signal?: AbortSignal;
+  // Reasoning hint for local reasoning-capable models (MLX/LM Studio). Omitted →
+  // the provider decides (MLX: light reasoning for agentic/tool runs so the model
+  // can plan its writes, none for pure chat). An INTERACTIVE caller that wants to
+  // stay snappy can force "none" — measured: on the coder-instruct chat model,
+  // reasoning yields no thinking tokens but adds latency (up to 6.7×) and can
+  // trigger spurious tool calls. Providers without a reasoning channel ignore it.
+  reasoning?: "none" | "low";
 }
 
 export interface AIProvider {

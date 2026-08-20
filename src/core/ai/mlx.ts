@@ -61,9 +61,12 @@ export const mlxProvider: AIProvider = {
     // never call the write tool. So: light reasoning when tools are present,
     // none for pure chat/text — snappy where it matters, deliberate where it must.
     const base = await mlxBase();
+    // Explicit caller hint wins (an interactive path forces "none" to stay
+    // snappy); otherwise light reasoning for agentic/tool runs, none for chat.
     const agentic = (opts.tools?.length ?? 0) > 0;
+    const reasoning = opts.reasoning ?? (agentic ? "low" : "none");
     yield* runOpenAICompatible(base, "lmstudio", opts, {
-      reasoning_effort: agentic ? "low" : "none",
+      reasoning_effort: reasoning,
     });
   },
 };
