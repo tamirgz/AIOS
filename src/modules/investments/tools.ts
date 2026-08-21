@@ -152,9 +152,11 @@ export const investmentTools: AiToolDef[] = [
   {
     name: "viz.chart",
     description:
-      "Create a chart from data and get back a URL + a markdown image embed. Use whenever a visual communicates better than numbers (allocation, per-symbol P&L, a value trend). Include the returned `embed` markdown in your answer to show it inline. type: bar (vertical), hbar (horizontal — best for many/long labels), line (trend over time), pie (part-to-whole). CRITICAL: `data` MUST be REAL values you obtained from tool results earlier in THIS conversation (e.g. portfolio.byStrategy, portfolio.positions, market.history). NEVER invent placeholder labels like 'Stock A/B/C' or made-up numbers — if you don't have the data yet, call the data tool first.",
+      "Create an interactive chart and get back a URL + a markdown image embed. Use whenever a visual communicates better than numbers. Put the returned `embed` in your answer to show it inline (renders interactive in chat, hover for values). Types: bar / hbar (horizontal, for many/long labels) / line / area — need data[{label,value}]; pie / donut / treemap (allocation) — data[{label,value}] positive; waterfall (P&L bridge, each value is a delta) — data[{label,value}]; candlestick (price) — data[{label,open,high,low,close}] (label=date, e.g. from market.history). CRITICAL: `data` MUST be REAL values from tool results earlier in THIS conversation (portfolio.byStrategy, portfolio.positions, market.history…). NEVER invent placeholder labels like 'Stock A/B/C', a fake 'vs market' series, or made-up numbers — fetch the data first.",
     input: z.object({
-      type: z.enum(["bar", "hbar", "line", "pie"]),
+      type: z.enum([
+        "bar", "hbar", "line", "area", "pie", "donut", "treemap", "waterfall", "candlestick",
+      ]),
       title: z.string().min(1),
       subtitle: z.string().optional(),
       unit: z
@@ -162,19 +164,22 @@ export const investmentTools: AiToolDef[] = [
         .default("number")
         .describe("how to format values/axis labels"),
       data: z
-        .array(z.object({ label: z.string(), value: z.number() }))
+        .array(
+          z.object({
+            label: z.string().describe("category / date"),
+            value: z.number().optional().describe("value (all types except candlestick)"),
+            open: z.number().optional(),
+            high: z.number().optional(),
+            low: z.number().optional(),
+            close: z.number().optional(),
+          }),
+        )
         .min(1)
-        .max(60)
-        .describe("data points; for line, provide them in time order"),
+        .max(400)
+        .describe("data points; for line/area/candlestick provide them in time order"),
     }),
     risk: "safe",
-    execute: async (input: {
-      type: "bar" | "hbar" | "line" | "pie";
-      title: string;
-      subtitle?: string;
-      unit: "number" | "currency" | "percent";
-      data: { label: string; value: number }[];
-    }) => {
+    execute: async (input: import("@/core/viz/chartOption").ChartSpec) => {
       try {
         const { renderChartSvg } = await import("@/core/viz/svgChart");
         const svg = renderChartSvg(input);
@@ -182,7 +187,7 @@ export const investmentTools: AiToolDef[] = [
         const { charts } = await import("./schema");
         const [row] = await db
           .insert(charts)
-          .values({ title: input.title, svg })
+          .values({ title: input.title, svg, spec: input })
           .returning({ id: charts.id });
         const url = `/api/charts/${row.id}`;
         return {

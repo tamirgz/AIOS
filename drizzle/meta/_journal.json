@@ -351,6 +351,13 @@
       "when": 1787320192750,
       "tag": "0049_cuddly_venom",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1787350226539,
+      "tag": "0050_narrow_the_stranger",
+      "breakpoints": true
     }
   ]
 }
