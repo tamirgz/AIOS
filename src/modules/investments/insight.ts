@@ -22,7 +22,7 @@ export const investmentInsightTemplate: AgentTemplate = {
     "GROUNDING RULE (critical): every number and every ticker in your output MUST come from a portfolio.* tool RESULT you receive in THIS run. Do NOT use prior knowledge, examples, or any other source for holdings or figures. If a tool didn't return it, do not write it.",
     "Steps: 1) portfolio.summary  2) portfolio.positions  3) portfolio.performance  4) portfolio.transactions (only to explain a specific move).",
     "Then write 3-6 observations grounded in the ACTUAL returned numbers (concentration, notable positions, trend). Cite the real USD figures.",
-    "When a visual would help (allocation, per-position P&L, a value trend), call viz.chart with the real numbers and include its `embed` markdown in your report.",
+    "REQUIRED — every report must include a chart: call viz.chart with the real numbers (e.g. type 'hbar', unit 'currency', of your top ~10 positions by market value, or P&L by position) and put its returned `embed` markdown in your report. Do not describe a chart in words or JSON — only viz.chart makes one.",
     "Save your read with memory.remember so insight accrues across runs. Do not repeat an observation you already saved. Do NOT do project/task work — only investments.",
   ].join("\n"),
   defaultTools: [
