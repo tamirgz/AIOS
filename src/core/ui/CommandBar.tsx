@@ -1,19 +1,14 @@
 "use client";
 
-import { type ComponentType, useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import { AnimatePresence, motion } from "motion/react";
 import {
-  BookMarked,
-  Check,
   CornerDownLeft,
-  FileDown,
   Inbox,
   LayoutGrid,
   Sparkles,
-  StickyNote,
-  Wrench,
   X,
   Zap,
 } from "lucide-react";
@@ -21,127 +16,11 @@ import { modules } from "@/modules/registry";
 import { captureToInbox } from "@/modules/inbox/actions";
 import { createTask } from "@/modules/tasks/actions";
 import { createNote } from "@/modules/notes/actions";
-import { saveMarkdownToVault } from "@/modules/obsidian/actions";
-import { Markdown } from "./Markdown";
+import { ChatMessages, useChat } from "./chat";
 import { cn } from "./cn";
 
-/** Title for a saved chat response: first meaningful line, stripped of markdown. */
-function deriveTitle(content: string): string {
-  const first =
-    content
-      .split("\n")
-      .map((l) => l.trim())
-      .find(Boolean) ?? "";
-  const clean = first
-    .replace(/^#+\s*/, "")
-    .replace(/\*\*/g, "")
-    .replace(/[|`>]/g, "")
-    .trim();
-  // Degenerate first lines (JSON, quotes, too short) → a neutral title.
-  if (clean.length < 3 || /^[[{"]/.test(clean)) return "apOS chat note";
-  return clean.slice(0, 70);
-}
-
-type ActionState = "idle" | "busy" | "done" | "error";
-
-/** Save / export controls under an assistant response. */
-function MessageActions({ content }: { content: string }) {
-  const [note, setNote] = useState<ActionState>("idle");
-  const [obs, setObs] = useState<ActionState>("idle");
-  const [pdf, setPdf] = useState<ActionState>("idle");
-  const title = deriveTitle(content);
-
-  const flash = (set: (s: ActionState) => void, ok: boolean) => {
-    set(ok ? "done" : "error");
-    setTimeout(() => set("idle"), 1800);
-  };
-
-  const doNote = async () => {
-    setNote("busy");
-    try {
-      await createNote({ title, body: content });
-      flash(setNote, true);
-    } catch {
-      flash(setNote, false);
-    }
-  };
-  const doObsidian = async () => {
-    setObs("busy");
-    try {
-      const r = await saveMarkdownToVault({ title, body: content });
-      flash(setObs, !!r.ok);
-    } catch {
-      flash(setObs, false);
-    }
-  };
-  const doPdf = async () => {
-    setPdf("busy");
-    try {
-      const res = await fetch("/api/chat/pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content }),
-      });
-      if (!res.ok) throw new Error("pdf failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `aios-${
-        title
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "")
-          .slice(0, 50) || "chat"
-      }.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      flash(setPdf, true);
-    } catch {
-      flash(setPdf, false);
-    }
-  };
-
-  const btn = (
-    label: string,
-    Icon: ComponentType<{ className?: string }>,
-    state: ActionState,
-    onClick: () => void,
-  ) => (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={state === "busy"}
-      title={`Save as ${label}`}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[10px] uppercase tracking-wider transition disabled:opacity-50",
-        state === "done"
-          ? "text-plasma"
-          : state === "error"
-            ? "text-flare"
-            : "text-ink-faint hover:bg-white/6 hover:text-ink",
-      )}
-    >
-      {state === "done" ? <Check className="size-3" /> : <Icon className="size-3" />}
-      {label}
-    </button>
-  );
-
-  return (
-    <div className="mt-1.5 flex items-center gap-0.5 border-t border-white/5 pt-1.5">
-      {btn("note", StickyNote, note, doNote)}
-      {btn("obsidian", BookMarked, obs, doObsidian)}
-      {btn("pdf", FileDown, pdf, doPdf)}
-    </div>
-  );
-}
-
-/**
- * Deterministic fast path: recognized prefixes skip the LLM entirely and hit
- * CRUD server actions directly — sub-second, zero tokens.
- */
+/** Deterministic fast path: recognized prefixes skip the LLM and hit CRUD
+ *  server actions directly — sub-second, zero tokens. */
 function parseFastPath(search: string) {
   const task = search.match(/^(?:task|todo|t):\s*(.+)$/i);
   if (task) return { kind: "task" as const, text: task[1].trim() };
@@ -150,111 +29,7 @@ function parseFastPath(search: string) {
   return null;
 }
 
-type ChatEvent =
-  | { type: "meta"; provider: string; model: string }
-  | { type: "text"; text: string }
-  | { type: "reasoning"; text: string }
-  | { type: "tool_call"; name: string; input: unknown }
-  | { type: "tool_result"; name: string; result: unknown }
-  | { type: "usage"; inputTokens: number; outputTokens: number }
-  | { type: "done"; text: string }
-  | { type: "error"; message: string };
 
-interface ChatTurn {
-  role: "user" | "assistant";
-  content: string;
-  toolCalls?: { name: string }[];
-  pending?: boolean;
-  thinking?: boolean;
-  error?: string;
-}
-
-function useChat() {
-  const [turns, setTurns] = useState<ChatTurn[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [meta, setMeta] = useState<{ provider: string; model: string } | null>(
-    null,
-  );
-
-  const send = useCallback(
-    async (text: string) => {
-      // Cap resent history — long conversations otherwise grow token cost
-      // linearly with every message.
-      const history = turns
-        .filter((t) => !t.pending && !t.error)
-        .map((t) => ({ role: t.role, content: t.content }))
-        .slice(-12);
-      const nextMessages = [...history, { role: "user" as const, content: text }];
-      setTurns((t) => [
-        ...t,
-        { role: "user", content: text },
-        { role: "assistant", content: "", pending: true, toolCalls: [] },
-      ]);
-      setBusy(true);
-      try {
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: nextMessages }),
-        });
-        if (!res.ok || !res.body) throw new Error(`chat → ${res.status}`);
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            const event = JSON.parse(line) as ChatEvent;
-            setTurns((prev) => {
-              const next = [...prev];
-              const cur = { ...next[next.length - 1] };
-              if (event.type === "text" || event.type === "done") {
-                if (event.text) cur.content = event.text;
-                if (event.type === "done") cur.pending = false;
-              } else if (event.type === "reasoning") {
-                // A reasoning model is thinking before it answers — flag it so
-                // the pending bubble shows "thinking…" instead of bare dots.
-                cur.thinking = true;
-              } else if (event.type === "tool_call") {
-                cur.toolCalls = [...(cur.toolCalls ?? []), { name: event.name }];
-              } else if (event.type === "error") {
-                cur.error = event.message;
-                cur.pending = false;
-              }
-              next[next.length - 1] = cur;
-              return next;
-            });
-            if (event.type === "meta") setMeta(event);
-          }
-        }
-      } catch (e) {
-        setTurns((prev) => {
-          const next = [...prev];
-          const cur = { ...next[next.length - 1] };
-          cur.error = String(e);
-          cur.pending = false;
-          next[next.length - 1] = cur;
-          return next;
-        });
-      } finally {
-        setBusy(false);
-        setTurns((prev) =>
-          prev.map((t, i) =>
-            i === prev.length - 1 ? { ...t, pending: false } : t,
-          ),
-        );
-      }
-    },
-    [turns],
-  );
-
-  return { turns, busy, meta, send, reset: () => setTurns([]) };
-}
 
 function ChatView({
   chat,
@@ -264,84 +39,21 @@ function ChatView({
   onExit: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [chat.turns]);
 
   return (
     <div className="flex h-[min(26.25rem,72vh)] flex-col">
-      <div
-        ref={scrollRef}
-        className="flex-1 space-y-3 overflow-y-auto px-4 py-3"
-      >
-        {chat.turns.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
-            <Sparkles className="size-5 text-plasma" />
-            <p className="text-sm text-ink-dim">
-              Ask anything, or tell me to do something —<br />
-              <span className="text-ink-faint">
-                “create a task to renew the domain”, “what’s in my pipeline?”
-              </span>
-            </p>
-          </div>
-        )}
-        {chat.turns.map((t, i) => (
-          <div key={i} className={cn("flex", t.role === "user" && "justify-end")}>
-            <div
-              className={cn(
-                "rounded-xl px-3.5 py-2.5 text-sm leading-relaxed",
-                t.role === "user"
-                  ? "max-w-[85%] bg-plasma/12 text-ink"
-                  : "max-w-full overflow-x-auto glass text-ink-dim",
-              )}
-            >
-              {t.toolCalls?.map((c, j) => (
-                <span
-                  key={j}
-                  className="mb-1.5 mr-1.5 inline-flex items-center gap-1.5 rounded-md border border-ion/25 bg-ion/8 px-2 py-0.5 font-mono text-[10px] text-ion"
-                >
-                  <Wrench className="size-3" />
-                  {c.name}
-                </span>
-              ))}
-              {t.content &&
-                (t.role === "assistant" ? (
-                  <div className="[&_p:last-child]:mb-0">
-                    <Markdown>{t.content}</Markdown>
-                  </div>
-                ) : (
-                  <p className="whitespace-pre-wrap">{t.content}</p>
-                ))}
-              {t.role === "assistant" && t.content && !t.pending && (
-                <MessageActions content={t.content} />
-              )}
-              {t.pending && !t.content && (
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="inline-flex gap-1">
-                    {[0, 1, 2].map((d) => (
-                      <span
-                        key={d}
-                        className="size-1.5 animate-pulse-soft rounded-full bg-plasma"
-                        style={{ animationDelay: `${d * 0.25}s` }}
-                      />
-                    ))}
-                  </span>
-                  {t.thinking && (
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
-                      thinking…
-                    </span>
-                  )}
-                </span>
-              )}
-              {t.error && (
-                <p className="font-mono text-xs text-flare">{t.error}</p>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+      <ChatMessages
+        turns={chat.turns}
+        className="px-4 py-3"
+        emptyHint={
+          <>
+            Ask anything, or tell me to do something —<br />
+            <span className="text-ink-faint">
+              “create a task to renew the domain”, “what’s in my pipeline?”
+            </span>
+          </>
+        }
+      />
       <form
         className="flex items-center gap-2 border-t border-white/6 px-4 py-3"
         onSubmit={(e) => {
