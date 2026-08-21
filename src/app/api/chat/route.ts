@@ -49,6 +49,10 @@ export async function POST(req: Request) {
     "ideas.capture",
     "notify.send",
     "viz.chart",
+    "market.quote",
+    "market.history",
+    "market.fairValue",
+    "market.healthScore",
   ]);
   // Local models (Ollama, or MLX via LM Studio) get a lean, high-value subset —
   // fewer tool definitions means far less context burned (the full registry is
