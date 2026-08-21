@@ -135,16 +135,15 @@ export async function executeRun(runId: string): Promise<void> {
     // ledger.* and the memory suite are always available, like in chat.
     // Approval-tier tools are wrapped: unattended runs queue the call for the
     // user instead of executing it.
+    // Isolated agents get ONLY memory.remember (to save their own findings) — no
+    // memory.update/recall, so a focused read-only agent can neither read nor
+    // overwrite the shared working memory. Normal agents get the full suite.
+    const memoryToolNames = agent.isolated
+      ? ["memory.remember"]
+      : ["memory.update", "memory.remember", "memory.recall"];
     const tools = [
-      ...getToolsByNames([
-        ...new Set([
-          ...agent.tools,
-          "memory.update",
-          "memory.remember",
-          "memory.recall",
-        ]),
-      ]).map((t) =>
-        t.risk === "approval" ? wrapWithApproval(t, agent, runId) : t,
+      ...getToolsByNames([...new Set([...agent.tools, ...memoryToolNames])]).map(
+        (t) => (t.risk === "approval" ? wrapWithApproval(t, agent, runId) : t),
       ),
       ...ledgerTools(ledger),
     ];
@@ -155,8 +154,11 @@ export async function executeRun(runId: string): Promise<void> {
     // ranked by relevance to this agent's task. So accumulated wisdom and saved
     // knowledge actually shape the work instead of sitting unused. Bounded
     // (top 5 snippets) and best-effort — never blocks or bloats the run.
+    // Isolated agents skip recall-augmentation entirely — injecting unrelated
+    // memory/knowledge is exactly what misleads a focused single-source agent.
     let recalled = "";
     try {
+      if (agent.isolated) throw new Error("isolated: skip recall");
       const hits = await recallSemantic(`${agent.name}. ${agent.prompt}`.slice(0, 800), {
         // memory + the user's whole durable knowledge: knowledge base, notes,
         // and their Obsidian vault (second brain).

@@ -104,6 +104,9 @@ export interface AgentTemplate {
   defaultSuccessTool?: string;
   /** Tool-loop budget per run; omit for the provider default (see agents.turnBudget). */
   defaultTurnBudget?: number;
+  /** Isolated/focused-domain agent — see agents.isolated. Skips shared-memory
+   *  recall-augmentation and memory.update. For single-source read-only agents. */
+  defaultIsolated?: boolean;
 }
 
 export interface ModuleWidget {
