@@ -1,10 +1,11 @@
 import { GlassPanel } from "@/core/ui/GlassPanel";
 import { isentryConfigured } from "../db";
+import { InvestmentsChat } from "../components/InvestmentsChat";
 
 /**
- * Investments landing. apOS is the INSIGHT/chat layer over iSentry — the actual
- * portfolio (holdings, positions) lives in iSentry, so this page intentionally
- * does NOT re-list it. It points at ⌘K chat and the insight agent.
+ * Investments page — a persistent chat over the portfolio (apOS is the insight/
+ * chat layer; the holdings themselves live in iSentry). The chat has the
+ * portfolio tools + viz.chart, and survives reloads.
  */
 export async function InvestmentsPage() {
   const connected = isentryConfigured();
@@ -18,17 +19,7 @@ export async function InvestmentsPage() {
       </div>
 
       {connected ? (
-        <GlassPanel className="flex flex-col gap-3 px-8 py-10 text-sm text-ink-dim">
-          <p className="text-ink">
-            Your portfolio lives in iSentry — apOS is the insight layer over it.
-          </p>
-          <p>
-            Ask <span className="font-mono text-ink">⌘K</span> about your
-            investments — e.g. “summarize my portfolio”, “what are my biggest
-            positions”, “how am I doing this month”. The Investment-insight agent
-            also writes periodic reads into memory.
-          </p>
-        </GlassPanel>
+        <InvestmentsChat />
       ) : (
         <GlassPanel className="px-8 py-16 text-center">
           <p className="font-mono text-[11px] uppercase tracking-[0.35em] text-flare">
