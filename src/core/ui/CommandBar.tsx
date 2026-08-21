@@ -37,7 +37,9 @@ function deriveTitle(content: string): string {
     .replace(/\*\*/g, "")
     .replace(/[|`>]/g, "")
     .trim();
-  return clean.slice(0, 70) || "apOS chat note";
+  // Degenerate first lines (JSON, quotes, too short) → a neutral title.
+  if (clean.length < 3 || /^[[{"]/.test(clean)) return "apOS chat note";
+  return clean.slice(0, 70);
 }
 
 type ActionState = "idle" | "busy" | "done" | "error";
