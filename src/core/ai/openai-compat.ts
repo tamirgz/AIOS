@@ -39,15 +39,35 @@ export async function* runOpenAICompatible(
   let inputTokens = 0;
   let outputTokens = 0;
 
+  // Runaway-loop guard. Some local models (notably qwen coder variants) re-call
+  // the same read tools over and over instead of answering, which wastes time
+  // and — once the piled-up tool messages hit an MLX/LM Studio limit — throws
+  // "Operation not supported". So: memoize identical calls (return the earlier
+  // result instead of re-executing, with a nudge to stop), and once a call cap
+  // is hit, force a final tool-free turn so the model MUST produce its answer.
+  const toolMemo = new Map<string, unknown>();
+  let totalToolCalls = 0;
+  let nudged = false;
+  const TOOL_CALL_CAP = 10;
+
   try {
     for (let turn = 0; turn < maxTurns; turn++) {
+      const forceAnswer = totalToolCalls >= TOOL_CALL_CAP;
+      if (forceAnswer && !nudged) {
+        messages.push({
+          role: "system",
+          content:
+            "You have gathered enough information. Do NOT call any more tools — write your final answer now using the results already returned.",
+        });
+        nudged = true;
+      }
       // Streaming: yield text as it generates — a big local model can take
       // many seconds per turn, and a silent wait reads as a hang in the UI.
       const stream = await openai.chat.completions.create(
         {
           model: opts.model,
           messages,
-          tools: tools.length ? tools : undefined,
+          tools: !forceAnswer && tools.length ? tools : undefined,
           stream: true,
           stream_options: { include_usage: true },
           ...extraBody,
@@ -111,14 +131,28 @@ export async function* runOpenAICompatible(
       for (const call of calls) {
         const name = fromWireName(call.name);
         const def = opts.tools.find((t) => t.name === name);
+        const sig = `${name}(${call.args || "{}"})`;
+        totalToolCalls++;
         let result: unknown;
         if (!def) {
           result = { error: `unknown tool ${name}` };
+          yield { type: "tool_call", name, input: {} };
+        } else if (toolMemo.has(sig)) {
+          // Identical call already made this run — return the earlier result
+          // (no re-execution) and tell the model to stop and answer.
+          const prior = toolMemo.get(sig);
+          result = {
+            ...(prior && typeof prior === "object" ? prior : { value: prior }),
+            _note:
+              "You already called this tool with these arguments — use this result and do NOT call it again. Write your answer now.",
+          };
+          // no tool_call event: avoid spamming the UI with repeat chips
         } else {
           try {
             const input = def.input.parse(JSON.parse(call.args || "{}"));
             yield { type: "tool_call", name, input };
             result = await def.execute(input, opts.toolCtx);
+            toolMemo.set(sig, result);
           } catch (e) {
             result = { error: String(e) };
           }

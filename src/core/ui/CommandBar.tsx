@@ -1,14 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ComponentType, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import { AnimatePresence, motion } from "motion/react";
 import {
+  BookMarked,
+  Check,
   CornerDownLeft,
+  FileDown,
   Inbox,
   LayoutGrid,
   Sparkles,
+  StickyNote,
   Wrench,
   X,
   Zap,
@@ -17,7 +21,122 @@ import { modules } from "@/modules/registry";
 import { captureToInbox } from "@/modules/inbox/actions";
 import { createTask } from "@/modules/tasks/actions";
 import { createNote } from "@/modules/notes/actions";
+import { saveMarkdownToVault } from "@/modules/obsidian/actions";
+import { Markdown } from "./Markdown";
 import { cn } from "./cn";
+
+/** Title for a saved chat response: first meaningful line, stripped of markdown. */
+function deriveTitle(content: string): string {
+  const first =
+    content
+      .split("\n")
+      .map((l) => l.trim())
+      .find(Boolean) ?? "";
+  const clean = first
+    .replace(/^#+\s*/, "")
+    .replace(/\*\*/g, "")
+    .replace(/[|`>]/g, "")
+    .trim();
+  // Degenerate first lines (JSON, quotes, too short) → a neutral title.
+  if (clean.length < 3 || /^[[{"]/.test(clean)) return "apOS chat note";
+  return clean.slice(0, 70);
+}
+
+type ActionState = "idle" | "busy" | "done" | "error";
+
+/** Save / export controls under an assistant response. */
+function MessageActions({ content }: { content: string }) {
+  const [note, setNote] = useState<ActionState>("idle");
+  const [obs, setObs] = useState<ActionState>("idle");
+  const [pdf, setPdf] = useState<ActionState>("idle");
+  const title = deriveTitle(content);
+
+  const flash = (set: (s: ActionState) => void, ok: boolean) => {
+    set(ok ? "done" : "error");
+    setTimeout(() => set("idle"), 1800);
+  };
+
+  const doNote = async () => {
+    setNote("busy");
+    try {
+      await createNote({ title, body: content });
+      flash(setNote, true);
+    } catch {
+      flash(setNote, false);
+    }
+  };
+  const doObsidian = async () => {
+    setObs("busy");
+    try {
+      const r = await saveMarkdownToVault({ title, body: content });
+      flash(setObs, !!r.ok);
+    } catch {
+      flash(setObs, false);
+    }
+  };
+  const doPdf = async () => {
+    setPdf("busy");
+    try {
+      const res = await fetch("/api/chat/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, content }),
+      });
+      if (!res.ok) throw new Error("pdf failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `aios-${
+        title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 50) || "chat"
+      }.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      flash(setPdf, true);
+    } catch {
+      flash(setPdf, false);
+    }
+  };
+
+  const btn = (
+    label: string,
+    Icon: ComponentType<{ className?: string }>,
+    state: ActionState,
+    onClick: () => void,
+  ) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={state === "busy"}
+      title={`Save as ${label}`}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[10px] uppercase tracking-wider transition disabled:opacity-50",
+        state === "done"
+          ? "text-plasma"
+          : state === "error"
+            ? "text-flare"
+            : "text-ink-faint hover:bg-white/6 hover:text-ink",
+      )}
+    >
+      {state === "done" ? <Check className="size-3" /> : <Icon className="size-3" />}
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="mt-1.5 flex items-center gap-0.5 border-t border-white/5 pt-1.5">
+      {btn("note", StickyNote, note, doNote)}
+      {btn("obsidian", BookMarked, obs, doObsidian)}
+      {btn("pdf", FileDown, pdf, doPdf)}
+    </div>
+  );
+}
 
 /**
  * Deterministic fast path: recognized prefixes skip the LLM entirely and hit
@@ -172,10 +291,10 @@ function ChatView({
           <div key={i} className={cn("flex", t.role === "user" && "justify-end")}>
             <div
               className={cn(
-                "max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed",
+                "rounded-xl px-3.5 py-2.5 text-sm leading-relaxed",
                 t.role === "user"
-                  ? "bg-plasma/12 text-ink"
-                  : "glass text-ink-dim",
+                  ? "max-w-[85%] bg-plasma/12 text-ink"
+                  : "max-w-full overflow-x-auto glass text-ink-dim",
               )}
             >
               {t.toolCalls?.map((c, j) => (
@@ -187,8 +306,16 @@ function ChatView({
                   {c.name}
                 </span>
               ))}
-              {t.content && (
-                <p className="whitespace-pre-wrap">{t.content}</p>
+              {t.content &&
+                (t.role === "assistant" ? (
+                  <div className="[&_p:last-child]:mb-0">
+                    <Markdown>{t.content}</Markdown>
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap">{t.content}</p>
+                ))}
+              {t.role === "assistant" && t.content && !t.pending && (
+                <MessageActions content={t.content} />
               )}
               {t.pending && !t.content && (
                 <span className="inline-flex items-center gap-1.5">
@@ -324,7 +451,10 @@ export function CommandBar() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 480, damping: 38 }}
-            className="glass glass-edge w-full max-w-xl overflow-hidden rounded-2xl"
+            className={cn(
+              "glass glass-edge w-full overflow-hidden rounded-2xl",
+              mode === "chat" ? "max-w-3xl" : "max-w-xl",
+            )}
             onClick={(e) => e.stopPropagation()}
           >
             {mode === "chat" ? (
