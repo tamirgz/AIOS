@@ -51,6 +51,19 @@ export async function POST(req: Request) {
   // Local models (Ollama, or MLX via LM Studio) get a lean, high-value subset —
   // fewer tool definitions means far less context burned (the full registry is
   // ~10k tokens) and better tool selection. Claude handles the full set.
+  // When iSentry is connected, expose the read-only portfolio tools to the lean
+  // local-chat subset too — so you can ask about your portfolio on a local model
+  // (they gate on config, so they're inert/absent otherwise).
+  const { isentryConfigured } = await import("@/modules/investments/db");
+  if (isentryConfigured())
+    for (const n of [
+      "portfolio.summary",
+      "portfolio.positions",
+      "portfolio.performance",
+      "portfolio.transactions",
+      "portfolio.savings",
+    ])
+      LEAN_TOOLS.add(n);
   const isLocal = route.providerId === "ollama" || route.providerId === "mlx";
   const tools = isLocal
     ? getAllTools().filter((t) => LEAN_TOOLS.has(t.name))
