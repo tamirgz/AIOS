@@ -152,7 +152,7 @@ export const investmentTools: AiToolDef[] = [
   {
     name: "viz.chart",
     description:
-      "Create a chart from data and get back a URL + a markdown image embed. Use whenever a visual would communicate better than numbers (portfolio allocation, per-symbol P&L, a value trend, strategy comparison). Include the returned `embed` markdown in your answer to show it inline. type: bar (vertical), hbar (horizontal — best for many/long labels), line (trend over time), pie (part-to-whole).",
+      "Create a chart from data and get back a URL + a markdown image embed. Use whenever a visual communicates better than numbers (allocation, per-symbol P&L, a value trend). Include the returned `embed` markdown in your answer to show it inline. type: bar (vertical), hbar (horizontal — best for many/long labels), line (trend over time), pie (part-to-whole). CRITICAL: `data` MUST be REAL values you obtained from tool results earlier in THIS conversation (e.g. portfolio.byStrategy, portfolio.positions, market.history). NEVER invent placeholder labels like 'Stock A/B/C' or made-up numbers — if you don't have the data yet, call the data tool first.",
     input: z.object({
       type: z.enum(["bar", "hbar", "line", "pie"]),
       title: z.string().min(1),
