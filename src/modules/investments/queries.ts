@@ -90,6 +90,45 @@ export async function portfolioSummary() {
   return row ?? null;
 }
 
+/**
+ * Performance of trades tagged with a strategy label in their NOTES (e.g. "Algo",
+ * "Leopold"). TRANSACTION-LEVEL attribution: counts ONLY the tagged buy/sell rows
+ * — never a symbol's whole P&L (a symbol often has untagged trades too; e.g. MU
+ * has one Algo buy but a large untagged realized gain that is NOT the strategy's).
+ *
+ * Uses the split+FX-adjusted USD amounts (portfolio_transactions_adjusted) so
+ * splits don't distort qty/price. Per symbol returns tagged buy/sell qty+USD and
+ * the current USD price, so the tool can derive realized/unrealized on the tagged
+ * flow only. Caveat surfaced by the tool: if a tagged sell has no tagged buy (or
+ * vice-versa), the counterpart trade was left untagged and that symbol's split is
+ * ambiguous — flagged, not silently guessed.
+ */
+export async function performanceByStrategy(tag: string) {
+  const sql = isentrySql();
+  const like = `%${tag}%`;
+  return sql`
+    with tagged as (
+      select t.symbol, t.transaction_type,
+             coalesce(a.adjusted_quantity, t.quantity) as qty,
+             coalesce(a.adjusted_total_amount_usd,
+                      coalesce(t.total_amount, t.quantity * t.price)
+                        * coalesce(t.exchange_rate, 1)) as amt_usd
+      from portfolio_transactions t
+      join portfolios p on p.id = t.portfolio_id
+      left join portfolio_transactions_adjusted a on a.original_transaction_id = t.id
+      where t.transaction_type in ('buy','sell') and t.notes ilike ${like} ${userScope(sql)}
+    )
+    select g.symbol,
+           coalesce(sum(g.qty)     filter (where g.transaction_type='buy'), 0)  as buy_qty,
+           coalesce(sum(g.amt_usd) filter (where g.transaction_type='buy'), 0)  as buy_cost_usd,
+           coalesce(sum(g.qty)     filter (where g.transaction_type='sell'), 0) as sell_qty,
+           coalesce(sum(g.amt_usd) filter (where g.transaction_type='sell'), 0) as sell_proceeds_usd,
+           (select max(hc.current_price_usd) from portfolio_holdings_computed hc
+             where hc.symbol = g.symbol) as current_price_usd
+    from tagged g
+    group by g.symbol`;
+}
+
 /** Cash / savings + loans (user-scoped, standalone from portfolios). */
 export async function listSavings() {
   const sql = isentrySql();

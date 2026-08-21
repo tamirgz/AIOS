@@ -29,6 +29,7 @@ export const investmentInsightTemplate: AgentTemplate = {
     "portfolio.positions",
     "portfolio.performance",
     "portfolio.transactions",
+    "portfolio.byStrategy",
   ],
   defaultSchedule: null, // manual-only during validation; flip to weekly once proven
   // ISOLATED: a focused, single-source, read-only agent — no shared-memory
