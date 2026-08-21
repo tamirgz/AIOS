@@ -150,6 +150,52 @@ export const investmentTools: AiToolDef[] = [
       })(),
   },
   {
+    name: "viz.chart",
+    description:
+      "Create a chart from data and get back a URL + a markdown image embed. Use whenever a visual would communicate better than numbers (portfolio allocation, per-symbol P&L, a value trend, strategy comparison). Include the returned `embed` markdown in your answer to show it inline. type: bar (vertical), hbar (horizontal — best for many/long labels), line (trend over time), pie (part-to-whole).",
+    input: z.object({
+      type: z.enum(["bar", "hbar", "line", "pie"]),
+      title: z.string().min(1),
+      subtitle: z.string().optional(),
+      unit: z
+        .enum(["number", "currency", "percent"])
+        .default("number")
+        .describe("how to format values/axis labels"),
+      data: z
+        .array(z.object({ label: z.string(), value: z.number() }))
+        .min(1)
+        .max(60)
+        .describe("data points; for line, provide them in time order"),
+    }),
+    risk: "safe",
+    execute: async (input: {
+      type: "bar" | "hbar" | "line" | "pie";
+      title: string;
+      subtitle?: string;
+      unit: "number" | "currency" | "percent";
+      data: { label: string; value: number }[];
+    }) => {
+      try {
+        const { renderChartSvg } = await import("@/core/viz/svgChart");
+        const svg = renderChartSvg(input);
+        const { db } = await import("@/core/db/client");
+        const { charts } = await import("./schema");
+        const [row] = await db
+          .insert(charts)
+          .values({ title: input.title, svg })
+          .returning({ id: charts.id });
+        const url = `/api/charts/${row.id}`;
+        return {
+          url,
+          embed: `![${input.title}](${url})`,
+          note: "Chart created. Put the `embed` markdown in your answer to show it inline.",
+        };
+      } catch (e) {
+        return { error: String(e).slice(0, 180) };
+      }
+    },
+  },
+  {
     name: "portfolio.savings",
     description:
       "Cash and savings accounts (and any loans against them): name, amount, currency, loan amount, monthly payment. Read-only. Complements holdings for a net-worth view.",
