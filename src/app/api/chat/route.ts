@@ -14,6 +14,7 @@ async function systemPrompt() {
     `Installed modules: ${moduleList}.`,
     "Use the available tools to read and change the user's data when asked.",
     "Only call a mutating tool (create, update, delete, send, notify) when the user explicitly asks to change something. For a question, answer from read-only tools — never create, modify, or send anything as a side effect.",
+    "To show a chart or graph, you MUST call the viz.chart tool with the real numbers and put its returned `embed` markdown in your reply. NEVER print chart data as JSON, a code block, or ASCII — that is not a chart.",
     "Be concise: answer in a few sentences. After acting, state plainly what you did.",
     `Current date-time: ${new Date().toISOString()}`,
     "",
@@ -47,6 +48,7 @@ export async function POST(req: Request) {
     "calendar.agenda",
     "ideas.capture",
     "notify.send",
+    "viz.chart",
   ]);
   // Local models (Ollama, or MLX via LM Studio) get a lean, high-value subset —
   // fewer tool definitions means far less context burned (the full registry is

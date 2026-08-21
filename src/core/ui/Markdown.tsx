@@ -89,6 +89,15 @@ const components: Components = {
       {...props}
     />
   ),
+  // Charts and other embedded images (e.g. viz.chart output).
+  img: (props) => (
+    // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+    <img
+      className="my-2 max-w-full rounded-lg border border-white/10 bg-white"
+      loading="lazy"
+      {...props}
+    />
+  ),
 };
 
 export function Markdown({ children }: { children: string }) {
