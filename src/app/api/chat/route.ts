@@ -23,14 +23,22 @@ async function systemPrompt() {
   ].join("\n");
 }
 
+const CHAT_ROUTES = new Set(["chat", "chat.investments"]);
+
 export async function POST(req: Request) {
-  const { messages } = (await req.json()) as { messages: ChatMessage[] };
+  const { messages, route: routeKey } = (await req.json()) as {
+    messages: ChatMessage[];
+    route?: string;
+  };
   if (!messages?.length) {
     return Response.json({ error: "messages required" }, { status: 400 });
   }
 
   await ensureDefaultRoutes();
-  const route = await resolveRoute("chat");
+  // A surface can ask for a dedicated route (e.g. the Investments page uses a
+  // more faithful model); otherwise the default snappy chat.
+  const taskKey = routeKey && CHAT_ROUTES.has(routeKey) ? routeKey : "chat";
+  const route = await resolveRoute(taskKey);
   // Claude handles the full registry well (and the SDK prompt-caches tool
   // definitions). Small local models get a lean, high-value subset — fewer
   // definitions means less context burned and better tool selection.
@@ -94,11 +102,12 @@ export async function POST(req: Request) {
           tools,
           toolCtx: { db },
           model: route.model,
-          // Interactive: keep it snappy. Measured on the local chat model,
-          // reasoning adds latency (up to 6.7×) with no thinking benefit and
-          // occasional spurious tool calls — so force it off regardless of
-          // provider. Agentic memory work (consolidation) keeps reasoning on.
-          reasoning: "none",
+          // Default chat: force reasoning off for snappiness (the coder-instruct
+          // model has no reasoning channel anyway). A dedicated route (e.g.
+          // Investments, on a thinking model like the MLX abliterated) instead
+          // lets the provider apply light reasoning so it grounds its answers/
+          // charts in the real tool data.
+          reasoning: taskKey === "chat" ? "none" : undefined,
           signal: req.signal,
         })) {
           send(event);

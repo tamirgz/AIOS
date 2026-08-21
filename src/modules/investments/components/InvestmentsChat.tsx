@@ -10,7 +10,10 @@ import { ChatMessages, useChat } from "@/core/ui/chat";
  * same /api/chat backend, so it has the portfolio tools + viz.chart.
  */
 export function InvestmentsChat() {
-  const chat = useChat({ storageKey: "aios-investments-chat" });
+  const chat = useChat({
+    storageKey: "aios-investments-chat",
+    route: "chat.investments",
+  });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const submit = (e: React.FormEvent) => {
