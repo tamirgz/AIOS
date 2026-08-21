@@ -61,6 +61,7 @@ export async function POST(req: Request) {
       "portfolio.positions",
       "portfolio.performance",
       "portfolio.transactions",
+      "portfolio.byStrategy",
       "portfolio.savings",
     ])
       LEAN_TOOLS.add(n);

@@ -40,6 +40,7 @@ export async function createAgent(input: {
   fallbackModel?: string | null;
   successTool?: string | null;
   turnBudget?: number | null;
+  isolated?: boolean;
 }) {
   const [row] = await db
     .insert(agents)
@@ -57,6 +58,7 @@ export async function createAgent(input: {
       fallbackModel: input.fallbackModel ?? null,
       successTool: input.successTool ?? null,
       turnBudget: input.turnBudget ?? null,
+      isolated: input.isolated ?? false,
     })
     .returning();
   await notifyChanged(row.id);
@@ -79,6 +81,7 @@ export async function createFromTemplate(templateId: string) {
     fallbackModel: template.defaultFallbackModel ?? null,
     successTool: template.defaultSuccessTool ?? null,
     turnBudget: template.defaultTurnBudget ?? null,
+    isolated: template.defaultIsolated ?? false,
   });
 }
 

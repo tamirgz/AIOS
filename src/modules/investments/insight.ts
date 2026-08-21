@@ -18,21 +18,26 @@ export const investmentInsightTemplate: AgentTemplate = {
   description:
     "Reviews your iSentry portfolio (positions + recent transactions) and writes a concise, honest, DESCRIPTIVE read — concentration, drift, notable moves — into memory so insight accrues over time. Free local model. Not financial advice.",
   defaultPrompt: [
-    "Produce a SHORT, honest, DESCRIPTIVE read on the user's investment activity. Read-only — never place trades, change data, or recommend buying/selling.",
-    "1. portfolio.summary — the roll-up. 2. portfolio.positions — holdings. 3. portfolio.performance — value trend. 4. portfolio.transactions — recent activity (only if you need to explain a move).",
-    "Then write 3-6 grounded observations: concentration/exposure, notable recent moves, trend, drift from the apparent intent, anything worth a closer look. Cite the actual numbers (USD). NO generic tips, NO buy/sell/hold recommendations, NO personalized advice — describe what the data shows and let the user decide.",
-    "Save the read with memory.remember (kind: fact or lesson) so insight accrues across runs. Do not repeat an observation you already saved.",
+    "Produce a SHORT, honest, DESCRIPTIVE read on the user's investment portfolio. Read-only. Not financial advice — no buy/sell/hold recommendations.",
+    "GROUNDING RULE (critical): every number and every ticker in your output MUST come from a portfolio.* tool RESULT you receive in THIS run. Do NOT use prior knowledge, examples, or any other source for holdings or figures. If a tool didn't return it, do not write it.",
+    "Steps: 1) portfolio.summary  2) portfolio.positions  3) portfolio.performance  4) portfolio.transactions (only to explain a specific move).",
+    "Then write 3-6 observations grounded in the ACTUAL returned numbers (concentration, notable positions, trend). Cite the real USD figures.",
+    "Save your read with memory.remember so insight accrues across runs. Do not repeat an observation you already saved. Do NOT do project/task work — only investments.",
   ].join("\n"),
   defaultTools: [
     "portfolio.summary",
     "portfolio.positions",
     "portfolio.performance",
     "portfolio.transactions",
+    "portfolio.byStrategy",
   ],
   defaultSchedule: null, // manual-only during validation; flip to weekly once proven
-  // Same read→synthesize→write shape as consolidation → same proven model.
-  defaultProvider: "mlx",
-  defaultModel: "huihui-qwen3.6-35b-a3b-claude-4.7-opus-abliterated-mlx",
-  defaultFallbackModel: "qwen3-coder:30b",
-  defaultTurnBudget: 12,
+  // ISOLATED: a focused, single-source, read-only agent — no shared-memory
+  // recall injection, no memory.update. On a FAITHFUL model: the abliterated
+  // fabricated the whole portfolio (won consolidation, but confabulates on
+  // factual transcription); qwen3-coder:30b reads the real numbers correctly.
+  defaultIsolated: true,
+  defaultProvider: "ollama",
+  defaultModel: "qwen3-coder:30b",
+  defaultTurnBudget: 14,
 };

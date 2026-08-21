@@ -53,6 +53,14 @@ export const agents = pgTable("agents", {
    * (e.g. digest N projects, edit N files) needs more or it truncates mid-list.
    */
   turnBudget: integer("turn_budget"),
+  /**
+   * Isolated (focused-domain) agent. When true the executor does NOT inject the
+   * shared memory/knowledge recall-augmentation and does NOT auto-add
+   * memory.update — so a single-source read-only agent (e.g. Investment insight)
+   * stays in its lane and can't be misled into, or write over, the shared
+   * working-memory brain. It still gets its own declared tools + memory.remember.
+   */
+  isolated: boolean("isolated").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
