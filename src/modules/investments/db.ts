@@ -34,8 +34,8 @@ export function isentrySql() {
       "iSentry not connected — set ISENTRY_DATABASE_URL to a read-only Supabase connection string.",
     );
   if (!g.__isentrySql) {
-    // small pool; prepare:false for the Supabase pgbouncer pooler.
-    g.__isentrySql = postgres(url, { max: 4, prepare: false });
+    // Supabase REQUIRES SSL. small pool; prepare:false for the pgbouncer pooler.
+    g.__isentrySql = postgres(url, { max: 4, prepare: false, ssl: "require" });
   }
   return g.__isentrySql;
 }
