@@ -4,6 +4,7 @@ import { isentryConfigured } from "./db";
 import {
   listPositions,
   listTransactions,
+  listSavings,
   performanceSnapshots,
   portfolioSummary,
 } from "./queries";
@@ -77,5 +78,17 @@ export const investmentTools: AiToolDef[] = [
     input: z.object({}),
     risk: "safe",
     execute: () => guarded(async () => ({ summary: await portfolioSummary() }))(),
+  },
+  {
+    name: "portfolio.savings",
+    description:
+      "Cash and savings accounts (and any loans against them): name, amount, currency, loan amount, monthly payment. Read-only. Complements holdings for a net-worth view.",
+    input: z.object({}),
+    risk: "safe",
+    execute: () =>
+      guarded(async () => {
+        const rows = await listSavings();
+        return { count: rows.length, accounts: rows };
+      })(),
   },
 ];
