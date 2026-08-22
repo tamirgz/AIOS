@@ -74,6 +74,7 @@ export async function POST(req: Request) {
     for (const n of [
       "portfolio.summary",
       "portfolio.positions",
+      "portfolio.allocation",
       "portfolio.performance",
       "portfolio.transactions",
       "portfolio.byStrategy",
