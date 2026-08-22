@@ -44,6 +44,7 @@ function ChatView({
     <div className="flex h-[min(26.25rem,72vh)] flex-col">
       <ChatMessages
         turns={chat.turns}
+        onDelete={chat.remove}
         className="px-4 py-3"
         emptyHint={
           <>
