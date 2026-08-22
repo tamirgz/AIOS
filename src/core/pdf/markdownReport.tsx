@@ -11,6 +11,7 @@ import {
   StyleSheet,
   renderToBuffer,
 } from "@react-pdf/renderer";
+import { reflowCollapsedTables } from "@/core/ui/reflowTables";
 
 const styles = StyleSheet.create({
   page: {
@@ -93,7 +94,9 @@ type Block =
 /** Parse light markdown into renderable blocks (headings, paragraphs, bullets).
  *  Markdown tables are flattened to bullet rows so they don't break layout. */
 function parseBlocks(body: string): Block[] {
-  const lines = body.replace(/\r/g, "").split("\n");
+  // Repair single-line/collapsed tables first, otherwise the line-by-line
+  // parser below flattens the whole table into one giant bullet.
+  const lines = reflowCollapsedTables(body.replace(/\r/g, "")).split("\n");
   const blocks: Block[] = [];
   let para: string[] = [];
   let bullets: string[] = [];
