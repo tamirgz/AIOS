@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import CodeMirror from "@uiw/react-codemirror";
 import { markdown } from "@codemirror/lang-markdown";
-import ReactMarkdown, { type Components } from "react-markdown";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
+import { Markdown } from "@/core/ui/Markdown";
 import { deleteNote, setNoteProjects, updateNote } from "../actions";
 import type { Note } from "../schema";
 import { ProjectMultiPicker } from "@/modules/projects/components/ProjectMultiPicker";
@@ -19,70 +19,6 @@ const STATUS_STYLE: Record<SaveStatus, string> = {
   saved: "text-plasma",
   saving: "text-solar",
   unsaved: "text-ink-faint",
-};
-
-const mdComponents: Components = {
-  h1: (props) => (
-    <h1
-      className="mt-6 mb-3 font-display text-2xl font-semibold text-ink first:mt-0"
-      {...props}
-    />
-  ),
-  h2: (props) => (
-    <h2
-      className="mt-5 mb-2.5 font-display text-xl font-semibold text-ink first:mt-0"
-      {...props}
-    />
-  ),
-  h3: (props) => (
-    <h3
-      className="mt-4 mb-2 font-display text-base font-medium text-ink first:mt-0"
-      {...props}
-    />
-  ),
-  p: (props) => (
-    <p className="mb-3 text-sm leading-relaxed text-ink-dim" {...props} />
-  ),
-  a: (props) => (
-    <a
-      className="text-plasma underline decoration-plasma/40 underline-offset-2 transition hover:decoration-plasma"
-      target="_blank"
-      rel="noreferrer"
-      {...props}
-    />
-  ),
-  ul: (props) => (
-    <ul
-      className="mb-3 list-disc space-y-1 pl-5 text-sm leading-relaxed text-ink-dim"
-      {...props}
-    />
-  ),
-  ol: (props) => (
-    <ol
-      className="mb-3 list-decimal space-y-1 pl-5 text-sm leading-relaxed text-ink-dim"
-      {...props}
-    />
-  ),
-  code: (props) => (
-    <code
-      className="rounded bg-white/5 px-1 py-0.5 font-mono text-[12px] text-ion"
-      {...props}
-    />
-  ),
-  pre: (props) => (
-    <pre
-      className="mb-3 overflow-x-auto rounded-lg border border-white/6 bg-black/30 p-3 font-mono text-[12px] leading-relaxed [&_code]:bg-transparent [&_code]:p-0"
-      {...props}
-    />
-  ),
-  blockquote: (props) => (
-    <blockquote
-      className="mb-3 border-l-2 border-violet/40 pl-3 text-sm italic text-ink-dim"
-      {...props}
-    />
-  ),
-  hr: (props) => <hr className="my-4 border-white/8" {...props} />,
-  strong: (props) => <strong className="font-semibold text-ink" {...props} />,
 };
 
 export function NoteEditor({
@@ -233,7 +169,7 @@ export function NoteEditor({
             preview
           </p>
           {body.trim() ? (
-            <ReactMarkdown components={mdComponents}>{body}</ReactMarkdown>
+            <Markdown size="note">{body}</Markdown>
           ) : (
             <p className="font-mono text-[10px] uppercase tracking-widest text-ink-faint">
               nothing to preview

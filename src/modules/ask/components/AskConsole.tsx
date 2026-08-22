@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/core/ui/cn";
+import { reflowCollapsedTables } from "@/core/ui/reflowTables";
 import { useDraft } from "@/core/ui/useDraft";
 import {
   ask,
@@ -72,7 +73,7 @@ function CitedAnswer({ text, sources }: { text: string; sources: AskSource[] }) 
   //     but not authoritative enough to cite in a professional answer.
   const lowQuality =
     /\[([^\]]+)\]\((?:https?:)?\/\/(?:www\.)?(?:gartner|forrester|idc|statista|wsj|ft|bloomberg|nytimes|economist|hbr|wikipedia|wikimedia|wiktionary|medium|substack|blogspot|wordpress|quora|reddit|stackoverflow|stackexchange|geeksforgeeks|w3schools|tutorialspoint|javatpoint|baeldung|hackernoon|freecodecamp|simplilearn|guru99|educative|programiz|towardsdatascience)\.[a-z.]+[^)\s]*\)/gi;
-  const cleaned = text.replace(lowQuality, "$1");
+  const cleaned = reflowCollapsedTables(text.replace(lowQuality, "$1"));
   const withCitations = cleaned.replace(/\[(\d+)\](?!\()/g, (whole, n) =>
     byN.has(Number(n)) ? `[${n}](cite:${n})` : whole,
   );

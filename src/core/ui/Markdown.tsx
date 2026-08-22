@@ -3,6 +3,7 @@
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ChartEmbed, SafeImg } from "./ChartEmbed";
+import { reflowCollapsedTables } from "./reflowTables";
 
 /** Shared apOS-styled markdown renderer (reports, insights, agent output). */
 const components: Components = {
@@ -98,58 +99,49 @@ const components: Components = {
   },
 };
 
+// A larger-heading variant for full-page reading views (the note view), sharing
+// every other element — tables, lists, charts, code — with the chat renderer.
+const noteComponents: Components = {
+  ...components,
+  h1: (props) => (
+    <h1
+      className="mt-6 mb-3 font-display text-2xl font-semibold text-ink first:mt-0"
+      {...props}
+    />
+  ),
+  h2: (props) => (
+    <h2
+      className="mt-5 mb-2.5 font-display text-xl font-semibold text-ink first:mt-0"
+      {...props}
+    />
+  ),
+  h3: (props) => (
+    <h3
+      className="mt-4 mb-2 font-display text-base font-medium text-ink first:mt-0"
+      {...props}
+    />
+  ),
+};
+
 /**
- * Local models sometimes emit a GFM table collapsed onto ONE line
- * (`| a | b | |---|---| | 1 | 2 |`), sometimes with a corrupted delimiter cell
- * (`---}`), so remark-gfm can't parse it and it renders as a wall of pipes.
- * Reflow any such line into a proper multi-line table so it renders as a table.
- * Well-formed tables (delimiter already on its own line) are left untouched, and
- * the transform is idempotent — safe to run on every render, including on
- * already-saved reports.
+ * Shared apOS markdown renderer — the single source of truth for how the app
+ * displays model/report markdown (GFM tables, charts, collapsed-table repair).
+ * Use this everywhere markdown is shown so fixes land in one place. `size="note"`
+ * switches to the larger reading typography of a full-page note.
  */
-function reflowCollapsedTables(md: string): string {
-  return md.split("\n").map(reflowLine).join("\n");
-}
-
-function reflowLine(line: string): string {
-  const trimmed = line.trim();
-  if (!trimmed.startsWith("|")) return line;
-  const cells = trimmed.split("|").map((c) => c.trim());
-  // A delimiter cell is dashes with optional colons, tolerating a trailing typo
-  // char the model occasionally appends (e.g. `---}`).
-  const isDelim = (c: string) => /^:?-{2,}:?[)}\]]?$/.test(c);
-  const idxs = cells.map((c, i) => (isDelim(c) ? i : -1)).filter((i) => i >= 0);
-  if (idxs.length < 2) return line;
-  const firstDelim = idxs[0];
-  const lastDelim = idxs[idxs.length - 1];
-  // Header = content cells before the delimiter run. Empty ⇒ the delimiter is
-  // already the line's own row (a well-formed table) → leave it alone.
-  const header = cells.slice(0, firstDelim).filter((c) => c !== "");
-  if (header.length === 0) return line;
-  // Body cells after the delimiter run, split into rows on the empty cells that
-  // mark row boundaries in the collapsed form.
-  const rows: string[][] = [];
-  let cur: string[] = [];
-  for (const c of cells.slice(lastDelim + 1)) {
-    if (c === "") {
-      if (cur.length) {
-        rows.push(cur);
-        cur = [];
-      }
-    } else cur.push(c);
-  }
-  if (cur.length) rows.push(cur);
-  return [
-    `| ${header.join(" | ")} |`,
-    `| ${Array(header.length).fill("---").join(" | ")} |`,
-    ...rows.map((r) => `| ${r.join(" | ")} |`),
-  ].join("\n");
-}
-
-export function Markdown({ children }: { children: string }) {
+export function Markdown({
+  children,
+  size = "chat",
+}: {
+  children: string;
+  size?: "chat" | "note";
+}) {
   return (
     <div dir="auto">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={size === "note" ? noteComponents : components}
+      >
         {reflowCollapsedTables(children)}
       </ReactMarkdown>
     </div>
