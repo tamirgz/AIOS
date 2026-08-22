@@ -1,6 +1,7 @@
 import { GlassPanel } from "@/core/ui/GlassPanel";
 import { isentryConfigured } from "../db";
 import { InvestmentsChat } from "../components/InvestmentsChat";
+import { ReportButton } from "../components/ReportButton";
 
 /**
  * Investments page — a persistent chat over the portfolio (apOS is the insight/
@@ -11,11 +12,14 @@ export async function InvestmentsPage() {
   const connected = isentryConfigured();
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-baseline justify-between">
+      <div className="flex items-center justify-between">
         <h1 className="text-lg text-ink">Investments</h1>
-        <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-ink-faint">
-          {connected ? "connected to iSentry" : "not connected"}
-        </span>
+        <div className="flex items-center gap-3">
+          {connected && <ReportButton />}
+          <span className="font-mono text-[11px] uppercase tracking-[0.25em] text-ink-faint">
+            {connected ? "connected to iSentry" : "not connected"}
+          </span>
+        </div>
       </div>
 
       {connected ? (
