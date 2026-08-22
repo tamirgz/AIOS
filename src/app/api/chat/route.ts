@@ -126,6 +126,19 @@ export async function POST(req: Request) {
         ? analyzeRequest(String(messages[messages.length - 1]?.content ?? ""))
         : { wantsChart: false, strategyTag: null };
 
+      // For a strategy analysis, remove the tools that lead the model astray
+      // (raw transactions / full positions) so it can only ground in byStrategy,
+      // and steer it up front.
+      const activeTools =
+        verify && want.strategyTag
+          ? tools.filter((t) =>
+              ["portfolio.byStrategy", "portfolio.summary", "viz.chart"].includes(t.name),
+            )
+          : tools;
+      const strategyDirective = want.strategyTag
+        ? `This is an analysis of ONLY the '${want.strategyTag}' strategy. Call portfolio.byStrategy('${want.strategyTag}') and base your ENTIRE report strictly on ITS result (per-symbol realized/unrealized P&L, invested, return %). Do NOT analyze raw transactions or the full portfolio, and do not output citation markers like #ref.`
+        : undefined;
+
       // Captured tool results, so the backend can build a chart from them if the
       // model fails to (some local models emit the viz.chart call as TEXT).
       const results: {
@@ -144,7 +157,7 @@ export async function POST(req: Request) {
           for await (const event of route.provider.run({
             system: directive ? `${baseSystem}\n\n${directive}` : baseSystem,
             messages,
-            tools,
+            tools: activeTools,
             toolCtx: { db },
             model: route.model,
             reasoning,
@@ -180,7 +193,7 @@ export async function POST(req: Request) {
       };
 
       try {
-        let { calls, text, err } = await runOnce();
+        let { calls, text, err } = await runOnce(strategyDirective);
 
         if (verify && !err) {
           // 1) The analysis must be scoped to the strategy — force byStrategy.
@@ -202,6 +215,7 @@ export async function POST(req: Request) {
           text = text
             .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, "")
             .replace(/<function=[\s\S]*?<\/function>/gi, "")
+            .replace(/#ref/g, "")
             .trim();
 
           // 3) Deterministic chart backstop: a chart was asked for but none was
