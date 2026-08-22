@@ -126,17 +126,20 @@ export async function POST(req: Request) {
         ? analyzeRequest(String(messages[messages.length - 1]?.content ?? ""))
         : { wantsChart: false, strategyTag: null };
 
-      // For a strategy analysis, remove the tools that lead the model astray
-      // (raw transactions / full positions) so it can only ground in byStrategy,
-      // and steer it up front.
+      // For a strategy analysis, restrict the toolset so the model can only
+      // ground in byStrategy (dropping raw transactions / full positions). We
+      // also WITHHOLD viz.chart here: given the chart tool, some local models
+      // "satisfy" the request by producing only a chart and skip the written
+      // report. So the model's one job is the prose; the chart is built
+      // deterministically from the byStrategy data below (the backstop).
       const activeTools =
         verify && want.strategyTag
           ? tools.filter((t) =>
-              ["portfolio.byStrategy", "portfolio.summary", "viz.chart"].includes(t.name),
+              ["portfolio.byStrategy", "portfolio.summary"].includes(t.name),
             )
           : tools;
       const strategyDirective = want.strategyTag
-        ? `This is an analysis of ONLY the '${want.strategyTag}' strategy. Call portfolio.byStrategy('${want.strategyTag}') and base your ENTIRE report strictly on ITS result (per-symbol realized/unrealized P&L, invested, return %). Do NOT analyze raw transactions or the full portfolio, and do not output citation markers like #ref.`
+        ? `This is an analysis of ONLY the '${want.strategyTag}' strategy. Call portfolio.byStrategy('${want.strategyTag}') and write a THOROUGH, STRUCTURED written report based strictly on ITS result: use markdown headings (## Summary, ## Per-symbol performance, ## Insights), lead with the key numbers (invested, realized/unrealized P&L, total P&L, return %), and call out the winners, the losers, and any flagged (caveat) symbols. Do NOT analyze raw transactions or the full portfolio. Do NOT draw a chart or emit any chart/tool/JSON syntax — the app attaches the P&L chart automatically. Do not output citation markers like #ref.`
         : undefined;
 
       // Captured tool results, so the backend can build a chart from them if the
@@ -212,11 +215,28 @@ export async function POST(req: Request) {
           }
 
           // 2) Strip any text-emitted tool-call garbage the model printed.
-          text = text
-            .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, "")
-            .replace(/<function=[\s\S]*?<\/function>/gi, "")
-            .replace(/#ref/g, "")
-            .trim();
+          const strip = (s: string) =>
+            s
+              .replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, "")
+              .replace(/<function=[\s\S]*?<\/function>/gi, "")
+              .replace(/#ref/g, "")
+              .trim();
+          text = strip(text);
+
+          // 2b) Report completeness: the written analysis is the model's job
+          // here (the chart is added below). If it came back near-empty — e.g.
+          // it only emitted a chart call, or a one-liner — retry once demanding
+          // the full report. Measure prose with any image/chart embeds removed.
+          const proseLen = text
+            .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+            .replace(/\s+/g, " ")
+            .trim().length;
+          if (want.strategyTag && proseLen < 120) {
+            const retry = await runOnce(
+              `Your previous answer was too short. Using portfolio.byStrategy('${want.strategyTag}'), write the FULL structured analysis now: ## Summary (invested, realized/unrealized P&L, return %), ## Per-symbol performance (winners and losers), ## Insights, and note any flagged symbols. Write prose only — do NOT emit any chart or tool syntax; the chart is attached separately.`,
+            );
+            if (!retry.err && strip(retry.text)) text = strip(retry.text);
+          }
 
           // 3) Deterministic chart backstop: a chart was asked for but none was
           // really produced (the model may text-emit the call) → build it from
