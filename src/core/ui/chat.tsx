@@ -13,6 +13,7 @@ import {
   FileDown,
   Sparkles,
   StickyNote,
+  Trash2,
   Wrench,
 } from "lucide-react";
 import { createNote } from "@/modules/notes/actions";
@@ -162,7 +163,21 @@ export function useChat(opts?: { storageKey?: string; route?: string }) {
     }
   }, [key]);
 
-  return { turns, busy, meta, send, reset };
+  // Delete one exchange: the turn at `index` plus, if it's a user prompt, its
+  // assistant reply. The persistence effect saves the pruned history.
+  const remove = useCallback((index: number) => {
+    setTurns((prev) => {
+      const next = [...prev];
+      const count =
+        next[index]?.role === "user" && next[index + 1]?.role === "assistant"
+          ? 2
+          : 1;
+      next.splice(index, count);
+      return next;
+    });
+  }, []);
+
+  return { turns, busy, meta, send, reset, remove };
 }
 
 /** Title for a saved response: first meaningful line, stripped of markdown. */
@@ -282,10 +297,13 @@ export function ChatMessages({
   turns,
   emptyHint,
   className,
+  onDelete,
 }: {
   turns: ChatTurn[];
   emptyHint?: React.ReactNode;
   className?: string;
+  /** Delete the exchange at this turn index (prompt + its reply). */
+  onDelete?: (index: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -303,7 +321,24 @@ export function ChatMessages({
         </div>
       )}
       {turns.map((t, i) => (
-        <div key={i} className={cn("flex", t.role === "user" && "justify-end")}>
+        <div
+          key={i}
+          className={cn(
+            "group flex items-start gap-1.5",
+            t.role === "user" && "justify-end",
+          )}
+        >
+          {t.role === "user" && onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(i)}
+              title="Delete this prompt"
+              aria-label="Delete this prompt"
+              className="mt-1.5 shrink-0 rounded p-1 text-ink-faint opacity-0 transition hover:text-flare focus:opacity-100 group-hover:opacity-100"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          )}
           <div
             className={cn(
               "rounded-xl px-3.5 py-2.5 text-sm leading-relaxed",

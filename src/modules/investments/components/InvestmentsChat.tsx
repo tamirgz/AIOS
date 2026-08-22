@@ -28,6 +28,7 @@ export function InvestmentsChat() {
     <div className="glass flex h-[calc(100vh-13rem)] min-h-[440px] flex-col rounded-2xl">
       <ChatMessages
         turns={chat.turns}
+        onDelete={chat.remove}
         className="px-5 py-4"
         emptyHint={
           <>
