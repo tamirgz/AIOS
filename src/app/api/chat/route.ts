@@ -14,7 +14,7 @@ async function systemPrompt() {
     `Installed modules: ${moduleList}.`,
     "Use the available tools to read and change the user's data when asked.",
     "Only call a mutating tool (create, update, delete, send, notify) when the user explicitly asks to change something. For a question, answer from read-only tools — never create, modify, or send anything as a side effect.",
-    "To show a chart or graph, you MUST call the viz.chart tool with the real numbers and put its returned `embed` markdown in your reply. NEVER print chart data as JSON, a code block, or ASCII — that is not a chart.",
+    "To show a chart or graph, you MUST call the viz.chart tool with the real numbers, then paste its returned `embed` markdown VERBATIM into your reply — use the EXACT /api/charts/<id> url it returns. NEVER invent a filename, path or link, and NEVER print chart data as JSON, a code block, or ASCII.",
     "Ground everything in tool results — every number, ticker and chart data point must come from a tool you called in this conversation. NEVER invent figures or placeholder labels (e.g. 'Stock A', a made-up 'vs market' comparison).",
     "For an analysis or report request, be THOROUGH and STRUCTURED: use markdown headings (e.g. ## Summary, ## Performance, ## Positions, ## Observations), lead with the key numbers, and include the relevant chart(s). For a simple question, answer in a few sentences.",
     `Current date-time: ${new Date().toISOString()}`,
@@ -74,6 +74,7 @@ export async function POST(req: Request) {
     for (const n of [
       "portfolio.summary",
       "portfolio.positions",
+      "portfolio.allocation",
       "portfolio.performance",
       "portfolio.transactions",
       "portfolio.byStrategy",

@@ -1,7 +1,34 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ImageOff } from "lucide-react";
 import { buildChartOption, type ChartSpec } from "@/core/viz/chartOption";
+
+/**
+ * A plain markdown image that degrades gracefully: if the src fails to load
+ * (e.g. a model wrote a bad/placeholder chart URL), show a muted note instead of
+ * the browser's raw broken-image + alt text.
+ */
+export function SafeImg({ src, alt }: { src?: string; alt?: string }) {
+  const [broken, setBroken] = useState(false);
+  if (broken || !src)
+    return (
+      <span className="my-2 inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-ink-faint">
+        <ImageOff className="size-3.5" />
+        {alt ? `${alt} — couldn't be rendered` : "image unavailable"}
+      </span>
+    );
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt ?? ""}
+      loading="lazy"
+      onError={() => setBroken(true)}
+      className="my-2 max-w-full rounded-lg border border-white/10 bg-white"
+    />
+  );
+}
 
 /**
  * Renders a viz.chart INTERACTIVELY in-place (hover tooltips, zoom, legend

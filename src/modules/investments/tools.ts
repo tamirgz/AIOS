@@ -81,6 +81,33 @@ export const investmentTools: AiToolDef[] = [
     execute: () => guarded(async () => ({ summary: await portfolioSummary() }))(),
   },
   {
+    name: "portfolio.allocation",
+    description:
+      "Portfolio allocation READY TO CHART — your holdings aggregated by symbol into the top N by market value plus an 'Other' bucket (USD). Use THIS (not portfolio.positions) when charting or discussing allocation, and pass its `slices` straight to viz.chart type 'donut'. Prevents mis-picking from a long positions list. Read-only.",
+    input: z.object({
+      top: z.number().int().min(3).max(20).default(8).describe("how many named slices before 'Other'"),
+    }),
+    risk: "safe",
+    execute: (input: { top: number }) =>
+      guarded(async () => {
+        const rows = (await listPositions(1000)) as Record<string, unknown>[];
+        // aggregate by symbol across portfolios
+        const bySym = new Map<string, number>();
+        for (const r of rows) {
+          const sym = String(r.symbol ?? "");
+          bySym.set(sym, (bySym.get(sym) ?? 0) + (Number(r.market_value_usd) || 0));
+        }
+        const sorted = [...bySym.entries()]
+          .map(([label, value]) => ({ label, value: +value.toFixed(2) }))
+          .sort((a, b) => b.value - a.value);
+        const top = sorted.slice(0, input.top);
+        const otherVal = sorted.slice(input.top).reduce((a, s) => a + s.value, 0);
+        const slices = otherVal > 0.01 ? [...top, { label: "Other", value: +otherVal.toFixed(2) }] : top;
+        const total = sorted.reduce((a, s) => a + s.value, 0);
+        return { total_market_value_usd: +total.toFixed(2), holdings: sorted.length, slices };
+      })(),
+  },
+  {
     name: "portfolio.byStrategy",
     description:
       "Measure the performance of trades tagged with a strategy label in their transaction notes (e.g. 'Algo', 'Leopold'). Attributes ONLY the tagged buys/sells (not a symbol's whole P&L), split-adjusted. Returns per-symbol invested/realized/open-value/unrealized in USD plus totals and a return %. Symbols flagged with a `caveat` had a tagged sell with no tagged buy (or oversold), so their cost basis is incomplete. Read-only.",
