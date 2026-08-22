@@ -13,14 +13,31 @@ export const nativeAdapter: Adapter = {
 
   async run(ctx: AdapterContext, emit): Promise<AdapterResult> {
     const route = await resolveRoute("workbench.native");
-    const provider = ctx.model
-      ? // An explicit model on the attempt still has to pick a provider:
-        // Claude model ids are the anthropic ones, everything else is Ollama.
-        ctx.model.startsWith("claude")
-        ? providers.anthropic
-        : providers.ollama
-      : route.provider;
-    const model = ctx.model ?? route.model;
+    // The engine may hand us a NAMESPACED model id (workbench convention:
+    // "ollama/…", "mlx/…", "nvidia/…"). Strip the namespace and use it to pick
+    // the apOS provider; a bare name is Ollama unless it's a known MLX model.
+    const resolve = async (raw: string) => {
+      const slash = raw.indexOf("/");
+      const ns = slash > 0 ? raw.slice(0, slash) : "";
+      const bare = slash > 0 ? raw.slice(slash + 1) : raw;
+      if (ns === "ollama") return { provider: providers.ollama, model: bare };
+      if (ns === "mlx") return { provider: providers.mlx, model: bare };
+      if (ns === "nvidia") return { provider: providers.nvidia, model: bare };
+      if (ns === "anthropic" || raw.startsWith("claude"))
+        return { provider: providers.anthropic, model: bare };
+      const { getSetting } = await import("@/core/app-settings");
+      const mlx = ((await getSetting("mlx_models").catch(() => null))?.trim() ?? "")
+        .split(/[\n,]+/)
+        .map((s) => s.trim());
+      if (mlx.includes(raw) || /abliterated|-mlx\b/i.test(raw))
+        return { provider: providers.mlx, model: raw };
+      return { provider: providers.ollama, model: raw };
+    };
+    const resolved = ctx.model
+      ? await resolve(ctx.model)
+      : { provider: route.provider, model: route.model };
+    const provider = resolved.provider;
+    const model = resolved.model;
 
     await emit({
       type: "status",

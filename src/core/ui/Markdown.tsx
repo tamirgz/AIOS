@@ -2,6 +2,7 @@
 
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { ChartEmbed } from "./ChartEmbed";
 
 /** Shared apOS-styled markdown renderer (reports, insights, agent output). */
 const components: Components = {
@@ -89,15 +90,19 @@ const components: Components = {
       {...props}
     />
   ),
-  // Charts and other embedded images (e.g. viz.chart output).
-  img: (props) => (
-    // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
-    <img
-      className="my-2 max-w-full rounded-lg border border-white/10 bg-white"
-      loading="lazy"
-      {...props}
-    />
-  ),
+  // Charts (viz.chart) render INTERACTIVELY; other images as a plain <img>.
+  img: (props) => {
+    const src = String(props.src ?? "");
+    if (/^\/api\/charts\/[0-9a-f-]+$/i.test(src)) return <ChartEmbed src={src} />;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+      <img
+        className="my-2 max-w-full rounded-lg border border-white/10 bg-white"
+        loading="lazy"
+        {...props}
+      />
+    );
+  },
 };
 
 export function Markdown({ children }: { children: string }) {

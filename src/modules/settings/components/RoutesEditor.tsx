@@ -10,6 +10,7 @@ import { saveRoute } from "../actions";
 
 const KEY_LABELS: Record<string, string> = {
   chat: "⌘K chat & commands",
+  "chat.investments": "Investments page chat (needs faithful tool-data threading)",
   "agent.default": "Agents (default, no per-agent override)",
   "knowledge.enrich": "Knowledge enrichment",
   "inbox.triage": "Inbox triage",

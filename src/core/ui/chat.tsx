@@ -44,8 +44,9 @@ export interface ChatTurn {
  * Investments panel. Pass a `storageKey` to persist the conversation across
  * reloads (localStorage); omit it for an ephemeral session.
  */
-export function useChat(opts?: { storageKey?: string }) {
+export function useChat(opts?: { storageKey?: string; route?: string }) {
   const key = opts?.storageKey;
+  const routeKey = opts?.route;
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [busy, setBusy] = useState(false);
   const [meta, setMeta] = useState<{ provider: string; model: string } | null>(
@@ -96,7 +97,7 @@ export function useChat(opts?: { storageKey?: string }) {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: nextMessages }),
+          body: JSON.stringify({ messages: nextMessages, route: routeKey }),
         });
         if (!res.ok || !res.body) throw new Error(`chat → ${res.status}`);
         const reader = res.body.getReader();

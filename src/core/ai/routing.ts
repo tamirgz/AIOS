@@ -60,6 +60,11 @@ const LIGHT: { provider: AIProviderId; model: string } = CLOUD_BRAIN
 
 const DEFAULTS: { taskKey: string; provider: AIProviderId; model: string }[] = [
   { taskKey: "chat", ...CAPABLE },
+  // Investments-page chat: needs a model that faithfully threads tool data into
+  // its charts/analysis (the fast coder-instruct fabricates). Seeded to the
+  // capable local default; editable in Settings (this user runs it on the MLX
+  // abliterated with light reasoning).
+  { taskKey: "chat.investments", ...CAPABLE },
   { taskKey: "agent.default", ...CAPABLE },
   { taskKey: "knowledge.enrich", ...CAPABLE },
   { taskKey: "inbox.triage", ...LIGHT },

@@ -24,6 +24,7 @@
     "croner": "^10.0.1",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "echarts": "^6.1.0",
     "lucide-react": "^1.25.0",
     "mammoth": "^1.12.0",
     "motion": "^12.42.2",
