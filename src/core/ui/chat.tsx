@@ -292,6 +292,23 @@ function MessageActions({ content }: { content: string }) {
   );
 }
 
+/**
+ * The chips log every tool the model invoked, so a tool called N times would
+ * render N identical chips. Collapse them to one chip per tool (first-seen
+ * order) with a ×N count when it repeated.
+ */
+function collapseToolCalls(
+  calls: { name: string }[] | undefined,
+): { name: string; count: number }[] {
+  const order: string[] = [];
+  const counts = new Map<string, number>();
+  for (const c of calls ?? []) {
+    if (!counts.has(c.name)) order.push(c.name);
+    counts.set(c.name, (counts.get(c.name) ?? 0) + 1);
+  }
+  return order.map((name) => ({ name, count: counts.get(name)! }));
+}
+
 /** The scrollable message list (turns → bubbles). Auto-scrolls on new turns. */
 export function ChatMessages({
   turns,
@@ -347,13 +364,14 @@ export function ChatMessages({
                 : "max-w-full overflow-x-auto glass text-ink-dim",
             )}
           >
-            {t.toolCalls?.map((c, j) => (
+            {collapseToolCalls(t.toolCalls).map((c) => (
               <span
-                key={j}
+                key={c.name}
                 className="mb-1.5 mr-1.5 inline-flex items-center gap-1.5 rounded-md border border-ion/25 bg-ion/8 px-2 py-0.5 font-mono text-[10px] text-ion"
               >
                 <Wrench className="size-3" />
                 {c.name}
+                {c.count > 1 && <span className="text-ion/60">×{c.count}</span>}
               </span>
             ))}
             {t.content &&
